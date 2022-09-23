@@ -37,13 +37,17 @@ all: android osx ios
 .PHONY: cmake-rpi
 .PHONY: cmake-linux
 
+# Default build type is Release
+BUILD_TYPE ?= Release
+
 ANDROID_BUILD_DIR = platforms/android/tangram/build
 OSX_BUILD_DIR = build/osx
 OSX_XCODE_BUILD_DIR = build/xcode
 IOS_BUILD_DIR = build/ios
 IOS_DOCS_BUILD_DIR = build/ios-docs
 RPI_BUILD_DIR = build/rpi
-LINUX_BUILD_DIR = build/linux
+#LINUX_BUILD_DIR = build/linux
+LINUX_BUILD_DIR = build/${BUILD_TYPE}
 TESTS_BUILD_DIR = build/tests
 BENCH_BUILD_DIR = build/bench
 TIZEN_ARM_BUILD_DIR = build/tizen-arm
@@ -54,9 +58,6 @@ ifeq (, $(shell which xcpretty))
 else
 	XCPRETTY = | xcpretty && exit $${PIPESTATUS[0]}
 endif
-
-# Default build type is Release
-BUILD_TYPE ?= Release
 
 IOS_SIM_ARCH ?= $(shell uname -m)
 
@@ -254,7 +255,7 @@ cmake-rpi:
 	cmake -H. -B${RPI_BUILD_DIR} ${RPI_CMAKE_PARAMS}
 
 linux: cmake-linux
-	cmake --build ${LINUX_BUILD_DIR}
+	cmake --build ${LINUX_BUILD_DIR} ${CMAKE_BUILD_OPTIONS}
 
 cmake-linux:
 	cmake -H. -B${LINUX_BUILD_DIR} ${LINUX_CMAKE_PARAMS}

@@ -4,6 +4,9 @@
 #include "imgui_impl_opengl3.h"
 #include "imgui_stl.h"
 
+#include "rapidxml.hpp"
+#include "rapidxml_utils.hpp"
+
 #ifdef TANGRAM_WINDOWS
 #define GLFW_INCLUDE_NONE
 #include <glad/glad.h>
@@ -33,6 +36,7 @@ void dropCallback(GLFWwindow* window, int count, const char** paths);
 void framebufferResizeCallback(GLFWwindow* window, int fWidth, int fHeight);
 
 // Forward-declare GUI functions.
+void showPickLabelGUI();
 void showDebugFlagsGUI();
 void showViewportGUI();
 void showSceneGUI();
@@ -65,7 +69,7 @@ Tangram::Map* map = nullptr;
 int width = 800;
 int height = 600;
 float density = 1.0;
-float pixel_scale = 1.0;
+float pixel_scale = 2.0;
 bool recreate_context = false;
 
 bool was_panning = false;
@@ -83,6 +87,10 @@ bool load_async = true;
 bool add_point_marker_on_click = false;
 bool add_polyline_marker_on_click = false;
 bool point_markers_position_clipped = false;
+
+std::string pickLabelStr;
+std::string gpxFile;
+std::vector<MarkerID> activeMarkers;
 
 struct PointMarker {
     MarkerID markerId;
@@ -240,6 +248,7 @@ void create(std::unique_ptr<Platform> p, int w, int h) {
 
     // Setup style
     ImGui::StyleColorsDark();
+    ImGui::GetIO().FontGlobalScale = 2.0f;
 
 }
 
@@ -263,6 +272,7 @@ void run() {
             showViewportGUI();
             showMarkerGUI();
             showDebugFlagsGUI();
+            showPickLabelGUI();
         }
         double currentTime = glfwGetTime();
         double delta = currentTime - lastTime;
@@ -391,6 +401,7 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
         logMsg("Remapped: %f, %f\n", xx, yy);
 
         map->pickLabelAt(x, y, [&](const LabelPickResult* result) {
+            pickLabelStr.clear();
             if (result == nullptr) {
                 logMsg("Pick Label result is null.\n");
                 return;
@@ -402,7 +413,10 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
             map->markerSetPoint(pickResultMarker, result->coordinates);
             logMsg("Pick label result:\n");
             for (const auto& item : result->touchItem.properties->items()) {
-                logMsg("  %s = %s\n", item.key.c_str(), Properties::asString(item.value).c_str());
+                std::string l = "  " + item.key + " = " + Properties::asString(item.value) + "\n";
+                //logMsg("  %s = %s\n", item.key.c_str(), Properties::asString(item.value).c_str());
+                logMsg(l.c_str());
+                pickLabelStr += l;
             }
         });
 
@@ -533,7 +547,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
                 } else {
                     pixel_scale = 1.0;
                 }
-                map->setPixelScale(pixel_scale);
+                map->setPixelScale(pixel_scale*density);
                 break;
             case GLFW_KEY_P:
                 loadSceneFile(false, {SceneUpdate{"cameras", "{ main_camera: { type: perspective } }"}});
@@ -638,8 +652,38 @@ void framebufferResizeCallback(GLFWwindow* window, int fWidth, int fHeight) {
         recreate_context = true;
         density = new_density;
     }
-    map->setPixelScale(density);
+    map->setPixelScale(pixel_scale*density);
     map->resize(fWidth, fHeight);
+}
+
+void addGPXPolyline(const char* gpxfile)
+{
+  using namespace rapidxml;
+  std::vector<Tangram::LngLat> track;
+  file<> xmlFile(gpxfile); // Default template is char
+  xml_document<> doc;
+  doc.parse<0>(xmlFile.data());
+  xml_node<>* trk = doc.first_node("gpx")->first_node("trk");
+  while(trk) {
+    xml_node<>* trkseg = trk->first_node("trkseg");
+    while(trkseg) {
+      xml_node<>* trkpt = trkseg->first_node("trkpt");
+      while(trkpt) {
+        xml_attribute<>* lat = trkpt->first_attribute("lat");
+        xml_attribute<>* lon = trkpt->first_attribute("lon");
+        track.emplace_back(atof(lon->value()), atof(lat->value()));
+        trkpt = trkpt->next_sibling("trkpt");
+      }
+      trkseg = trkseg->next_sibling("trkseg");
+    }
+    trk = trk->next_sibling("trk");
+  }
+  if(!track.empty()) {
+    MarkerID marker = map->markerAdd();
+    map->markerSetStylingFromString(marker, polylineStyle.c_str());
+    map->markerSetPolyline(marker, track.data(), track.size());
+    activeMarkers.push_back(marker);
+  }
 }
 
 void showSceneGUI() {
@@ -705,6 +749,22 @@ void showMarkerGUI() {
                 float screenClippedFloat[2] = {static_cast<float>(screenClipped[0]), static_cast<float>(screenClipped[1])};
                 ImGui::InputFloat2("Last Marker Clipped", screenClippedFloat, 5, ImGuiInputTextFlags_ReadOnly);
             }
+        }
+
+        ImGui::InputText("GPX File", &gpxFile);
+        if (ImGui::Button("Add")) {
+          addGPXPolyline(gpxFile.c_str());
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Replace")) {
+          for (auto marker : activeMarkers)
+            map->markerRemove(marker);
+          addGPXPolyline(gpxFile.c_str());
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Clear All")) {
+          for (auto marker : activeMarkers)
+            map->markerRemove(marker);
         }
     }
 }
@@ -772,6 +832,12 @@ void showDebugFlagsGUI() {
             setDebugFlag(DebugFlags::selection_buffer, flag);
         }
         ImGui::Checkbox("Wireframe Mode", &wireframe_mode);
+    }
+}
+
+void showPickLabelGUI() {
+    if (ImGui::CollapsingHeader("Picked Object", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::TextUnformatted(pickLabelStr.c_str());
     }
 }
 
