@@ -4,6 +4,7 @@
 #include "imgui_impl_opengl3.h"
 #include "imgui_stl.h"
 
+#include "math.h"
 #include "rapidxml.hpp"
 #include "rapidxml_utils.hpp"
 
@@ -37,6 +38,7 @@ void framebufferResizeCallback(GLFWwindow* window, int fWidth, int fHeight);
 
 // Forward-declare GUI functions.
 void showPickLabelGUI();
+void showSceneVarsGUI();
 void showDebugFlagsGUI();
 void showViewportGUI();
 void showSceneGUI();
@@ -61,7 +63,7 @@ font:
     size: 12px
     fill: white
 )RAW";
-std::string polylineStyle = "{ style: lines, interactive: true, color: red, width: 20px, order: 5000 }";
+std::string polylineStyle = "{ style: lines, interactive: true, color: red, width: 4px, order: 5000 }";
 
 
 GLFWwindow* main_window = nullptr;
@@ -91,6 +93,7 @@ bool point_markers_position_clipped = false;
 std::string pickLabelStr;
 std::string gpxFile;
 std::vector<MarkerID> activeMarkers;
+MarkerID trackHoverMarker = 0;
 
 struct PointMarker {
     MarkerID markerId;
@@ -253,8 +256,10 @@ void create(std::unique_ptr<Platform> p, int w, int h) {
 }
 
 void run() {
-
-    loadSceneFile(true);
+    loadSceneFile(false);  //true);
+    // default position: Alamo Square, SF - overriden by scene camera position if async load
+    map->setZoom(13);
+    map->setPosition(-122.434668, 37.776444);
 
     double lastTime = glfwGetTime();
 
@@ -272,6 +277,7 @@ void run() {
             showViewportGUI();
             showMarkerGUI();
             showDebugFlagsGUI();
+            showSceneVarsGUI();
             showPickLabelGUI();
         }
         double currentTime = glfwGetTime();
@@ -656,33 +662,55 @@ void framebufferResizeCallback(GLFWwindow* window, int fWidth, int fHeight) {
     map->resize(fWidth, fHeight);
 }
 
+struct TrackPt {
+  LngLat pos;
+  double dist;
+  double elev;
+};
+
+std::vector<TrackPt> activeTrack;
+
+// https://stackoverflow.com/questions/27928
+double lngLatDist(LngLat r1, LngLat r2) {
+    constexpr double p = 3.14159265358979323846/180;
+    double a = 0.5 - cos((r2.latitude-r1.latitude)*p)/2 + cos(r1.latitude*p) * cos(r2.latitude*p) * (1-cos((r2.longitude-r1.longitude)*p))/2;
+    return 12742 * asin(sqrt(a));  // kilometers
+}
+
 void addGPXPolyline(const char* gpxfile)
 {
   using namespace rapidxml;
-  std::vector<Tangram::LngLat> track;
   file<> xmlFile(gpxfile); // Default template is char
   xml_document<> doc;
   doc.parse<0>(xmlFile.data());
   xml_node<>* trk = doc.first_node("gpx")->first_node("trk");
+  if(!trk) logMsg("Error loading %s\n", gpxfile);
+  activeTrack.clear();
   while(trk) {
     xml_node<>* trkseg = trk->first_node("trkseg");
     while(trkseg) {
+      std::vector<LngLat> track;
       xml_node<>* trkpt = trkseg->first_node("trkpt");
       while(trkpt) {
         xml_attribute<>* lat = trkpt->first_attribute("lat");
         xml_attribute<>* lon = trkpt->first_attribute("lon");
         track.emplace_back(atof(lon->value()), atof(lat->value()));
+
+        xml_node<>* ele = trkpt->first_node("ele");
+        double dist = activeTrack.empty() ? 0 : activeTrack.back().dist + lngLatDist(activeTrack.back().pos, track.back());
+        activeTrack.push_back({track.back(), dist, atof(ele->value())});
+
         trkpt = trkpt->next_sibling("trkpt");
+      }
+      if(!track.empty()) {
+        MarkerID marker = map->markerAdd();
+        map->markerSetStylingFromString(marker, polylineStyle.c_str());
+        map->markerSetPolyline(marker, track.data(), track.size());
+        activeMarkers.push_back(marker);
       }
       trkseg = trkseg->next_sibling("trkseg");
     }
     trk = trk->next_sibling("trk");
-  }
-  if(!track.empty()) {
-    MarkerID marker = map->markerAdd();
-    map->markerSetStylingFromString(marker, polylineStyle.c_str());
-    map->markerSetPolyline(marker, track.data(), track.size());
-    activeMarkers.push_back(marker);
   }
 }
 
@@ -763,9 +791,48 @@ void showMarkerGUI() {
         }
         ImGui::SameLine();
         if (ImGui::Button("Clear All")) {
+          activeTrack.clear();
           for (auto marker : activeMarkers)
             map->markerRemove(marker);
         }
+
+        if(!activeTrack.empty()) {
+          size_t N = 200;
+          double dd = activeTrack.back().dist/N;
+          double d = dd/2;
+          std::vector<float> plot;
+          plot.reserve(N);
+          for(size_t ii = 0, jj = 0; ii < N; ++ii, d += dd) {
+            while(activeTrack[jj].dist < d) ++jj;
+            double f = (d - activeTrack[jj-1].dist)/(activeTrack[jj].dist - activeTrack[jj-1].dist);
+            plot.push_back( f*activeTrack[jj].elev + (1-f)*activeTrack[jj-1].elev );
+          }
+          ImGui::TextUnformatted("Track elevation");
+          ImGui::PlotLines("", plot.data(), plot.size(), 0, NULL, FLT_MAX, FLT_MAX, {0, 250});
+
+          if(ImGui::IsItemHovered()) {
+            double s = (ImGui::GetMousePos().x - ImGui::GetItemRectMin().x)/ImGui::GetItemRectSize().x;
+            if(s > 0 && s < 1) {
+              double sd = s*activeTrack.back().dist;
+
+              size_t jj = 0;
+              while(activeTrack[jj].dist < sd) ++jj;
+              double f = (sd - activeTrack[jj-1].dist)/(activeTrack[jj].dist - activeTrack[jj-1].dist);
+              double lat = f*activeTrack[jj].pos.latitude + (1-f)*activeTrack[jj-1].pos.latitude;
+              double lon = f*activeTrack[jj].pos.longitude + (1-f)*activeTrack[jj-1].pos.longitude;
+              if(trackHoverMarker == 0) {
+                trackHoverMarker = map->markerAdd();
+                //map->markerSetStylingFromPath(trackHoverMarker, markerStylingPath.c_str());
+                map->markerSetStylingFromString(trackHoverMarker, markerStylingString.c_str());
+              }
+              map->markerSetVisible(trackHoverMarker, true);
+              map->markerSetPoint(trackHoverMarker, LngLat(lon, lat));
+              return;
+            }
+          }
+        }
+        if(trackHoverMarker > 0)
+          map->markerSetVisible(trackHoverMarker, false);
     }
 }
 
@@ -832,6 +899,34 @@ void showDebugFlagsGUI() {
             setDebugFlag(DebugFlags::selection_buffer, flag);
         }
         ImGui::Checkbox("Wireframe Mode", &wireframe_mode);
+    }
+}
+
+
+template<typename ... Args>
+std::string fstring( const std::string& format, Args ... args )
+{
+    int size_s = std::snprintf( nullptr, 0, format.c_str(), args ... ) + 1; // Extra space for '\0'
+    if( size_s <= 0 ) return "";
+    auto size = static_cast<size_t>( size_s );
+    std::unique_ptr<char[]> buf( new char[ size ] );
+    std::snprintf( buf.get(), size, format.c_str(), args ... );
+    return std::string( buf.get(), buf.get() + size - 1 ); // We don't want the '\0' inside
+}
+
+void showSceneVarsGUI() {
+    if (ImGui::CollapsingHeader("Scene Variables", ImGuiTreeNodeFlags_DefaultOpen)) {
+        for(int ii = 0; ii < 100; ++ii) {
+            std::string name = map->readSceneValue(fstring("global.gui_variables#%d.name", ii));
+            if(name.empty()) break;
+            std::string label = map->readSceneValue(fstring("global.gui_variables#%d.label", ii));
+            std::string value = map->readSceneValue("global." + name);
+            bool flag = value == "true";
+            if (ImGui::Checkbox(label.c_str(), &flag)) {
+                // we expect only one checkbox to change per frame, so this is OK
+                loadSceneFile(false, {SceneUpdate{"global." + name, flag ? "true" : "false"}});
+            }
+        }
     }
 }
 
