@@ -203,6 +203,9 @@ public:
     // read a value from the current scene at location given by yamlPath
     std::string readSceneValue(const std::string& yamlPath);
 
+    // get the scene object
+    Scene* getScene();
+
     // Set listener for scene load events. The callback receives the SceneID
     // of the loaded scene and SceneError in case loading was not successful.
     // The callback may be be called from the main or worker thread.

@@ -8,6 +8,11 @@
 #include "rapidxml.hpp"
 #include "rapidxml_utils.hpp"
 
+// for building search DB
+#include "data/tileData.h"
+#include "scene/scene.h"
+#include "sqlite3/sqlite3.h"
+
 #ifdef TANGRAM_WINDOWS
 #define GLFW_INCLUDE_NONE
 #include <glad/glad.h>
@@ -662,13 +667,32 @@ void framebufferResizeCallback(GLFWwindow* window, int fWidth, int fHeight) {
     map->resize(fWidth, fHeight);
 }
 
-struct TrackPt {
-  LngLat pos;
-  double dist;
-  double elev;
-};
+// common fns
 
-std::vector<TrackPt> activeTrack;
+template<typename ... Args>
+std::string fstring( const std::string& format, Args ... args )
+{
+    int size_s = std::snprintf( nullptr, 0, format.c_str(), args ... ) + 1; // Extra space for '\0'
+    if( size_s <= 0 ) return "";
+    auto size = static_cast<size_t>( size_s );
+    std::unique_ptr<char[]> buf( new char[ size ] );
+    std::snprintf( buf.get(), size, format.c_str(), args ... );
+    return std::string( buf.get(), buf.get() + size - 1 ); // We don't want the '\0' inside
+}
+
+template<template<class, class...> class Container, class... Container_Params>
+Container<std::string, Container_Params... > splitStr(std::string s, const char* delims, bool skip_empty = false)
+{
+  Container<std::string, Container_Params... > elems;
+  std::string item;
+  size_t start = 0, end = 0;
+  while((end = s.find_first_of(delims, start)) != std::string::npos) {
+    if(!skip_empty || end > start)
+      elems.insert(elems.end(), s.substr(start, end-start));
+    start = end + 1;
+  }
+  return elems;
+}
 
 // https://stackoverflow.com/questions/27928
 double lngLatDist(LngLat r1, LngLat r2) {
@@ -677,9 +701,214 @@ double lngLatDist(LngLat r1, LngLat r2) {
     return 12742 * asin(sqrt(a));  // kilometers
 }
 
+// building search DB from tiles
+
+sqlite3* searchDB = NULL;
+
+typedef std::function<void(sqlite3_stmt*)> SQLiteStmtFn;
+
+static bool DB_exec(sqlite3* db, const char* sql, SQLiteStmtFn cb = SQLiteStmtFn())
+{
+  //if(sqlite3_exec(searchDB, sql, cb ? sqlite_static_helper : NULL, cb ? &cb : NULL, &zErrMsg) != SQLITE_OK) {
+  sqlite3_stmt* stmt;
+  if (sqlite3_prepare_v2(db, sql, -1, &stmt, 0) != SQLITE_OK) {
+    logMsg("sqlite3_prepare_v2 error: %s\n", sqlite3_errmsg(searchDB));
+    return false;
+  }
+  while (sqlite3_step(stmt) == SQLITE_ROW && cb) {
+    cb(stmt);
+  }
+  sqlite3_finalize(stmt);
+  return true;
+}
+
+static LngLat mapCenter;
+
+static void udf_osmSearchRank(sqlite3_context* context, int argc, sqlite3_value** argv)
+{
+  if(argc != 3) {
+    sqlite3_result_error(context, "osmSearchRank - Invalid number of arguments (3 required).", -1);
+    return;
+  }
+  if(sqlite3_value_type(argv[0]) != SQLITE_FLOAT || sqlite3_value_type(argv[1]) != SQLITE_FLOAT || sqlite3_value_type(argv[2]) != SQLITE_FLOAT) {
+    sqlite3_result_double(context, -1.0);
+    return;
+  }
+  double rank = sqlite3_value_double(argv[0]);  // sqlite FTS rank
+  double lon = sqlite3_value_double(argv[1]);  // distance from search center point in meters
+  double lat = sqlite3_value_double(argv[2]);  // distance from search center point in meters
+  double dist = lngLatDist(mapCenter, LngLat(lon, lat));
+  // obviously will want a more sophisticated ranking calculation in the future
+  sqlite3_result_double(context, rank/log2(dist));
+}
+
+void openSearchDB()
+{
+  static const char* dbPath = "/home/mwhite/maps/fts1.sqlite";
+  if(sqlite3_open_v2(dbPath, &searchDB, SQLITE_OPEN_READWRITE, NULL) != SQLITE_OK)
+    logMsg("Error opening %s: %s", dbPath, sqlite3_errmsg(searchDB));
+  sqlite3_create_function(searchDB, "osmSearchRank", 2, SQLITE_UTF8, 0, udf_osmSearchRank, 0, 0);
+  //DB_exec("INSERT INTO temp.points_fts SELECT name, osmSearchTags(amenity, leisure, other_tags), osmAddress(other_tags), osm_id, Geometry FROM points;");
+}
+
+//search_data:
+//    - layer: place
+//      fields: name, class
+
+struct SearchData {
+  std::string layer;
+  std::vector<std::string> fields;
+};
+
+std::vector<SearchData> searchData;
+
+void processTileData(const TileData& tileData, sqlite3_stmt* stmt)
+{
+  int res;
+  for(const Layer& layer : tileData.layers) {
+    for(const SearchData& searchdata : searchData) {
+      if(searchdata.layer == layer.name) {
+        for(const Feature& feature: layer.features) {
+          auto lnglat = feature.points.front();
+
+          std::string osmid = feature.props.getString("id");
+
+          std::string tags;
+          for(const std::string& field : searchdata.fields) {
+            tags += feature.props.getString(field);
+            tags += ' ';
+          }
+
+          // insert row
+          sqlite3_bind_text(stmt, 1, osmid.c_str(), -1, NULL);
+          sqlite3_bind_text(stmt, 2, tags.c_str(), tags.size() - 1, NULL);  // drop trailing separator
+          sqlite3_bind_double(stmt, 3, lnglat.x);
+          sqlite3_bind_double(stmt, 4, lnglat.y);
+          if ((res = sqlite3_step(stmt)) != SQLITE_DONE)
+              logMsg("sqlite3_step failed: %d\n", res);
+          sqlite3_clear_bindings(stmt);  // not necessary?
+          sqlite3_reset(stmt);  // necessary to reuse statement
+
+        }
+      }
+    }
+  }
+}
+
+void processMBTiles()
+{
+  // load search config
+  for(int ii = 0; ii < 100; ++ii) {
+    std::string layer = map->readSceneValue(fstring("global.search_data#%d.layer", ii));
+    if(layer.empty()) break;
+    std::string fieldstr = map->readSceneValue(fstring("global.search_data#%d.fields", ii));
+    searchData.emplace_back(layer, splitStr<std::vector>(fieldstr, ", ", true));
+  }
+  if(searchData.empty()) {
+    logMsg("No search fields specified, search will be disabled.");
+    return;
+  }
+
+  sqlite3* tileDB;
+  if(sqlite3_open_v2("/home/mwhite/maps/sf.mbtiles", &tileDB, SQLITE_OPEN_READONLY, NULL) != SQLITE_OK) {
+    logMsg("Error opening tile DB: %s\n", sqlite3_errmsg(tileDB));
+    return;
+  }
+
+  int min_row, max_row, min_col, max_col, max_zoom;
+  const char* boundsSql = "SELECT min(tile_row), max(tile_row), min(tile_column), max(tile_column), max(zoom_level) FROM tiles WHERE zoom_level = (SELECT max(zoom_level) FROM tiles);";
+  DB_exec(tileDB, boundsSql, [&](sqlite3_stmt* stmt){
+    min_row = sqlite3_column_int(stmt, 0);
+    max_row = sqlite3_column_int(stmt, 1);
+    min_col = sqlite3_column_int(stmt, 2);
+    max_col = sqlite3_column_int(stmt, 3);
+    max_zoom = sqlite3_column_int(stmt, 4);
+  });
+  sqlite3_close(tileDB);
+
+  Scene* scene = map->getScene();
+  auto& tileSources = scene->tileSources();
+  auto& tileSrc = tileSources.front();
+
+  if(!searchDB)
+    openSearchDB();
+  //sqlite3_exec(db, "PRAGMA synchronous=OFF", NULL, NULL, &errorMessage);
+  //sqlite3_exec(db, "PRAGMA count_changes=OFF", NULL, NULL, &errorMessage);
+  //sqlite3_exec(db, "PRAGMA journal_mode=MEMORY", NULL, NULL, &errorMessage);
+  //sqlite3_exec(db, "PRAGMA temp_store=MEMORY", NULL, NULL, &errorMessage);
+  DB_exec(searchDB, "CREATE VIRTUAL TABLE IF NOT EXISTS points_fts USING fts5(osm_id, tags, lng UNINDEXED, lat UNINDEXED);");
+
+  sqlite3_mutex_enter(sqlite3_db_mutex(searchDB));
+  sqlite3_exec(searchDB, "BEGIN TRANSACTION", NULL, NULL, NULL);
+  sqlite3_stmt* stmt;
+  char const* strStmt = "INSERT INTO points_fts (osm_id,tags,lng,lat) VALUES (?,?,?,?);";
+  if(sqlite3_prepare_v2(searchDB, strStmt, -1, &stmt, NULL) != SQLITE_OK) {
+    logMsg("sqlite3_prepare_v2 error: %s\n", sqlite3_errmsg(searchDB));
+    sqlite3_mutex_leave(sqlite3_db_mutex(searchDB));
+    return;
+  }
+
+  auto tilecb = TileTaskCb{[&](std::shared_ptr<TileTask> task) {
+      if (task->hasData()) {
+          auto tileData = task->source()->parse(*task);
+          processTileData(*tileData, stmt);
+      }
+  }};
+
+  for(int row = min_row; row <= max_row; ++row) {
+    for(int col = min_col; col <= max_col; ++col) {
+      TileID tileid(col, row, max_zoom);
+      TileTask tiletask(tileid, tileSrc);
+      tileSrc->loadTileData(std::make_shared<TileTask>(tiletask), tilecb);
+    }
+  }
+
+  sqlite3_exec(searchDB, "COMMIT TRANSACTION", NULL, NULL, NULL);
+  sqlite3_finalize(stmt);  // then ... stmt = NULL;
+  sqlite3_mutex_leave(sqlite3_db_mutex(searchDB));
+}
+
+void showSearchGUI() {
+  std::string searchStr;
+  if(searchData.empty())
+    return;
+
+  if(!searchDB)
+    openSearchDB();
+
+  if(ImGui::InputText("Query", &searchStr)) {
+
+    map->getPosition(mapCenter.longitude, mapCenter.latitude);
+
+    std::vector<std::string> results;
+
+    std::string query = fstring("SELECT osm_id FROM points_fts WHERE points_fts "
+        "MATCH '-tags:%s*' ORDER BY osmSearchRank(rank, lng, lat) LIMIT 20;", searchStr.c_str());
+
+    DB_exec(searchDB, query.c_str(), [&](sqlite3_stmt* stmt){
+      sqlite3_column_text(stmt, 0);
+      //...
+      results.push_back("Result");
+    });
+
+  }
+}
+
+
+// GPX tracks
+
+struct TrackPt {
+  LngLat pos;
+  double dist;
+  double elev;
+};
+
+std::vector<TrackPt> activeTrack;
+
+// https://www.topografix.com/gpx_manual.asp
 void addGPXPolyline(const char* gpxfile)
 {
-  using namespace rapidxml;
+  using namespace rapidxml;  // https://rapidxml.sourceforge.net/manual.html
   file<> xmlFile(gpxfile); // Default template is char
   xml_document<> doc;
   doc.parse<0>(xmlFile.data());
@@ -900,18 +1129,6 @@ void showDebugFlagsGUI() {
         }
         ImGui::Checkbox("Wireframe Mode", &wireframe_mode);
     }
-}
-
-
-template<typename ... Args>
-std::string fstring( const std::string& format, Args ... args )
-{
-    int size_s = std::snprintf( nullptr, 0, format.c_str(), args ... ) + 1; // Extra space for '\0'
-    if( size_s <= 0 ) return "";
-    auto size = static_cast<size_t>( size_s );
-    std::unique_ptr<char[]> buf( new char[ size ] );
-    std::snprintf( buf.get(), size, format.c_str(), args ... );
-    return std::string( buf.get(), buf.get() + size - 1 ); // We don't want the '\0' inside
 }
 
 void showSceneVarsGUI() {

@@ -200,6 +200,11 @@ std::string Map::readSceneValue(const std::string& yamlPath)
   return node.Scalar();
 }
 
+Scene* Map::getScene()
+{
+  return impl->scene.get();
+}
+
 void Map::setSceneReadyListener(SceneReadyCallback _onSceneReady) {
     impl->onSceneReady = _onSceneReady;
 }
