@@ -46,6 +46,16 @@ add_subdirectory(platforms/common/imgui)
 target_include_directories(tangram
   PRIVATE
   platforms/common
+  # temporary hacks ... add include paths here to make stuff work in glfwApp.cpp
+  core/src
+  core/deps/glm
+  core/deps/isect2d/include
+  core/deps/variant/include/mapbox
+  core/deps/alfons/src
+  core/deps/harfbuzz-icu-freetype/harfbuzz/src
+  core/deps/harfbuzz-icu-freetype/icu/common
+  core/deps/yaml-cpp/include
+  core/deps/SQLiteCpp
   ${FONTCONFIG_INCLUDE_DIRS}
 )
 

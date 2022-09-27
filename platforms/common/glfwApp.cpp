@@ -9,6 +9,7 @@
 #include "rapidxml_utils.hpp"
 
 // for building search DB
+#include "rapidjson/document.h"
 #include "data/tileData.h"
 #include "scene/scene.h"
 #include "sqlite3/sqlite3.h"
@@ -42,6 +43,7 @@ void dropCallback(GLFWwindow* window, int count, const char** paths);
 void framebufferResizeCallback(GLFWwindow* window, int fWidth, int fHeight);
 
 // Forward-declare GUI functions.
+void showSearchGUI();
 void showPickLabelGUI();
 void showSceneVarsGUI();
 void showDebugFlagsGUI();
@@ -97,8 +99,19 @@ bool point_markers_position_clipped = false;
 
 std::string pickLabelStr;
 std::string gpxFile;
-std::vector<MarkerID> activeMarkers;
+std::vector<MarkerID> trackMarkers;
 MarkerID trackHoverMarker = 0;
+std::vector<MarkerID> searchMarkers;
+
+std::string searchMarkerStyleStr = R"#(
+style: text
+text_source: "function() { return '%s'; }"
+font:
+    family: Open Sans
+    size: 12px
+    fill: black
+)#";
+
 
 struct PointMarker {
     MarkerID markerId;
@@ -263,6 +276,7 @@ void create(std::unique_ptr<Platform> p, int w, int h) {
 void run() {
     loadSceneFile(false);  //true);
     // default position: Alamo Square, SF - overriden by scene camera position if async load
+    map->setPickRadius(1.0f);
     map->setZoom(13);
     map->setPosition(-122.434668, 37.776444);
 
@@ -284,6 +298,7 @@ void run() {
             showDebugFlagsGUI();
             showSceneVarsGUI();
             showPickLabelGUI();
+            showSearchGUI();
         }
         double currentTime = glfwGetTime();
         double delta = currentTime - lastTime;
@@ -422,12 +437,38 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
                 map->markerSetStylingFromPath(pickResultMarker, "layers.pick-result.draw.pick-marker");
             }
             map->markerSetPoint(pickResultMarker, result->coordinates);
+
+            std::string itemId;
             logMsg("Pick label result:\n");
             for (const auto& item : result->touchItem.properties->items()) {
+                if(item.key == "id")
+                  itemId = Properties::asString(item.value);
                 std::string l = "  " + item.key + " = " + Properties::asString(item.value) + "\n";
                 //logMsg("  %s = %s\n", item.key.c_str(), Properties::asString(item.value).c_str());
                 logMsg(l.c_str());
                 pickLabelStr += l;
+            }
+
+            // query OSM API with id - append .json to get JSON instead of XML
+            if(!itemId.empty()) {
+              auto url = Url("https://www.openstreetmap.org/api/0.6/node/" + itemId);
+              map->getPlatform().startUrlRequest(url, [url, itemId](UrlResponse&& response) {
+                if(response.error) {
+                  logMsg("Error fetching %s: %s\n", url.data().c_str(), response.error);
+                  return;
+                }
+                response.content.push_back('\0');
+                rapidxml::xml_document<> doc;
+                doc.parse<0>(response.content.data());
+                auto tag = doc.first_node("osm")->first_node("node")->first_node("tag");
+                if(tag) pickLabelStr = "id = " + itemId + "\n";
+                while(tag) {
+                  auto key = tag->first_attribute("k");
+                  auto val = tag->first_attribute("v");
+                  pickLabelStr += key->value() + std::string(" = ") + val->value() + std::string("\n");
+                  tag = tag->next_sibling("tag");
+                }
+              });
             }
         });
 
@@ -702,7 +743,6 @@ double lngLatDist(LngLat r1, LngLat r2) {
 }
 
 // building search DB from tiles
-
 sqlite3* searchDB = NULL;
 
 typedef std::function<void(sqlite3_stmt*)> SQLiteStmtFn;
@@ -742,12 +782,13 @@ static void udf_osmSearchRank(sqlite3_context* context, int argc, sqlite3_value*
   sqlite3_result_double(context, rank/log2(dist));
 }
 
-void openSearchDB()
+static void openSearchDB()
 {
   static const char* dbPath = "/home/mwhite/maps/fts1.sqlite";
   if(sqlite3_open_v2(dbPath, &searchDB, SQLITE_OPEN_READWRITE, NULL) != SQLITE_OK)
     logMsg("Error opening %s: %s", dbPath, sqlite3_errmsg(searchDB));
-  sqlite3_create_function(searchDB, "osmSearchRank", 2, SQLITE_UTF8, 0, udf_osmSearchRank, 0, 0);
+  else
+    sqlite3_create_function(searchDB, "osmSearchRank", 2, SQLITE_UTF8, 0, udf_osmSearchRank, 0, 0);
   //DB_exec("INSERT INTO temp.points_fts SELECT name, osmSearchTags(amenity, leisure, other_tags), osmAddress(other_tags), osm_id, Geometry FROM points;");
 }
 
@@ -762,40 +803,34 @@ struct SearchData {
 
 std::vector<SearchData> searchData;
 
-void processTileData(const TileData& tileData, sqlite3_stmt* stmt)
+static void processTileData(const TileData& tileData, sqlite3_stmt* stmt)
 {
-  int res;
   for(const Layer& layer : tileData.layers) {
     for(const SearchData& searchdata : searchData) {
       if(searchdata.layer == layer.name) {
         for(const Feature& feature: layer.features) {
           auto lnglat = feature.points.front();
-
-          std::string osmid = feature.props.getString("id");
-
           std::string tags;
           for(const std::string& field : searchdata.fields) {
             tags += feature.props.getString(field);
             tags += ' ';
           }
-
           // insert row
-          sqlite3_bind_text(stmt, 1, osmid.c_str(), -1, NULL);
-          sqlite3_bind_text(stmt, 2, tags.c_str(), tags.size() - 1, NULL);  // drop trailing separator
+          sqlite3_bind_text(stmt, 1, tags.c_str(), tags.size() - 1, NULL);  // drop trailing separator
+          sqlite3_bind_text(stmt, 2, feature.props.toJson().c_str(), -1, NULL);
           sqlite3_bind_double(stmt, 3, lnglat.x);
           sqlite3_bind_double(stmt, 4, lnglat.y);
-          if ((res = sqlite3_step(stmt)) != SQLITE_DONE)
-              logMsg("sqlite3_step failed: %d\n", res);
+          if (sqlite3_step(stmt) != SQLITE_DONE)
+            logMsg("sqlite3_step failed: %d\n", sqlite3_errmsg(sqlite3_db_handle(stmt)));
           sqlite3_clear_bindings(stmt);  // not necessary?
           sqlite3_reset(stmt);  // necessary to reuse statement
-
         }
       }
     }
   }
 }
 
-void processMBTiles()
+static void processMBTiles()
 {
   // load search config
   for(int ii = 0; ii < 100; ++ii) {
@@ -836,12 +871,12 @@ void processMBTiles()
   //sqlite3_exec(db, "PRAGMA count_changes=OFF", NULL, NULL, &errorMessage);
   //sqlite3_exec(db, "PRAGMA journal_mode=MEMORY", NULL, NULL, &errorMessage);
   //sqlite3_exec(db, "PRAGMA temp_store=MEMORY", NULL, NULL, &errorMessage);
-  DB_exec(searchDB, "CREATE VIRTUAL TABLE IF NOT EXISTS points_fts USING fts5(osm_id, tags, lng UNINDEXED, lat UNINDEXED);");
+  DB_exec(searchDB, "CREATE VIRTUAL TABLE IF NOT EXISTS points_fts USING fts5(tags, props UNINDEXED, lng UNINDEXED, lat UNINDEXED);");
 
   sqlite3_mutex_enter(sqlite3_db_mutex(searchDB));
   sqlite3_exec(searchDB, "BEGIN TRANSACTION", NULL, NULL, NULL);
   sqlite3_stmt* stmt;
-  char const* strStmt = "INSERT INTO points_fts (osm_id,tags,lng,lat) VALUES (?,?,?,?);";
+  char const* strStmt = "INSERT INTO points_fts (tags,props,lng,lat) VALUES (?,?,?,?);";
   if(sqlite3_prepare_v2(searchDB, strStmt, -1, &stmt, NULL) != SQLITE_OK) {
     logMsg("sqlite3_prepare_v2 error: %s\n", sqlite3_errmsg(searchDB));
     sqlite3_mutex_leave(sqlite3_db_mutex(searchDB));
@@ -868,32 +903,59 @@ void processMBTiles()
   sqlite3_mutex_leave(sqlite3_db_mutex(searchDB));
 }
 
-void showSearchGUI() {
+void showSearchGUI()
+{
+  static std::vector<std::string> results;
   std::string searchStr;
   if(searchData.empty())
     return;
-
+  if(!ImGui::CollapsingHeader("Search", ImGuiTreeNodeFlags_DefaultOpen))
+    return;
   if(!searchDB)
     openSearchDB();
 
-  if(ImGui::InputText("Query", &searchStr)) {
-
+  bool ent = ImGui::InputText("Query", &searchStr, ImGuiInputTextFlags_EnterReturnsTrue);
+  if(ent || ImGui::IsItemEdited()) {
+    results.clear();
     map->getPosition(mapCenter.longitude, mapCenter.latitude);
 
-    std::vector<std::string> results;
-
-    std::string query = fstring("SELECT osm_id FROM points_fts WHERE points_fts "
+    std::string query = fstring("SELECT props, lng, lat FROM points_fts WHERE points_fts "
         "MATCH '-tags:%s*' ORDER BY osmSearchRank(rank, lng, lat) LIMIT 20;", searchStr.c_str());
 
+    size_t markerIdx = 0;
     DB_exec(searchDB, query.c_str(), [&](sqlite3_stmt* stmt){
-      sqlite3_column_text(stmt, 0);
-      //...
-      results.push_back("Result");
+      rapidjson::Document doc;
+      doc.Parse((const char*)(sqlite3_column_text(stmt, 0)));
+      results.push_back(doc["name"].GetString());
+      if(ent) {
+        double lng = sqlite3_column_double(stmt, 1);
+        double lat = sqlite3_column_double(stmt, 2);
+        if(markerIdx >= searchMarkers.size())
+          searchMarkers.push_back(map->markerAdd());
+        map->markerSetVisible(searchMarkers[markerIdx], true);
+        map->markerSetStylingFromString(searchMarkers[markerIdx], fstring(searchMarkerStyleStr, results.back().c_str()).c_str());
+        map->markerSetPoint(searchMarkers[markerIdx], LngLat(lng, lat));
+        ++markerIdx;
+      }
     });
 
-  }
-}
+    for(; markerIdx < searchMarkers.size(); ++markerIdx)
+      map->markerSetVisible(searchMarkers[markerIdx], false);
 
+
+    // Enter pressed: place marker on map for each result
+
+
+
+  }
+
+  int currItem;
+  std::vector<const char*> cresults;
+  for(const std::string& s : results)
+    cresults.push_back(s.c_str());
+
+  ImGui::ListBox("Results", &currItem, cresults.data(), cresults.size());
+}
 
 // GPX tracks
 
@@ -935,7 +997,7 @@ void addGPXPolyline(const char* gpxfile)
         MarkerID marker = map->markerAdd();
         map->markerSetStylingFromString(marker, polylineStyle.c_str());
         map->markerSetPolyline(marker, track.data(), track.size());
-        activeMarkers.push_back(marker);
+        trackMarkers.push_back(marker);
       }
       trkseg = trkseg->next_sibling("trkseg");
     }
@@ -1014,14 +1076,14 @@ void showMarkerGUI() {
         }
         ImGui::SameLine();
         if (ImGui::Button("Replace")) {
-          for (auto marker : activeMarkers)
+          for (auto marker : trackMarkers)
             map->markerRemove(marker);
           addGPXPolyline(gpxFile.c_str());
         }
         ImGui::SameLine();
         if (ImGui::Button("Clear All")) {
           activeTrack.clear();
-          for (auto marker : activeMarkers)
+          for (auto marker : trackMarkers)
             map->markerRemove(marker);
         }
 
