@@ -148,6 +148,11 @@ global:
     urban_fade_6: rgba(61,58,55,0.25)
     urban_fade_7: rgba(36,36,33,0.15)
 
+    # specify fields indexed for search
+    search_data:
+        - layer: poi
+          fields: name, class, subclass
+
 scene:
     background:
         color: global.landmass_fill
@@ -244,8 +249,19 @@ styles:
     text-blend-order:
         base: text
         blend_order: 1
+    pick-marker:
+        base: points
+        texture: marker-stroked
+        blend_order: 3
 
 layers:
+    pick-result:
+        draw:
+            pick-marker:
+                collide: false
+                offset: [0px, -11px]
+                order: 900
+
     water:
         #base: polygons
         data: { source: carto, layer: water }
@@ -1243,6 +1259,7 @@ layers:
             draw:
                 lines:
                     order: 10
+                    width: 0px
                     color: global.tunnel
 
     transportation_name:

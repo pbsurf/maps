@@ -286,6 +286,18 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   )
 endif()
 
+option(TANGRAM_USE_ASAN "Use Address Sanitizer." OFF)
+if (TANGRAM_USE_ASAN)
+    if ((CMAKE_CXX_COMPILER_VERSION GREATER_EQUAL 6) OR ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang"))
+        message (STATUS "Using Address Sanitizer")
+        set_target_properties(tangram-core PROPERTIES COMPILE_FLAGS "-fsanitize=address -fno-omit-frame-pointer")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
+        if (CMAKE_COMPILER_IS_GNUCXX)
+            set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=gold")
+        endif ()
+    endif ()
+endif (TANGRAM_USE_ASAN)
+
 # C++14 is required for compiling tangram-core and for using the interface headers.
 set_property(TARGET tangram-core PROPERTY CXX_STANDARD 14)
 

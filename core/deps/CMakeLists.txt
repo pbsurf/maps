@@ -84,8 +84,10 @@ if (TANGRAM_MBTILES_DATASOURCE)
 
   add_subdirectory(SQLiteCpp)
 
+  # Unleash the full power of sqlite!!
   # Extensions aren't needed for MBTiles and aren't available in older versions of sqlite3.
-  target_compile_definitions(SQLiteCpp PRIVATE SQLITE_OMIT_LOAD_EXTENSION)
+  #target_compile_definitions(SQLiteCpp PRIVATE SQLITE_OMIT_LOAD_EXTENSION)
+  target_compile_definitions(sqlite3 PRIVATE SQLITE_ENABLE_FTS5)
 
   # needed for sqlite3 to work for ndk15c+ and android api level < 21
   # refer:

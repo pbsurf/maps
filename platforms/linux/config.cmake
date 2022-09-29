@@ -56,6 +56,7 @@ target_include_directories(tangram
   core/deps/harfbuzz-icu-freetype/icu/common
   core/deps/yaml-cpp/include
   core/deps/SQLiteCpp
+  core/deps/rapidjson
   ${FONTCONFIG_INCLUDE_DIRS}
 )
 
@@ -90,5 +91,7 @@ target_compile_definitions(tangram
   PRIVATE
   NEXTZEN_API_KEY="${NEXTZEN_API_KEY}")
 
+# to be consistent w/ core
+target_compile_definitions(tangram PRIVATE GLM_FORCE_CTOR_INIT)
 
 add_resources(tangram "${PROJECT_SOURCE_DIR}/scenes" "res")

@@ -173,6 +173,7 @@ bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb
                 }
             } else {
                 LOGW("missing tile: %s, %d", _task->tileId().toString().c_str());
+                _cb.func(_task);  // added 2022-09-27 ... were doing this in loadNextSource, why not here?
             }
         });
         return true;

@@ -9,7 +9,7 @@
 #include "rapidxml_utils.hpp"
 
 // for building search DB
-#include "rapidjson/document.h"
+#include "document.h"  // rapidjson
 #include "data/tileData.h"
 #include "scene/scene.h"
 #include "sqlite3/sqlite3.h"
@@ -104,14 +104,19 @@ MarkerID trackHoverMarker = 0;
 std::vector<MarkerID> searchMarkers;
 
 std::string searchMarkerStyleStr = R"#(
-style: text
-text_source: "function() { return '%s'; }"
-font:
+style: pick-marker
+collide: false
+offset: [0px, -11px]
+order: 900
+text:
+  text_source: "function() { return \"%s\"; }"
+  offset: [0px, -11px]
+  priority: %d
+  font:
     family: Open Sans
     size: 12px
     fill: black
 )#";
-
 
 struct PointMarker {
     MarkerID markerId;
@@ -297,8 +302,8 @@ void run() {
             showMarkerGUI();
             showDebugFlagsGUI();
             showSceneVarsGUI();
-            showPickLabelGUI();
             showSearchGUI();
+            showPickLabelGUI();
         }
         double currentTime = glfwGetTime();
         double delta = currentTime - lastTime;
@@ -732,6 +737,8 @@ Container<std::string, Container_Params... > splitStr(std::string s, const char*
       elems.insert(elems.end(), s.substr(start, end-start));
     start = end + 1;
   }
+  if(start < s.size())
+    elems.insert(elems.end(), s.substr(start));
   return elems;
 }
 
@@ -750,14 +757,18 @@ typedef std::function<void(sqlite3_stmt*)> SQLiteStmtFn;
 static bool DB_exec(sqlite3* db, const char* sql, SQLiteStmtFn cb = SQLiteStmtFn())
 {
   //if(sqlite3_exec(searchDB, sql, cb ? sqlite_static_helper : NULL, cb ? &cb : NULL, &zErrMsg) != SQLITE_OK) {
+  int res;
   sqlite3_stmt* stmt;
   if (sqlite3_prepare_v2(db, sql, -1, &stmt, 0) != SQLITE_OK) {
     logMsg("sqlite3_prepare_v2 error: %s\n", sqlite3_errmsg(searchDB));
     return false;
   }
-  while (sqlite3_step(stmt) == SQLITE_ROW && cb) {
-    cb(stmt);
+  while ((res = sqlite3_step(stmt)) == SQLITE_ROW) {
+    if(cb)
+      cb(stmt);
   }
+  if(res != SQLITE_DONE && res != SQLITE_OK)
+    logMsg("sqlite3_step error: %s\n", sqlite3_errmsg(searchDB));
   sqlite3_finalize(stmt);
   return true;
 }
@@ -782,14 +793,13 @@ static void udf_osmSearchRank(sqlite3_context* context, int argc, sqlite3_value*
   sqlite3_result_double(context, rank/log2(dist));
 }
 
-static void openSearchDB()
+// segfault if GLM_FORCE_CTOR_INIT is defined for some units and not others!!!
+static LngLat tileCoordToLngLat(const TileID& tileId, const glm::vec2& tileCoord)
 {
-  static const char* dbPath = "/home/mwhite/maps/fts1.sqlite";
-  if(sqlite3_open_v2(dbPath, &searchDB, SQLITE_OPEN_READWRITE, NULL) != SQLITE_OK)
-    logMsg("Error opening %s: %s", dbPath, sqlite3_errmsg(searchDB));
-  else
-    sqlite3_create_function(searchDB, "osmSearchRank", 2, SQLITE_UTF8, 0, udf_osmSearchRank, 0, 0);
-  //DB_exec("INSERT INTO temp.points_fts SELECT name, osmSearchTags(amenity, leisure, other_tags), osmAddress(other_tags), osm_id, Geometry FROM points;");
+  double scale = MapProjection::metersPerTileAtZoom(tileId.z);
+  ProjectedMeters tileOrigin = MapProjection::tileSouthWestCorner(tileId);
+  ProjectedMeters meters = glm::dvec2(tileCoord) * scale + tileOrigin;
+  return MapProjection::projectedMetersToLngLat(meters);
 }
 
 //search_data:
@@ -802,24 +812,28 @@ struct SearchData {
 };
 
 std::vector<SearchData> searchData;
+std::atomic<int> tileCount{};
 
-static void processTileData(const TileData& tileData, sqlite3_stmt* stmt)
+static void processTileData(TileTask* task, sqlite3_stmt* stmt)
 {
-  for(const Layer& layer : tileData.layers) {
+  auto tileData = task->source()->parse(*task);
+  for(const Layer& layer : tileData->layers) {
     for(const SearchData& searchdata : searchData) {
       if(searchdata.layer == layer.name) {
-        for(const Feature& feature: layer.features) {
-          auto lnglat = feature.points.front();
+        for(const Feature& feature : layer.features) {
+          if(feature.props.getString("name").empty() || feature.points.empty())
+            continue;  // skip POIs w/o name or geometry
+          auto lnglat = tileCoordToLngLat(task->tileId(), feature.points.front());
           std::string tags;
           for(const std::string& field : searchdata.fields) {
             tags += feature.props.getString(field);
             tags += ' ';
           }
           // insert row
-          sqlite3_bind_text(stmt, 1, tags.c_str(), tags.size() - 1, NULL);  // drop trailing separator
-          sqlite3_bind_text(stmt, 2, feature.props.toJson().c_str(), -1, NULL);
-          sqlite3_bind_double(stmt, 3, lnglat.x);
-          sqlite3_bind_double(stmt, 4, lnglat.y);
+          sqlite3_bind_text(stmt, 1, tags.c_str(), tags.size() - 1, SQLITE_STATIC);  // drop trailing separator
+          sqlite3_bind_text(stmt, 2, feature.props.toJson().c_str(), -1, SQLITE_TRANSIENT);
+          sqlite3_bind_double(stmt, 3, lnglat.longitude);
+          sqlite3_bind_double(stmt, 4, lnglat.latitude);
           if (sqlite3_step(stmt) != SQLITE_DONE)
             logMsg("sqlite3_step failed: %d\n", sqlite3_errmsg(sqlite3_db_handle(stmt)));
           sqlite3_clear_bindings(stmt);  // not necessary?
@@ -830,26 +844,40 @@ static void processTileData(const TileData& tileData, sqlite3_stmt* stmt)
   }
 }
 
-static void processMBTiles()
+static bool initSearch()
 {
+  static const char* dbPath = "/home/mwhite/maps/fts1.sqlite";
+  if(sqlite3_open_v2(dbPath, &searchDB, SQLITE_OPEN_READWRITE, NULL) == SQLITE_OK)
+    return true;
+  sqlite3_close(searchDB);
+  searchDB = NULL;
+
   // load search config
   for(int ii = 0; ii < 100; ++ii) {
     std::string layer = map->readSceneValue(fstring("global.search_data#%d.layer", ii));
     if(layer.empty()) break;
     std::string fieldstr = map->readSceneValue(fstring("global.search_data#%d.fields", ii));
-    searchData.emplace_back(layer, splitStr<std::vector>(fieldstr, ", ", true));
+    searchData.push_back({layer, splitStr<std::vector>(fieldstr, ", ", true)});
   }
   if(searchData.empty()) {
-    logMsg("No search fields specified, search will be disabled.");
-    return;
+    //logMsg("No search fields specified, search will be disabled.\n");
+    return false;
   }
 
+  // DB doesn't exist - create it
+  if(sqlite3_open_v2(dbPath, &searchDB, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL) != SQLITE_OK) {
+    logMsg("Error creating %s", dbPath);
+    sqlite3_close(searchDB);
+    searchDB = NULL;
+    return false;
+  }
+
+  // get bounds from mbtiles DB
   sqlite3* tileDB;
   if(sqlite3_open_v2("/home/mwhite/maps/sf.mbtiles", &tileDB, SQLITE_OPEN_READONLY, NULL) != SQLITE_OK) {
     logMsg("Error opening tile DB: %s\n", sqlite3_errmsg(tileDB));
-    return;
+    return false;
   }
-
   int min_row, max_row, min_col, max_col, max_zoom;
   const char* boundsSql = "SELECT min(tile_row), max(tile_row), min(tile_column), max(tile_column), max(zoom_level) FROM tiles WHERE zoom_level = (SELECT max(zoom_level) FROM tiles);";
   DB_exec(tileDB, boundsSql, [&](sqlite3_stmt* stmt){
@@ -865,96 +893,156 @@ static void processMBTiles()
   auto& tileSources = scene->tileSources();
   auto& tileSrc = tileSources.front();
 
-  if(!searchDB)
-    openSearchDB();
-  //sqlite3_exec(db, "PRAGMA synchronous=OFF", NULL, NULL, &errorMessage);
-  //sqlite3_exec(db, "PRAGMA count_changes=OFF", NULL, NULL, &errorMessage);
-  //sqlite3_exec(db, "PRAGMA journal_mode=MEMORY", NULL, NULL, &errorMessage);
-  //sqlite3_exec(db, "PRAGMA temp_store=MEMORY", NULL, NULL, &errorMessage);
-  DB_exec(searchDB, "CREATE VIRTUAL TABLE IF NOT EXISTS points_fts USING fts5(tags, props UNINDEXED, lng UNINDEXED, lat UNINDEXED);");
+  //sqlite3_exec(searchDB, "PRAGMA synchronous=OFF", NULL, NULL, &errorMessage);
+  //sqlite3_exec(searchDB, "PRAGMA count_changes=OFF", NULL, NULL, &errorMessage);
+  //sqlite3_exec(searchDB, "PRAGMA journal_mode=MEMORY", NULL, NULL, &errorMessage);
+  //sqlite3_exec(searchDB, "PRAGMA temp_store=MEMORY", NULL, NULL, &errorMessage);
+  DB_exec(searchDB, "CREATE VIRTUAL TABLE points_fts USING fts5(tags, props UNINDEXED, lng UNINDEXED, lat UNINDEXED);");
+  // search history
+  DB_exec(searchDB, "CREATE TABLE history(query TEXT UNIQUE);");
 
-  sqlite3_mutex_enter(sqlite3_db_mutex(searchDB));
   sqlite3_exec(searchDB, "BEGIN TRANSACTION", NULL, NULL, NULL);
   sqlite3_stmt* stmt;
   char const* strStmt = "INSERT INTO points_fts (tags,props,lng,lat) VALUES (?,?,?,?);";
   if(sqlite3_prepare_v2(searchDB, strStmt, -1, &stmt, NULL) != SQLITE_OK) {
     logMsg("sqlite3_prepare_v2 error: %s\n", sqlite3_errmsg(searchDB));
     sqlite3_mutex_leave(sqlite3_db_mutex(searchDB));
-    return;
+    return false;
   }
 
-  auto tilecb = TileTaskCb{[&](std::shared_ptr<TileTask> task) {
-      if (task->hasData()) {
-          auto tileData = task->source()->parse(*task);
-          processTileData(*tileData, stmt);
-      }
+  tileCount = (max_row-min_row+1)*(max_col-min_col+1);
+  auto tilecb = TileTaskCb{[stmt](std::shared_ptr<TileTask> task) {
+    if (task->hasData())
+      processTileData(task.get(), stmt);
+    if(--tileCount == 0) {
+      sqlite3_exec(searchDB, "COMMIT TRANSACTION", NULL, NULL, NULL);
+      sqlite3_finalize(stmt);  // then ... stmt = NULL;
+      logMsg("Search index built.\n");
+    }
   }};
 
   for(int row = min_row; row <= max_row; ++row) {
     for(int col = min_col; col <= max_col; ++col) {
-      TileID tileid(col, row, max_zoom);
-      TileTask tiletask(tileid, tileSrc);
-      tileSrc->loadTileData(std::make_shared<TileTask>(tiletask), tilecb);
+      TileID tileid(col, (1 << max_zoom) - 1 - row, max_zoom);
+      tileSrc->loadTileData(std::make_shared<BinaryTileTask>(tileid, tileSrc), tilecb);
     }
   }
 
-  sqlite3_exec(searchDB, "COMMIT TRANSACTION", NULL, NULL, NULL);
-  sqlite3_finalize(stmt);  // then ... stmt = NULL;
-  sqlite3_mutex_leave(sqlite3_db_mutex(searchDB));
+  return true;
 }
 
 void showSearchGUI()
 {
-  static std::vector<std::string> results;
-  std::string searchStr;
-  if(searchData.empty())
-    return;
+  static std::vector<std::string> autocomplete;
+  static std::vector<rapidjson::Document> results;
+  static std::string searchStr;  // imgui compares to this to determine if text is edited, so make persistant
+
+  if(!searchDB) {
+    if(!initSearch())
+      return;
+    // add search ranking fn
+    if(sqlite3_create_function(searchDB, "osmSearchRank", 3, SQLITE_UTF8, 0, udf_osmSearchRank, 0, 0) != SQLITE_OK)
+      logMsg("sqlite3_create_function: error creating osmSearchRank");
+  }
   if(!ImGui::CollapsingHeader("Search", ImGuiTreeNodeFlags_DefaultOpen))
     return;
-  if(!searchDB)
-    openSearchDB();
 
+  LngLat minLngLat(180, 90);
+  LngLat maxLngLat(-180, -90);
   bool ent = ImGui::InputText("Query", &searchStr, ImGuiInputTextFlags_EnterReturnsTrue);
-  if(ent || ImGui::IsItemEdited()) {
-    results.clear();
-    map->getPosition(mapCenter.longitude, mapCenter.latitude);
+  bool edited = ImGui::IsItemEdited();
+  // history (autocomplete)
+  if(ent) {
+    DB_exec(searchDB, fstring("INSERT INTO history (query) VALUES ('%s');", searchStr.c_str()).c_str());
+  }
+  else {
+    if(edited) {
+      autocomplete.clear();
+      std::string histq = fstring("SELECT * FROM history WHERE query LIKE '%s%%' LIMIT 5;", searchStr.c_str());
+      DB_exec(searchDB, histq.c_str(), [&](sqlite3_stmt* stmt){
+        autocomplete.emplace_back( (const char*)(sqlite3_column_text(stmt, 0)) );
+      });
+    }
+    if(!autocomplete.empty()) {
+      std::vector<const char*> cautoc;
+      for(const auto& s : autocomplete)
+        cautoc.push_back(s.c_str());
 
-    std::string query = fstring("SELECT props, lng, lat FROM points_fts WHERE points_fts "
-        "MATCH '-tags:%s*' ORDER BY osmSearchRank(rank, lng, lat) LIMIT 20;", searchStr.c_str());
-
-    size_t markerIdx = 0;
-    DB_exec(searchDB, query.c_str(), [&](sqlite3_stmt* stmt){
-      rapidjson::Document doc;
-      doc.Parse((const char*)(sqlite3_column_text(stmt, 0)));
-      results.push_back(doc["name"].GetString());
-      if(ent) {
-        double lng = sqlite3_column_double(stmt, 1);
-        double lat = sqlite3_column_double(stmt, 2);
-        if(markerIdx >= searchMarkers.size())
-          searchMarkers.push_back(map->markerAdd());
-        map->markerSetVisible(searchMarkers[markerIdx], true);
-        map->markerSetStylingFromString(searchMarkers[markerIdx], fstring(searchMarkerStyleStr, results.back().c_str()).c_str());
-        map->markerSetPoint(searchMarkers[markerIdx], LngLat(lng, lat));
-        ++markerIdx;
+      int currItem;
+      if(ImGui::ListBox("History", &currItem, cautoc.data(), cautoc.size())) {
+        ent = true;
+        searchStr = autocomplete[currItem];
+        //autocomplete.clear();
       }
-    });
+    }
+  }
+  if(ent || edited) {
+    results.clear();
+    size_t markerIdx = 0;
+    if(searchStr.size() > 2) {
+      map->getPosition(mapCenter.longitude, mapCenter.latitude);
+      std::string query = fstring("SELECT props, lng, lat FROM points_fts WHERE points_fts "
+          "MATCH '%s*' ORDER BY osmSearchRank(rank, lng, lat) LIMIT 20;", searchStr.c_str());
+
+      DB_exec(searchDB, query.c_str(), [&](sqlite3_stmt* stmt){
+        results.emplace_back();
+        results.back().Parse((const char*)(sqlite3_column_text(stmt, 0)));
+        if(!results.back().HasMember("name"))
+          results.pop_back();
+        else if(ent) {
+          double lng = sqlite3_column_double(stmt, 1);
+          double lat = sqlite3_column_double(stmt, 2);
+          if(markerIdx >= searchMarkers.size())
+            searchMarkers.push_back(map->markerAdd());
+          map->markerSetVisible(searchMarkers[markerIdx], true);
+          // 2nd value is priority (smaller number means higher priority)
+          std::string namestr = results.back()["name"].GetString();
+          std::replace(namestr.begin(), namestr.end(), '"', '\'');
+          map->markerSetStylingFromString(searchMarkers[markerIdx],
+              fstring(searchMarkerStyleStr, namestr.c_str(), markerIdx+2).c_str());
+          map->markerSetPoint(searchMarkers[markerIdx], LngLat(lng, lat));
+          ++markerIdx;
+
+          minLngLat.longitude = std::min(minLngLat.longitude, lng);
+          minLngLat.latitude = std::min(minLngLat.latitude, lat);
+          maxLngLat.longitude = std::max(maxLngLat.longitude, lng);
+          maxLngLat.latitude = std::max(maxLngLat.latitude, lat);
+        }
+      });
+    }
 
     for(; markerIdx < searchMarkers.size(); ++markerIdx)
       map->markerSetVisible(searchMarkers[markerIdx], false);
-
-
-    // Enter pressed: place marker on map for each result
-
-
-
   }
 
-  int currItem;
   std::vector<const char*> cresults;
-  for(const std::string& s : results)
-    cresults.push_back(s.c_str());
+  for(const auto& s : results)
+    cresults.push_back(s["name"].GetString());
 
-  ImGui::ListBox("Results", &currItem, cresults.data(), cresults.size());
+  int currItem;
+  if(ImGui::ListBox("Results", &currItem, cresults.data(), cresults.size())) {
+    // if item selected, show info and place single marker
+    pickLabelStr.clear();
+    for (auto& m : results[currItem].GetObject())
+      pickLabelStr += m.name.GetString() + std::string(" = ") + m.value.GetString() + "\n";
+    for(size_t ii = 0; ii < searchMarkers.size(); ++ii)
+      map->markerSetVisible(searchMarkers[ii], ii == currItem);
+  }
+
+
+  double scrx, scry;
+  if(!map->lngLatToScreenPosition(minLngLat.longitude, minLngLat.latitude, &scrx, &scry)
+      || !map->lngLatToScreenPosition(maxLngLat.longitude, maxLngLat.latitude, &scrx, &scry)) {
+    auto pos = map->getEnclosingCameraPosition(minLngLat, maxLngLat);
+    pos.zoom = std::min(pos.zoom, 15.0f);
+    map->flyTo(pos, 1.0);
+  }
+
+
+  if(!map->lngLatToScreenPosition(lng, lat, &scrx, &scry))
+    map->flyTo(CameraPosition{lng, lat, 14}, 1.0);  // max(map->getZoom(), 14)
+
+
 }
 
 // GPX tracks
