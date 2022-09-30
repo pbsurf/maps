@@ -206,6 +206,9 @@ public:
     // get the scene object
     Scene* getScene();
 
+    // update global variables (only affects JS functions currently)
+    void updateGlobals(const std::vector<SceneUpdate>& _sceneUpdates);
+
     // Set listener for scene load events. The callback receives the SceneID
     // of the loaded scene and SceneError in case loading was not successful.
     // The callback may be be called from the main or worker thread.

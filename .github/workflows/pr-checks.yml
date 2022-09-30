@@ -1,5 +1,5 @@
-name: "PR Checks"
-on: push
+name: "PR Checks - disabled for now"
+on: workflow_dispatch
 jobs:
   build-test-windows:
     name: "Build and Test on Windows"
@@ -18,12 +18,12 @@ jobs:
           ref: 2021.05.12
           path: vcpkg
       - name: "Setup NuGet Credentials"
-        run: nuget sources add 
+        run: nuget sources add
           -source "https://nuget.pkg.github.com/tangrams/index.json"
           -name GitHub
           -username tangrams
           -password ${{ secrets.GITHUB_TOKEN }}
-          -storepasswordincleartext 
+          -storepasswordincleartext
       - name: "Configure CMake"
         run: cmake -S . -B .\build -G "Visual Studio 16 2019"
           -DCMAKE_TOOLCHAIN_FILE=".\vcpkg\scripts\buildsystems\vcpkg.cmake"

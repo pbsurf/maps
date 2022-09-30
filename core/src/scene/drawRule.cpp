@@ -188,6 +188,11 @@ bool DrawRuleMergeSet::evaluateRuleForContext(DrawRule& rule, StyleContext& cont
         }
     }
 
+    // handle case of 'visible' set by function
+    if (rule.get(StyleParamKey::visible, visible) && !visible) {
+        return false;
+    }
+
     return valid;
 }
 

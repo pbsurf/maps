@@ -109,7 +109,7 @@ collide: false
 offset: [0px, -11px]
 order: 900
 text:
-  text_source: "function() { return \"%s\"; }"
+  text_source: "function() { return \"%s (%.1f km)\"; }"
   offset: [0px, -11px]
   priority: %d
   font:
@@ -442,6 +442,9 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
                 map->markerSetStylingFromPath(pickResultMarker, "layers.pick-result.draw.pick-marker");
             }
             map->markerSetPoint(pickResultMarker, result->coordinates);
+            map->markerSetVisible(pickResultMarker, true);
+            for(MarkerID mrkid : searchMarkers)
+              map->markerSetVisible(mrkid, false);
 
             std::string itemId;
             logMsg("Pick label result:\n");
@@ -774,6 +777,7 @@ static bool DB_exec(sqlite3* db, const char* sql, SQLiteStmtFn cb = SQLiteStmtFn
 }
 
 static LngLat mapCenter;
+static bool sortByDist = false;
 
 static void udf_osmSearchRank(sqlite3_context* context, int argc, sqlite3_value** argv)
 {
@@ -785,7 +789,7 @@ static void udf_osmSearchRank(sqlite3_context* context, int argc, sqlite3_value*
     sqlite3_result_double(context, -1.0);
     return;
   }
-  double rank = sqlite3_value_double(argv[0]);  // sqlite FTS rank
+  double rank = sortByDist ? 1.0 : sqlite3_value_double(argv[0]);  // sqlite FTS rank
   double lon = sqlite3_value_double(argv[1]);  // distance from search center point in meters
   double lat = sqlite3_value_double(argv[2]);  // distance from search center point in meters
   double dist = lngLatDist(mapCenter, LngLat(lon, lat));
@@ -933,8 +937,11 @@ static bool initSearch()
 
 void showSearchGUI()
 {
+  static bool nextPage = false;
+  static int resultOffset = 0;
   static std::vector<std::string> autocomplete;
   static std::vector<rapidjson::Document> results;
+  static std::vector<LngLat> respts;
   static std::string searchStr;  // imgui compares to this to determine if text is edited, so make persistant
 
   if(!searchDB) {
@@ -953,7 +960,8 @@ void showSearchGUI()
   bool edited = ImGui::IsItemEdited();
   // history (autocomplete)
   if(ent) {
-    DB_exec(searchDB, fstring("INSERT INTO history (query) VALUES ('%s');", searchStr.c_str()).c_str());
+    // IGNORE prevents error from UNIQUE constraint
+    DB_exec(searchDB, fstring("INSERT OR IGNORE INTO history (query) VALUES ('%s');", searchStr.c_str()).c_str());
   }
   else {
     if(edited) {
@@ -976,22 +984,37 @@ void showSearchGUI()
       }
     }
   }
-  if(ent || edited) {
-    results.clear();
-    size_t markerIdx = 0;
+
+  // sort by distance only?
+  if (ImGui::Checkbox("Show Selection Buffer", &sortByDist)) {
+    ent = true;
+  }
+
+  nextPage = nextPage && !ent && !edited;
+  if(ent || edited || nextPage) {
+    if(!nextPage) {
+      results.clear();
+      respts.clear();
+    }
+    resultOffset = nextPage ? resultOffset + 20 : 0;
+    size_t markerIdx = nextPage ? results.size() : 0;
     if(searchStr.size() > 2) {
       map->getPosition(mapCenter.longitude, mapCenter.latitude);
       std::string query = fstring("SELECT props, lng, lat FROM points_fts WHERE points_fts "
-          "MATCH '%s*' ORDER BY osmSearchRank(rank, lng, lat) LIMIT 20;", searchStr.c_str());
+          "MATCH '%s*' ORDER BY osmSearchRank(rank, lng, lat) LIMIT 20 OFFSET %d;", searchStr.c_str(), resultOffset);
 
       DB_exec(searchDB, query.c_str(), [&](sqlite3_stmt* stmt){
+        double lng = sqlite3_column_double(stmt, 1);
+        double lat = sqlite3_column_double(stmt, 2);
+        respts.push_back(LngLat(lng, lat));
         results.emplace_back();
         results.back().Parse((const char*)(sqlite3_column_text(stmt, 0)));
-        if(!results.back().HasMember("name"))
+        if(!results.back().HasMember("name")) {
           results.pop_back();
-        else if(ent) {
-          double lng = sqlite3_column_double(stmt, 1);
-          double lat = sqlite3_column_double(stmt, 2);
+          respts.pop_back();
+        }
+        else if(ent || nextPage) {
+          double distkm = lngLatDist(mapCenter, LngLat(lng, lat));
           if(markerIdx >= searchMarkers.size())
             searchMarkers.push_back(map->markerAdd());
           map->markerSetVisible(searchMarkers[markerIdx], true);
@@ -999,14 +1022,16 @@ void showSearchGUI()
           std::string namestr = results.back()["name"].GetString();
           std::replace(namestr.begin(), namestr.end(), '"', '\'');
           map->markerSetStylingFromString(searchMarkers[markerIdx],
-              fstring(searchMarkerStyleStr, namestr.c_str(), markerIdx+2).c_str());
+              fstring(searchMarkerStyleStr, namestr.c_str(), distkm, markerIdx+2).c_str());
           map->markerSetPoint(searchMarkers[markerIdx], LngLat(lng, lat));
           ++markerIdx;
 
-          minLngLat.longitude = std::min(minLngLat.longitude, lng);
-          minLngLat.latitude = std::min(minLngLat.latitude, lat);
-          maxLngLat.longitude = std::max(maxLngLat.longitude, lng);
-          maxLngLat.latitude = std::max(maxLngLat.latitude, lat);
+          if(markerIdx <= 5 || distkm < 2.0) {
+            minLngLat.longitude = std::min(minLngLat.longitude, lng);
+            minLngLat.latitude = std::min(minLngLat.latitude, lat);
+            maxLngLat.longitude = std::max(maxLngLat.longitude, lng);
+            maxLngLat.latitude = std::max(maxLngLat.latitude, lat);
+          }
         }
       });
     }
@@ -1014,35 +1039,53 @@ void showSearchGUI()
     for(; markerIdx < searchMarkers.size(); ++markerIdx)
       map->markerSetVisible(searchMarkers[markerIdx], false);
   }
+  nextPage = false;
 
   std::vector<const char*> cresults;
   for(const auto& s : results)
     cresults.push_back(s["name"].GetString());
 
   int currItem;
+  double scrx, scry;
   if(ImGui::ListBox("Results", &currItem, cresults.data(), cresults.size())) {
     // if item selected, show info and place single marker
     pickLabelStr.clear();
     for (auto& m : results[currItem].GetObject())
       pickLabelStr += m.name.GetString() + std::string(" = ") + m.value.GetString() + "\n";
-    for(size_t ii = 0; ii < searchMarkers.size(); ++ii)
-      map->markerSetVisible(searchMarkers[ii], ii == currItem);
+    for(MarkerID mrkid : searchMarkers)
+      map->markerSetVisible(mrkid, false);
+
+    if (pickResultMarker == 0)
+      pickResultMarker = map->markerAdd();
+    map->markerSetVisible(pickResultMarker, true);
+    // 2nd value is priority (smaller number means higher priority)
+    std::string namestr = results[currItem]["name"].GetString();
+    std::replace(namestr.begin(), namestr.end(), '"', '\'');
+    map->markerSetStylingFromString(pickResultMarker,
+        fstring(searchMarkerStyleStr, namestr.c_str(), 2).c_str());
+    map->markerSetPoint(pickResultMarker, respts[currItem]);
+
+    // ensure marker is visible
+    double lng = respts[currItem].longitude;
+    double lat = respts[currItem].latitude;
+    if(!map->lngLatToScreenPosition(lng, lat, &scrx, &scry))
+      map->flyTo(CameraPosition{lng, lat, 16}, 1.0);  // max(map->getZoom(), 14)
+  }
+  else if(minLngLat.longitude != 180) {
+    map->markerSetVisible(pickResultMarker, false);
+    if(!map->lngLatToScreenPosition(minLngLat.longitude, minLngLat.latitude, &scrx, &scry)
+        || !map->lngLatToScreenPosition(maxLngLat.longitude, maxLngLat.latitude, &scrx, &scry)) {
+      auto pos = map->getEnclosingCameraPosition(minLngLat, maxLngLat);
+      pos.zoom = std::min(pos.zoom, 16.0f);
+      map->flyTo(pos, 1.0);
+    }
   }
 
-
-  double scrx, scry;
-  if(!map->lngLatToScreenPosition(minLngLat.longitude, minLngLat.latitude, &scrx, &scry)
-      || !map->lngLatToScreenPosition(maxLngLat.longitude, maxLngLat.latitude, &scrx, &scry)) {
-    auto pos = map->getEnclosingCameraPosition(minLngLat, maxLngLat);
-    pos.zoom = std::min(pos.zoom, 15.0f);
-    map->flyTo(pos, 1.0);
-  }
+  map->updateGlobals({SceneUpdate{"global.search_active", flag ? "true" : "false"}});
 
 
-  if(!map->lngLatToScreenPosition(lng, lat, &scrx, &scry))
-    map->flyTo(CameraPosition{lng, lat, 14}, 1.0);  // max(map->getZoom(), 14)
-
-
+  if (!results.empty() && ImGui::Button("More"))
+    nextPage = true;
 }
 
 // GPX tracks
@@ -1287,11 +1330,15 @@ void showSceneVarsGUI() {
             std::string name = map->readSceneValue(fstring("global.gui_variables#%d.name", ii));
             if(name.empty()) break;
             std::string label = map->readSceneValue(fstring("global.gui_variables#%d.label", ii));
+            std::string reload = map->readSceneValue(fstring("global.gui_variables#%d.reload", ii));
             std::string value = map->readSceneValue("global." + name);
             bool flag = value == "true";
             if (ImGui::Checkbox(label.c_str(), &flag)) {
                 // we expect only one checkbox to change per frame, so this is OK
-                loadSceneFile(false, {SceneUpdate{"global." + name, flag ? "true" : "false"}});
+                if(reload == "false")  // ... so default to reloading
+                    map->updateGlobals({SceneUpdate{"global." + name, flag ? "true" : "false"}});
+                else
+                    loadSceneFile(false, {SceneUpdate{"global." + name, flag ? "true" : "false"}});
             }
         }
     }

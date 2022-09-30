@@ -1707,6 +1707,7 @@ layers:
         data: { source: carto }
         draw:
             points:
+                visible: function() { return !global.search_active; }
                 texture: pois
                 interactive: true
                 collide: true

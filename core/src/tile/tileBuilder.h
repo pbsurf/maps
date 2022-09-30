@@ -41,6 +41,7 @@ private:
 
     std::unique_ptr<StyleContext> m_styleContext;
     DrawRuleMergeSet m_ruleSet;
+    int64_t globalsGeneration = 0;
 
     LabelCollider m_labelLayout;
 

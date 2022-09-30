@@ -205,6 +205,14 @@ Scene* Map::getScene()
   return impl->scene.get();
 }
 
+void Map::updateGlobals(const std::vector<SceneUpdate>& _sceneUpdates)
+{
+  auto config = const_cast<YAML::Node&>(impl->scene->config());
+  SceneLoader::applyUpdates(config, _sceneUpdates);
+  impl->scene->globalsGeneration++;
+  impl->scene->tileManager()->clearTileSets();
+}
+
 void Map::setSceneReadyListener(SceneReadyCallback _onSceneReady) {
     impl->onSceneReady = _onSceneReady;
 }

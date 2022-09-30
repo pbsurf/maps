@@ -174,6 +174,9 @@ public:
     /// Scene ID
     const int32_t id;
 
+    /// incremented whenever globals are updated
+    int64_t globalsGeneration = 0;
+
     using Lights = std::vector<std::unique_ptr<Light>>;
     using LightShaderBlocks = std::map<std::string, std::string>;
     using TileSources = std::vector<std::shared_ptr<TileSource>>;

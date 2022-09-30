@@ -111,6 +111,11 @@ std::unique_ptr<Tile> TileBuilder::build(TileID _tileID, const TileData& _tileDa
     tile->initGeometry(int(m_scene.styles().size()));
 
     m_styleContext->setZoom(_tileID.s);
+    // update globals in JS context if changed ... should be doing atomic cmp xchg
+    if(globalsGeneration < m_scene.globalsGeneration) {
+      globalsGeneration = m_scene.globalsGeneration;
+      m_styleContext->setSceneGlobals(m_scene.config()["global"]);
+    }
 
     for (auto& builder : m_styleBuilder) {
         if (builder.second) { builder.second->setup(*tile); }
