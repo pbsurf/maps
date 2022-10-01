@@ -109,7 +109,7 @@ collide: false
 offset: [0px, -11px]
 order: 900
 text:
-  text_source: "function() { return \"%s (%.1f km)\"; }"
+  text_source: "function() { return \"%s\"; }"
   offset: [0px, -11px]
   priority: %d
   font:
@@ -789,12 +789,13 @@ static void udf_osmSearchRank(sqlite3_context* context, int argc, sqlite3_value*
     sqlite3_result_double(context, -1.0);
     return;
   }
-  double rank = sortByDist ? 1.0 : sqlite3_value_double(argv[0]);  // sqlite FTS rank
+  // sqlite FTS5 rank is roughly -1*number_of_words_in_query; ordered from -\inf to 0
+  double rank = sortByDist ? -1.0 : sqlite3_value_double(argv[0]);
   double lon = sqlite3_value_double(argv[1]);  // distance from search center point in meters
   double lat = sqlite3_value_double(argv[2]);  // distance from search center point in meters
   double dist = lngLatDist(mapCenter, LngLat(lon, lat));
   // obviously will want a more sophisticated ranking calculation in the future
-  sqlite3_result_double(context, rank/log2(dist));
+  sqlite3_result_double(context, rank/log2(1+dist));
 }
 
 // segfault if GLM_FORCE_CTOR_INIT is defined for some units and not others!!!
@@ -877,6 +878,7 @@ static bool initSearch()
   }
 
   // get bounds from mbtiles DB
+  // mbtiles spec: https://github.com/mapbox/mbtiles-spec/blob/master/1.3/spec.md
   sqlite3* tileDB;
   if(sqlite3_open_v2("/home/mwhite/maps/sf.mbtiles", &tileDB, SQLITE_OPEN_READONLY, NULL) != SQLITE_OK) {
     logMsg("Error opening tile DB: %s\n", sqlite3_errmsg(tileDB));
@@ -937,8 +939,8 @@ static bool initSearch()
 
 void showSearchGUI()
 {
-  static bool nextPage = false;
   static int resultOffset = 0;
+  static bool searchActive = false;
   static std::vector<std::string> autocomplete;
   static std::vector<rapidjson::Document> results;
   static std::vector<LngLat> respts;
@@ -986,11 +988,25 @@ void showSearchGUI()
   }
 
   // sort by distance only?
-  if (ImGui::Checkbox("Show Selection Buffer", &sortByDist)) {
+  bool nextPage = false;
+  if (ImGui::Checkbox("Sort by distance", &sortByDist)) {
     ent = true;
   }
+  if(ImGui::Button("Clear")) {
+    //ImGui::SetKeyboardFocusHere(-1);
+    if(searchActive)
+      map->updateGlobals({SceneUpdate{"global.search_active", "false"}});
+    searchActive = false;
+    searchStr.clear();
+    autocomplete.clear();
+    ent = true;
+  }
+  else if (!results.empty()) {
+    ImGui::SameLine();
+    if(ImGui::Button("More"))
+      nextPage = !ent && !edited;
+  }
 
-  nextPage = nextPage && !ent && !edited;
   if(ent || edited || nextPage) {
     if(!nextPage) {
       results.clear();
@@ -1014,7 +1030,6 @@ void showSearchGUI()
           respts.pop_back();
         }
         else if(ent || nextPage) {
-          double distkm = lngLatDist(mapCenter, LngLat(lng, lat));
           if(markerIdx >= searchMarkers.size())
             searchMarkers.push_back(map->markerAdd());
           map->markerSetVisible(searchMarkers[markerIdx], true);
@@ -1022,11 +1037,11 @@ void showSearchGUI()
           std::string namestr = results.back()["name"].GetString();
           std::replace(namestr.begin(), namestr.end(), '"', '\'');
           map->markerSetStylingFromString(searchMarkers[markerIdx],
-              fstring(searchMarkerStyleStr, namestr.c_str(), distkm, markerIdx+2).c_str());
+              fstring(searchMarkerStyleStr, namestr.c_str(), markerIdx+2).c_str());
           map->markerSetPoint(searchMarkers[markerIdx], LngLat(lng, lat));
           ++markerIdx;
 
-          if(markerIdx <= 5 || distkm < 2.0) {
+          if(markerIdx <= 5 || lngLatDist(mapCenter, LngLat(lng, lat)) < 2.0) {
             minLngLat.longitude = std::min(minLngLat.longitude, lng);
             minLngLat.latitude = std::min(minLngLat.latitude, lat);
             maxLngLat.longitude = std::max(maxLngLat.longitude, lng);
@@ -1035,15 +1050,23 @@ void showSearchGUI()
         }
       });
     }
-
+    if(!searchActive && ent && !results.empty()) {
+      map->updateGlobals({SceneUpdate{"global.search_active", "true"}});
+      searchActive = true;
+    }
     for(; markerIdx < searchMarkers.size(); ++markerIdx)
       map->markerSetVisible(searchMarkers[markerIdx], false);
   }
-  nextPage = false;
+
+  std::vector<std::string> sresults;
+  for (size_t ii = 0; ii < results.size(); ++ii) {
+    double distkm = lngLatDist(mapCenter, respts[ii]);
+    sresults.push_back(fstring("%s (%.1f km)", results[ii]["name"].GetString(), distkm));
+  }
 
   std::vector<const char*> cresults;
-  for(const auto& s : results)
-    cresults.push_back(s["name"].GetString());
+  for(const auto& s : sresults)
+    cresults.push_back(s.c_str());
 
   int currItem;
   double scrx, scry;
@@ -1080,13 +1103,27 @@ void showSearchGUI()
       map->flyTo(pos, 1.0);
     }
   }
-
-  map->updateGlobals({SceneUpdate{"global.search_active", flag ? "true" : "false"}});
-
-
-  if (!results.empty() && ImGui::Button("More"))
-    nextPage = true;
 }
+
+// bookmarks (saved places)
+// - list of bookmark lists; each list has list of places
+// - combo box to pick list, then list of places on list; can select place to delete (multi-select w/ cut copy paste?)
+// - add, delete, show/hide options for lists
+// - schema: 1 table for all places, w/ list name as column vs. separate table for each list?
+//  - separate tables supports assigning place to multiple lists better (otherwise we have to duplicate)
+//  - when a place is selected, we'd want to show list membership ... this will be done via osm ID! ... easier w/ single table
+// ... let's go w/ single table
+
+
+void showBookmarkGUI()
+{
+  if (!ImGui::CollapsingHeader("Saved Places"))
+    return;
+  if (ImGui::Button("Save")) {
+
+  }
+}
+
 
 // GPX tracks
 
