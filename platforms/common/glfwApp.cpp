@@ -10,6 +10,7 @@
 
 // for building search DB
 #include "document.h"  // rapidjson
+#include "writer.h"  // rapidjson
 #include "data/tileData.h"
 #include "scene/scene.h"
 #include "sqlite3/sqlite3.h"
@@ -43,6 +44,7 @@ void dropCallback(GLFWwindow* window, int count, const char** paths);
 void framebufferResizeCallback(GLFWwindow* window, int fWidth, int fHeight);
 
 // Forward-declare GUI functions.
+void showBookmarkGUI();
 void showSearchGUI();
 void showPickLabelGUI();
 void showSceneVarsGUI();
@@ -129,9 +131,47 @@ Tangram::MarkerID polyline_marker = 0;
 std::vector<Tangram::LngLat> polyline_marker_coordinates;
 
 Tangram::MarkerID pickResultMarker = 0;
+std::string pickResultProps;
+LngLat pickResultCoord(NAN, NAN);
 
 std::vector<SceneUpdate> sceneUpdates;
 const char* apiKeyScenePath = "global.sdk_api_key";
+
+// common fns
+
+template<typename ... Args>
+std::string fstring( const std::string& format, Args ... args )
+{
+    int size_s = std::snprintf( nullptr, 0, format.c_str(), args ... ) + 1; // Extra space for '\0'
+    if( size_s <= 0 ) return "";
+    auto size = static_cast<size_t>( size_s );
+    std::unique_ptr<char[]> buf( new char[ size ] );
+    std::snprintf( buf.get(), size, format.c_str(), args ... );
+    return std::string( buf.get(), buf.get() + size - 1 ); // We don't want the '\0' inside
+}
+
+template<template<class, class...> class Container, class... Container_Params>
+Container<std::string, Container_Params... > splitStr(std::string s, const char* delims, bool skip_empty = false)
+{
+  Container<std::string, Container_Params... > elems;
+  std::string item;
+  size_t start = 0, end = 0;
+  while((end = s.find_first_of(delims, start)) != std::string::npos) {
+    if(!skip_empty || end > start)
+      elems.insert(elems.end(), s.substr(start, end-start));
+    start = end + 1;
+  }
+  if(start < s.size())
+    elems.insert(elems.end(), s.substr(start));
+  return elems;
+}
+
+// https://stackoverflow.com/questions/27928
+double lngLatDist(LngLat r1, LngLat r2) {
+    constexpr double p = 3.14159265358979323846/180;
+    double a = 0.5 - cos((r2.latitude-r1.latitude)*p)/2 + cos(r1.latitude*p) * cos(r2.latitude*p) * (1-cos((r2.longitude-r1.longitude)*p))/2;
+    return 12742 * asin(sqrt(a));  // kilometers
+}
 
 void loadSceneFile(bool setPosition, std::vector<SceneUpdate> updates) {
 
@@ -282,7 +322,7 @@ void run() {
     loadSceneFile(false);  //true);
     // default position: Alamo Square, SF - overriden by scene camera position if async load
     map->setPickRadius(1.0f);
-    map->setZoom(13);
+    map->setZoom(15);
     map->setPosition(-122.434668, 37.776444);
 
     double lastTime = glfwGetTime();
@@ -303,6 +343,7 @@ void run() {
             showDebugFlagsGUI();
             showSceneVarsGUI();
             showSearchGUI();
+            showBookmarkGUI();
             showPickLabelGUI();
         }
         double currentTime = glfwGetTime();
@@ -381,15 +422,30 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
         return; // Imgui is handling this event.
     }
 
-    if (button != GLFW_MOUSE_BUTTON_1) {
-        return; // This event is for a mouse button that we don't care about
-    }
-
     double x, y;
     glfwGetCursorPos(window, &x, &y);
     x *= density;
     y *= density;
     double time = glfwGetTime();
+
+    if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+      // drop a pin at location
+      map->screenPositionToLngLat(x, y, &pickResultCoord.longitude, &pickResultCoord.latitude);
+      if (pickResultMarker == 0) {
+          pickResultMarker = map->markerAdd();
+      }
+      map->markerSetStylingFromPath(pickResultMarker, "layers.pick-result.draw.pick-marker");
+      map->markerSetPoint(pickResultMarker, pickResultCoord);
+      map->markerSetVisible(pickResultMarker, true);
+      for(MarkerID mrkid : searchMarkers)
+        map->markerSetVisible(mrkid, false);
+      pickResultProps.clear();
+      pickLabelStr = fstring("lat = %.6f\nlon = %.6f", pickResultCoord.latitude, pickResultCoord.longitude);
+      return;
+    }
+    else if (button != GLFW_MOUSE_BUTTON_LEFT) {
+        return; // This event is for a mouse button that we don't care about
+    }
 
     if (was_panning && action == GLFW_RELEASE) {
         was_panning = false;
@@ -433,13 +489,15 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
 
         map->pickLabelAt(x, y, [&](const LabelPickResult* result) {
             pickLabelStr.clear();
-            if (result == nullptr) {
-                logMsg("Pick Label result is null.\n");
-                return;
-            }
             if (pickResultMarker == 0) {
                 pickResultMarker = map->markerAdd();
                 map->markerSetStylingFromPath(pickResultMarker, "layers.pick-result.draw.pick-marker");
+            }
+            if (!result) {
+                logMsg("Pick Label result is null.\n");
+                map->markerSetVisible(pickResultMarker, false);
+                pickResultCoord = LngLat(NAN, NAN);
+                return;
             }
             map->markerSetPoint(pickResultMarker, result->coordinates);
             map->markerSetVisible(pickResultMarker, true);
@@ -456,6 +514,9 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
                 logMsg(l.c_str());
                 pickLabelStr += l;
             }
+            // save for use when creating bookmark
+            pickResultProps = result->touchItem.properties->toJson();
+            pickResultCoord = result->coordinates;
 
             // query OSM API with id - append .json to get JSON instead of XML
             if(!itemId.empty()) {
@@ -716,48 +777,12 @@ void framebufferResizeCallback(GLFWwindow* window, int fWidth, int fHeight) {
     map->resize(fWidth, fHeight);
 }
 
-// common fns
-
-template<typename ... Args>
-std::string fstring( const std::string& format, Args ... args )
-{
-    int size_s = std::snprintf( nullptr, 0, format.c_str(), args ... ) + 1; // Extra space for '\0'
-    if( size_s <= 0 ) return "";
-    auto size = static_cast<size_t>( size_s );
-    std::unique_ptr<char[]> buf( new char[ size ] );
-    std::snprintf( buf.get(), size, format.c_str(), args ... );
-    return std::string( buf.get(), buf.get() + size - 1 ); // We don't want the '\0' inside
-}
-
-template<template<class, class...> class Container, class... Container_Params>
-Container<std::string, Container_Params... > splitStr(std::string s, const char* delims, bool skip_empty = false)
-{
-  Container<std::string, Container_Params... > elems;
-  std::string item;
-  size_t start = 0, end = 0;
-  while((end = s.find_first_of(delims, start)) != std::string::npos) {
-    if(!skip_empty || end > start)
-      elems.insert(elems.end(), s.substr(start, end-start));
-    start = end + 1;
-  }
-  if(start < s.size())
-    elems.insert(elems.end(), s.substr(start));
-  return elems;
-}
-
-// https://stackoverflow.com/questions/27928
-double lngLatDist(LngLat r1, LngLat r2) {
-    constexpr double p = 3.14159265358979323846/180;
-    double a = 0.5 - cos((r2.latitude-r1.latitude)*p)/2 + cos(r1.latitude*p) * cos(r2.latitude*p) * (1-cos((r2.longitude-r1.longitude)*p))/2;
-    return 12742 * asin(sqrt(a));  // kilometers
-}
-
 // building search DB from tiles
 sqlite3* searchDB = NULL;
 
 typedef std::function<void(sqlite3_stmt*)> SQLiteStmtFn;
 
-static bool DB_exec(sqlite3* db, const char* sql, SQLiteStmtFn cb = SQLiteStmtFn())
+static bool DB_exec(sqlite3* db, const char* sql, SQLiteStmtFn cb = SQLiteStmtFn(), SQLiteStmtFn bind = SQLiteStmtFn())
 {
   //if(sqlite3_exec(searchDB, sql, cb ? sqlite_static_helper : NULL, cb ? &cb : NULL, &zErrMsg) != SQLITE_OK) {
   int res;
@@ -766,6 +791,8 @@ static bool DB_exec(sqlite3* db, const char* sql, SQLiteStmtFn cb = SQLiteStmtFn
     logMsg("sqlite3_prepare_v2 error: %s\n", sqlite3_errmsg(searchDB));
     return false;
   }
+  if(bind)
+    bind(stmt);
   while ((res = sqlite3_step(stmt)) == SQLITE_ROW) {
     if(cb)
       cb(stmt);
@@ -912,7 +939,6 @@ static bool initSearch()
   char const* strStmt = "INSERT INTO points_fts (tags,props,lng,lat) VALUES (?,?,?,?);";
   if(sqlite3_prepare_v2(searchDB, strStmt, -1, &stmt, NULL) != SQLITE_OK) {
     logMsg("sqlite3_prepare_v2 error: %s\n", sqlite3_errmsg(searchDB));
-    sqlite3_mutex_leave(sqlite3_db_mutex(searchDB));
     return false;
   }
 
@@ -937,12 +963,15 @@ static bool initSearch()
   return true;
 }
 
+static bool searchActive = false;
+
 void showSearchGUI()
 {
+  using namespace rapidjson;
+
   static int resultOffset = 0;
-  static bool searchActive = false;
   static std::vector<std::string> autocomplete;
-  static std::vector<rapidjson::Document> results;
+  static std::vector<Document> results;
   static std::vector<LngLat> respts;
   static std::string searchStr;  // imgui compares to this to determine if text is edited, so make persistant
 
@@ -1016,10 +1045,11 @@ void showSearchGUI()
     size_t markerIdx = nextPage ? results.size() : 0;
     if(searchStr.size() > 2) {
       map->getPosition(mapCenter.longitude, mapCenter.latitude);
-      std::string query = fstring("SELECT props, lng, lat FROM points_fts WHERE points_fts "
-          "MATCH '%s*' ORDER BY osmSearchRank(rank, lng, lat) LIMIT 20 OFFSET %d;", searchStr.c_str(), resultOffset);
+      // should we add tokenize = porter to CREATE TABLE? seems we want it on query, not content!
+      const char* query = "SELECT props, lng, lat FROM points_fts WHERE points_fts "
+          "MATCH ? ORDER BY osmSearchRank(rank, lng, lat) LIMIT 20 OFFSET ?;";
 
-      DB_exec(searchDB, query.c_str(), [&](sqlite3_stmt* stmt){
+      DB_exec(searchDB, query, [&](sqlite3_stmt* stmt){
         double lng = sqlite3_column_double(stmt, 1);
         double lat = sqlite3_column_double(stmt, 2);
         respts.push_back(LngLat(lng, lat));
@@ -1048,6 +1078,11 @@ void showSearchGUI()
             maxLngLat.latitude = std::max(maxLngLat.latitude, lat);
           }
         }
+      }, [&](sqlite3_stmt* stmt){
+        std::string s(searchStr + "*");
+        std::replace(s.begin(), s.end(), '\'', ' ');
+        sqlite3_bind_text(stmt, 1, s.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int(stmt, 2, resultOffset);
       });
     }
     if(!searchActive && ent && !results.empty()) {
@@ -1088,6 +1123,12 @@ void showSearchGUI()
         fstring(searchMarkerStyleStr, namestr.c_str(), 2).c_str());
     map->markerSetPoint(pickResultMarker, respts[currItem]);
 
+    StringBuffer sb;
+    Writer<StringBuffer> writer(sb);
+    results[currItem].Accept(writer);
+    pickResultProps = sb.GetString();
+    pickResultCoord = respts[currItem];
+
     // ensure marker is visible
     double lng = respts[currItem].longitude;
     double lat = respts[currItem].latitude;
@@ -1096,6 +1137,7 @@ void showSearchGUI()
   }
   else if(minLngLat.longitude != 180) {
     map->markerSetVisible(pickResultMarker, false);
+    pickResultCoord = LngLat(NAN, NAN);
     if(!map->lngLatToScreenPosition(minLngLat.longitude, minLngLat.latitude, &scrx, &scry)
         || !map->lngLatToScreenPosition(maxLngLat.longitude, maxLngLat.latitude, &scrx, &scry)) {
       auto pos = map->getEnclosingCameraPosition(minLngLat, maxLngLat);
@@ -1114,13 +1156,149 @@ void showSearchGUI()
 //  - when a place is selected, we'd want to show list membership ... this will be done via osm ID! ... easier w/ single table
 // ... let's go w/ single table
 
+// do we need a separate table for lists? description, visibility and ordering in UI (this could be in config file)
+
+// all (>1 in general) selected lists should be shown on map, but hidden when search active
+
+// long press (popup menu?) to place marker at any position on map
+// possible markers: saved places, search, picked place, pin at arbitrary lat/lng
+// - should we have a single list of markers?
 
 void showBookmarkGUI()
 {
-  if (!ImGui::CollapsingHeader("Saved Places"))
-    return;
-  if (ImGui::Button("Save")) {
+  static sqlite3* bkmkDB = NULL;
+  static std::vector<int> placeRowIds;
+  static std::vector<std::string> placeNames;
+  static std::string placeNotes;
+  static std::string currList;
+  static std::string newListTitle;
+  static int currListIdx = 0;
+  static int currPlaceIdx = 0;
+  static bool updatePlaces = true;
 
+  if(!bkmkDB) {
+    const char* dbPath = "/home/mwhite/maps/places.sqlite";
+    if(sqlite3_open_v2(dbPath, &bkmkDB, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL) != SQLITE_OK) {
+      logMsg("Error creating %s", dbPath);
+      sqlite3_close(bkmkDB);
+      bkmkDB = NULL;
+      return;
+    }
+    //DB_exec(bkmkDB, "CREATE TABLE IF NOT EXISTS history(query TEXT UNIQUE);");
+    DB_exec(bkmkDB, "CREATE TABLE IF NOT EXISTS bookmarks(osm_id INTEGER, list TEXT, props TEXT, notes TEXT, lng REAL, lat REAL);");
+  }
+
+  if (!ImGui::CollapsingHeader("Saved Places", ImGuiTreeNodeFlags_DefaultOpen))
+    return;
+
+  std::vector<std::string> lists;
+  DB_exec(bkmkDB, "SELECT DISTINCT list FROM bookmarks;", [&](sqlite3_stmt* stmt){
+    lists.emplace_back((const char*)(sqlite3_column_text(stmt, 0)));
+  });
+
+  bool ent = ImGui::InputText("List Title", &newListTitle, ImGuiInputTextFlags_EnterReturnsTrue);
+  ImGui::SameLine();
+  if (ImGui::Button("Create") || ent) {
+    currList = newListTitle;
+    currListIdx = -1;
+  }
+
+  if(!lists.empty()) {
+    std::vector<const char*> clists;
+    for(const auto& s : lists)
+      clists.push_back(s.c_str());
+
+    if(ImGui::Combo("List", &currListIdx, clists.data(), clists.size())) {
+      currList = lists[currListIdx];
+      newListTitle.clear();
+      updatePlaces = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Delete")) {
+      DB_exec(bkmkDB, fstring("DELETE FROM bookmarks WHERE list = %s;", currList.c_str()).c_str());
+    }
+  }
+  else if(currList.empty())
+    return;
+
+  // TODO: dedup w/ search
+  if(searchActive)
+    updatePlaces = true;
+  else if(updatePlaces) {
+    placeNames.clear();
+    placeRowIds.clear();
+    int markerIdx = 0;
+    const char* query = "SELECT rowid, props, lng, lat FROM bookmarks WHERE list = ?;";
+    DB_exec(bkmkDB, query, [&](sqlite3_stmt* stmt){
+      double lng = sqlite3_column_double(stmt, 2);
+      double lat = sqlite3_column_double(stmt, 3);
+      placeRowIds.push_back(sqlite3_column_int(stmt, 0));
+      rapidjson::Document doc;
+      doc.Parse((const char*)(sqlite3_column_text(stmt, 1)));
+      if(markerIdx >= searchMarkers.size())
+        searchMarkers.push_back(map->markerAdd());
+      map->markerSetVisible(searchMarkers[markerIdx], true);
+      // note that 6th decimal place of lat/lng is 11 cm (at equator)
+      std::string namestr = doc.HasMember("name") ? doc["name"].GetString() : fstring("%.6f, %.6f", lat, lng);
+      placeNames.push_back(namestr);
+      std::replace(namestr.begin(), namestr.end(), '"', '\'');
+      map->markerSetStylingFromString(searchMarkers[markerIdx],
+          fstring(searchMarkerStyleStr, namestr.c_str(), markerIdx+2).c_str());
+      map->markerSetPoint(searchMarkers[markerIdx], LngLat(lng, lat));
+      ++markerIdx;
+    }, [&](sqlite3_stmt* stmt){
+      sqlite3_bind_text(stmt, 1, currList.c_str(), -1, SQLITE_STATIC);
+    });
+    for(; markerIdx < searchMarkers.size(); ++markerIdx)
+      map->markerSetVisible(searchMarkers[markerIdx], false);
+    updatePlaces = false;
+  }
+
+  std::vector<const char*> cnames;
+  for(const auto& s : placeNames)
+    cnames.push_back(s.c_str());
+
+  if(ImGui::ListBox("Places", &currPlaceIdx, cnames.data(), cnames.size())) {
+    std::string query = fstring("SELECT notes, lng, lat FROM bookmarks WHERE rowid = %d;", placeRowIds[currPlaceIdx]);
+    double lng, lat, scrx, scry;
+    DB_exec(bkmkDB, query.c_str(), [&](sqlite3_stmt* stmt){
+      lng = sqlite3_column_double(stmt, 1);
+      lat = sqlite3_column_double(stmt, 2);
+      placeNotes = (const char*)(sqlite3_column_text(stmt, 0));
+    });
+    if(!map->lngLatToScreenPosition(lng, lat, &scrx, &scry))
+      map->flyTo(CameraPosition{lng, lat, 16}, 1.0);  // max(map->getZoom(), 14)
+
+    // we should highlight the selected place (while still showing others)
+    //markerSetBitmap(MarkerID _marker, int _width, int _height, const unsigned int* _data);
+  }
+
+  if (ImGui::Button("Delete Place")) {
+    DB_exec(bkmkDB, fstring("DELETE FROM bookmarks WHERE rowid = %d;", placeRowIds[currPlaceIdx]).c_str());
+    updatePlaces = true;
+  }
+
+  ImGui::InputText("Notes", &placeNotes, ImGuiInputTextFlags_EnterReturnsTrue);
+
+  if (!std::isnan(pickResultCoord.latitude) && ImGui::Button("Save Current Place")) {
+    const char* strStmt = "INSERT INTO bookmarks (osm_id,list,props,notes,lng,lat) VALUES (?,?,?,?,?,?);";
+    sqlite3_stmt* stmt;
+    if(sqlite3_prepare_v2(bkmkDB, strStmt, -1, &stmt, NULL) != SQLITE_OK) {
+      logMsg("sqlite3_prepare_v2 error: %s\n", sqlite3_errmsg(bkmkDB));
+      return;
+    }
+    rapidjson::Document doc;
+    doc.Parse(pickResultProps.c_str());
+    sqlite3_bind_int64(stmt, 1, doc.HasMember("id") ? doc["id"].GetInt64() : 0);
+    sqlite3_bind_text(stmt, 2, currList.c_str(), -1, SQLITE_STATIC);  // drop trailing separator
+    sqlite3_bind_text(stmt, 3, pickResultProps.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 4, placeNotes.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_double(stmt, 5, pickResultCoord.longitude);
+    sqlite3_bind_double(stmt, 6, pickResultCoord.latitude);
+    if (sqlite3_step(stmt) != SQLITE_DONE)
+      logMsg("sqlite3_step failed: %d\n", sqlite3_errmsg(sqlite3_db_handle(stmt)));
+    sqlite3_finalize(stmt);
+    updatePlaces = true;
   }
 }
 
