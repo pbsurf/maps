@@ -15,6 +15,11 @@
 #include "scene/scene.h"
 #include "sqlite3/sqlite3.h"
 
+#define NANOSVG_IMPLEMENTATION
+#include "nanosvg/nanosvg.h"
+#define NANOSVGRAST_IMPLEMENTATION
+#include "nanosvg/nanosvgrast.h"
+
 #ifdef TANGRAM_WINDOWS
 #define GLFW_INCLUDE_NONE
 #include <glad/glad.h>
@@ -76,7 +81,7 @@ std::string polylineStyle = "{ style: lines, interactive: true, color: red, widt
 
 
 GLFWwindow* main_window = nullptr;
-Tangram::Map* map = nullptr;
+Map* map = nullptr;
 int width = 800;
 int height = 600;
 float density = 1.0;
@@ -105,6 +110,9 @@ std::vector<MarkerID> trackMarkers;
 MarkerID trackHoverMarker = 0;
 std::vector<MarkerID> searchMarkers;
 
+// icons and text are linked by set Label::setRelative() in PointStyleBuilder::addFeature()
+// labels are collected and collided by LabelManager::updateLabelSet() - sorted by priority (lower number
+//  is higher priority), collided, then sorted by order (higher order means drawn later, i.e., on top)
 std::string searchMarkerStyleStr = R"#(
 style: pick-marker
 collide: false
@@ -113,11 +121,14 @@ order: 900
 text:
   text_source: "function() { return \"%s\"; }"
   offset: [0px, -11px]
-  priority: %d
+  collide: true
+  optional: true
   font:
     family: Open Sans
     size: 12px
     fill: black
+    stroke: { color: white, width: 2px }
+priority: %d
 )#";
 
 struct PointMarker {
@@ -127,10 +138,10 @@ struct PointMarker {
 
 std::vector<PointMarker> point_markers;
 
-Tangram::MarkerID polyline_marker = 0;
-std::vector<Tangram::LngLat> polyline_marker_coordinates;
+MarkerID polyline_marker = 0;
+std::vector<LngLat> polyline_marker_coordinates;
 
-Tangram::MarkerID pickResultMarker = 0;
+MarkerID pickResultMarker = 0;
 std::string pickResultProps;
 LngLat pickResultCoord(NAN, NAN);
 
@@ -200,6 +211,13 @@ void loadSceneFile(bool setPosition, std::vector<SceneUpdate> updates) {
             map->loadScene(sceneFile, setPosition, sceneUpdates);
         }
     }
+
+    // markers are invalidated ... technically we should use SceneReadyCallback for this if loading async
+    point_markers.clear();
+    polyline_marker = 0;
+    trackMarkers.clear();
+    searchMarkers.clear();
+    pickResultMarker = 0;
 }
 
 void parseArgs(int argc, char* argv[]) {
@@ -491,7 +509,6 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
             pickLabelStr.clear();
             if (pickResultMarker == 0) {
                 pickResultMarker = map->markerAdd();
-                map->markerSetStylingFromPath(pickResultMarker, "layers.pick-result.draw.pick-marker");
             }
             if (!result) {
                 logMsg("Pick Label result is null.\n");
@@ -499,24 +516,29 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
                 pickResultCoord = LngLat(NAN, NAN);
                 return;
             }
-            map->markerSetPoint(pickResultMarker, result->coordinates);
-            map->markerSetVisible(pickResultMarker, true);
-            for(MarkerID mrkid : searchMarkers)
-              map->markerSetVisible(mrkid, false);
 
             std::string itemId;
+            std::string namestr;
             logMsg("Pick label result:\n");
             for (const auto& item : result->touchItem.properties->items()) {
                 if(item.key == "id")
                   itemId = Properties::asString(item.value);
+                else if(item.key == "name")
+                  namestr = Properties::asString(item.value);
                 std::string l = "  " + item.key + " = " + Properties::asString(item.value) + "\n";
-                //logMsg("  %s = %s\n", item.key.c_str(), Properties::asString(item.value).c_str());
                 logMsg(l.c_str());
                 pickLabelStr += l;
             }
             // save for use when creating bookmark
             pickResultProps = result->touchItem.properties->toJson();
             pickResultCoord = result->coordinates;
+
+            map->markerSetStylingFromString(pickResultMarker,
+                fstring(searchMarkerStyleStr, namestr.c_str(), 2).c_str());
+            map->markerSetPoint(pickResultMarker, result->coordinates);
+            map->markerSetVisible(pickResultMarker, true);
+            for(MarkerID mrkid : searchMarkers)
+              map->markerSetVisible(mrkid, false);
 
             // query OSM API with id - append .json to get JSON instead of XML
             if(!itemId.empty()) {
@@ -777,6 +799,30 @@ void framebufferResizeCallback(GLFWwindow* window, int fWidth, int fHeight) {
     map->resize(fWidth, fHeight);
 }
 
+// rasterizing SVG markers
+
+const char* markerSVG = R"#(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24">
+  <g fill="%s" stroke="%s" stroke-width="1">
+    <path d="M5 8c0-3.517 3.271-6.602 7-6.602s7 3.085 7 6.602c0 3.455-2.563 7.543-7 14.527-4.489-7.073-7-11.072-7-14.527"/>
+  </g>
+</svg>)#";
+
+unsigned int* rasterizeSVG(char* svg, int w, int h)
+{
+  //image = nsvgParseFromFile(filename, "px", 96.0f);
+  NSVGimage* image = nsvgParse(svg, "px", 96.0f);
+  if (!image) {
+    return NULL;
+  }
+  if(fabsf(float(w)/h - image->width/image->height) > 0.1f)
+    logMsg("SVG aspect ratio mismatch\n");
+  NSVGrasterizer* rast = nsvgCreateRasterizer();
+  if (!rast) return NULL;
+  unsigned int* img = new unsigned int[w*h];
+  nsvgRasterize(rast, image, 0,0,1, (unsigned char*)img, w, h, w*4);
+  return img;
+}
+
 // building search DB from tiles
 sqlite3* searchDB = NULL;
 
@@ -974,6 +1020,7 @@ void showSearchGUI()
   static std::vector<Document> results;
   static std::vector<LngLat> respts;
   static std::string searchStr;  // imgui compares to this to determine if text is edited, so make persistant
+  static int currItem = -1;
 
   if(!searchDB) {
     if(!initSearch())
@@ -1040,6 +1087,7 @@ void showSearchGUI()
     if(!nextPage) {
       results.clear();
       respts.clear();
+      currItem = -1;
     }
     resultOffset = nextPage ? resultOffset + 20 : 0;
     size_t markerIdx = nextPage ? results.size() : 0;
@@ -1103,7 +1151,6 @@ void showSearchGUI()
   for(const auto& s : sresults)
     cresults.push_back(s.c_str());
 
-  int currItem;
   double scrx, scry;
   if(ImGui::ListBox("Results", &currItem, cresults.data(), cresults.size())) {
     // if item selected, show info and place single marker
@@ -1176,6 +1223,12 @@ void showBookmarkGUI()
   static int currPlaceIdx = 0;
   static bool updatePlaces = true;
 
+  // using markerSetBitmap will make a copy of bitmap for every marker ... let's see what happens w/ textures
+  //  from scene file (I doubt those get duplicated for every use)
+  //int markerSize = 24;
+  //std::string bkmkMarker = fstring(markerSVG, "#00FFFF", "#000", "0.5");
+  //unsigned int* markerImg = rasterizeSVG(bkmkMarker.data(), markerSize, markerSize);
+
   if(!bkmkDB) {
     const char* dbPath = "/home/mwhite/maps/places.sqlite";
     if(sqlite3_open_v2(dbPath, &bkmkDB, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL) != SQLITE_OK) {
@@ -1201,6 +1254,7 @@ void showBookmarkGUI()
   if (ImGui::Button("Create") || ent) {
     currList = newListTitle;
     currListIdx = -1;
+    updatePlaces = true;
   }
 
   if(!lists.empty()) {
@@ -1221,6 +1275,7 @@ void showBookmarkGUI()
   else if(currList.empty())
     return;
 
+  if(updatePlaces) currPlaceIdx = -1;
   // TODO: dedup w/ search
   if(searchActive)
     updatePlaces = true;
@@ -1239,7 +1294,8 @@ void showBookmarkGUI()
         searchMarkers.push_back(map->markerAdd());
       map->markerSetVisible(searchMarkers[markerIdx], true);
       // note that 6th decimal place of lat/lng is 11 cm (at equator)
-      std::string namestr = doc.HasMember("name") ? doc["name"].GetString() : fstring("%.6f, %.6f", lat, lng);
+      std::string namestr = doc.IsObject() && doc.HasMember("name") ?
+            doc["name"].GetString() : fstring("%.6f, %.6f", lat, lng);
       placeNames.push_back(namestr);
       std::replace(namestr.begin(), namestr.end(), '"', '\'');
       map->markerSetStylingFromString(searchMarkers[markerIdx],
@@ -1289,7 +1345,7 @@ void showBookmarkGUI()
     }
     rapidjson::Document doc;
     doc.Parse(pickResultProps.c_str());
-    sqlite3_bind_int64(stmt, 1, doc.HasMember("id") ? doc["id"].GetInt64() : 0);
+    sqlite3_bind_int64(stmt, 1, doc.IsObject() && doc.HasMember("id") ? doc["id"].GetInt64() : 0);
     sqlite3_bind_text(stmt, 2, currList.c_str(), -1, SQLITE_STATIC);  // drop trailing separator
     sqlite3_bind_text(stmt, 3, pickResultProps.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 4, placeNotes.c_str(), -1, SQLITE_STATIC);

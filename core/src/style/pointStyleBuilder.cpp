@@ -600,7 +600,11 @@ bool PointStyleBuilder::addFeature(const Feature& _feat, const DrawRule& _rule) 
                 textStyleBuilder.addLabel(Label::Type::point, {{p, p}}, params, attrib, _rule);
 
                 bool definePriority = !_rule.contains(StyleParamKey::text_priority);
-                bool defineCollide = _rule.contains(StyleParamKey::collide);
+                // defineCollide introduced in github.com/tangrams/tangram-es/pull/928 resulting in
+                //  text.collide style being overwritten; do we even need to check StyleParamKey::collide?
+                //bool defineCollide = _rule.contains(StyleParamKey::collide);
+                bool defineCollide = _rule.contains(StyleParamKey::collide)
+                    && !_rule.contains(StyleParamKey::text_collide);
 
                 // Link labels together
                 textLabels.back()->setRelative(*pLabel, definePriority, defineCollide);
