@@ -113,10 +113,12 @@ std::vector<MarkerID> searchMarkers;
 // icons and text are linked by set Label::setRelative() in PointStyleBuilder::addFeature()
 // labels are collected and collided by LabelManager::updateLabelSet() - sorted by priority (lower number
 //  is higher priority), collided, then sorted by order (higher order means drawn later, i.e., on top)
-std::string searchMarkerStyleStr = R"#(
+const char* searchMarkerStyleStr = R"#(
 style: pick-marker
+texture: %s
 collide: false
 offset: [0px, -11px]
+priority: %d
 order: 900
 text:
   text_source: "function() { return \"%s\"; }"
@@ -128,7 +130,6 @@ text:
     size: 12px
     fill: black
     stroke: { color: white, width: 2px }
-priority: %d
 )#";
 
 struct PointMarker {
@@ -151,13 +152,13 @@ const char* apiKeyScenePath = "global.sdk_api_key";
 // common fns
 
 template<typename ... Args>
-std::string fstring( const std::string& format, Args ... args )
+std::string fstring(const char* format, Args ... args)
 {
-    int size_s = std::snprintf( nullptr, 0, format.c_str(), args ... ) + 1; // Extra space for '\0'
+    int size_s = std::snprintf( nullptr, 0, format, args ... ) + 1; // Extra space for '\0'
     if( size_s <= 0 ) return "";
     auto size = static_cast<size_t>( size_s );
     std::unique_ptr<char[]> buf( new char[ size ] );
-    std::snprintf( buf.get(), size, format.c_str(), args ... );
+    std::snprintf( buf.get(), size, format, args ... );
     return std::string( buf.get(), buf.get() + size - 1 ); // We don't want the '\0' inside
 }
 
@@ -534,7 +535,7 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
             pickResultCoord = result->coordinates;
 
             map->markerSetStylingFromString(pickResultMarker,
-                fstring(searchMarkerStyleStr, namestr.c_str(), 2).c_str());
+                fstring(searchMarkerStyleStr, "marker-stroked", 2, namestr.c_str()).c_str());
             map->markerSetPoint(pickResultMarker, result->coordinates);
             map->markerSetVisible(pickResultMarker, true);
             for(MarkerID mrkid : searchMarkers)
@@ -807,20 +808,26 @@ const char* markerSVG = R"#(<svg xmlns="http://www.w3.org/2000/svg" width="24" h
   </g>
 </svg>)#";
 
-unsigned int* rasterizeSVG(char* svg, int w, int h)
+// create image w/ dimensions w,h from SVG string svg and upload to scene as texture with name texname
+bool textureFromSVG(const char* texname, char* svg, float scale = 1.0f)
 {
-  //image = nsvgParseFromFile(filename, "px", 96.0f);
-  NSVGimage* image = nsvgParse(svg, "px", 96.0f);
-  if (!image) {
-    return NULL;
-  }
-  if(fabsf(float(w)/h - image->width/image->height) > 0.1f)
-    logMsg("SVG aspect ratio mismatch\n");
+  //image = nsvgParseFromFile(filename, "px", dpi);
+  NSVGimage* image = nsvgParse(svg, "px", 96.0f);  // nsvgParse is destructive
+  if (!image) return false;
+
+  scale *= pixel_scale;
+  int w = int(image->width*scale + 0.5f), h = int(image->height*scale + 0.5f);
   NSVGrasterizer* rast = nsvgCreateRasterizer();
-  if (!rast) return NULL;
-  unsigned int* img = new unsigned int[w*h];
-  nsvgRasterize(rast, image, 0,0,1, (unsigned char*)img, w, h, w*4);
-  return img;
+  if (!rast) return false;
+  std::vector<uint8_t> img(w*h*4, 0);
+  // note the hack to flip y-axis - should be moved into nanosvgrast.h, activated w/ h < 0
+  nsvgRasterize(rast, image, 0,0,scale, &img[w*(h-1)*4], w, h, -w*4);
+  nsvgDelete(image);
+
+  TextureOptions texoptions;
+  texoptions.displayScale = 1/pixel_scale;
+  map->getScene()->sceneTextures().add(texname, w, h, img.data(), texoptions);
+  return true;
 }
 
 // building search DB from tiles
@@ -1108,6 +1115,10 @@ void showSearchGUI()
           respts.pop_back();
         }
         else if(ent || nextPage) {
+          if(searchMarkers.empty()) {
+            std::string svg = fstring(markerSVG, "#FF0000", "#000");
+            textureFromSVG("search-marker-red", (char*)svg.data(), 1.25f);
+          }
           if(markerIdx >= searchMarkers.size())
             searchMarkers.push_back(map->markerAdd());
           map->markerSetVisible(searchMarkers[markerIdx], true);
@@ -1115,7 +1126,7 @@ void showSearchGUI()
           std::string namestr = results.back()["name"].GetString();
           std::replace(namestr.begin(), namestr.end(), '"', '\'');
           map->markerSetStylingFromString(searchMarkers[markerIdx],
-              fstring(searchMarkerStyleStr, namestr.c_str(), markerIdx+2).c_str());
+              fstring(searchMarkerStyleStr, "search-marker-red", markerIdx+2, namestr.c_str()).c_str());
           map->markerSetPoint(searchMarkers[markerIdx], LngLat(lng, lat));
           ++markerIdx;
 
@@ -1167,7 +1178,7 @@ void showSearchGUI()
     std::string namestr = results[currItem]["name"].GetString();
     std::replace(namestr.begin(), namestr.end(), '"', '\'');
     map->markerSetStylingFromString(pickResultMarker,
-        fstring(searchMarkerStyleStr, namestr.c_str(), 2).c_str());
+        fstring(searchMarkerStyleStr, "marker-stroked", 2, namestr.c_str()).c_str());
     map->markerSetPoint(pickResultMarker, respts[currItem]);
 
     StringBuffer sb;
@@ -1299,7 +1310,7 @@ void showBookmarkGUI()
       placeNames.push_back(namestr);
       std::replace(namestr.begin(), namestr.end(), '"', '\'');
       map->markerSetStylingFromString(searchMarkers[markerIdx],
-          fstring(searchMarkerStyleStr, namestr.c_str(), markerIdx+2).c_str());
+          fstring(searchMarkerStyleStr, "marker-stroked", markerIdx+2, namestr.c_str()).c_str());
       map->markerSetPoint(searchMarkers[markerIdx], LngLat(lng, lat));
       ++markerIdx;
     }, [&](sqlite3_stmt* stmt){

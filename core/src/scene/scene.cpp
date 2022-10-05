@@ -408,6 +408,15 @@ std::shared_ptr<Texture> SceneTextures::add(const std::string& _name, const Url&
     return texture;
 }
 
+std::shared_ptr<Texture> SceneTextures::add(const std::string& _name, int _width, int _height,
+                                            const uint8_t* _data, const TextureOptions& _options) {
+    std::shared_ptr<Texture> texture = std::make_shared<Texture>(_options);
+    textures.emplace(_name, texture);
+    int bpp = _options.bytesPerPixel();
+    texture->setPixelData(_width, _height, _options.bytesPerPixel(), _data, bpp*_width*_height);
+    return texture;
+}
+
 std::shared_ptr<Texture> SceneTextures::get(const std::string& _name) {
     auto entry = textures.find(_name);
     if (entry != textures.end()) {

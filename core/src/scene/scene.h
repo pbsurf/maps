@@ -70,6 +70,8 @@ struct SceneTextures {
 
     std::shared_ptr<Texture> add(const std::string& name, const Url& url,
                                  const TextureOptions& options);
+    std::shared_ptr<Texture> add(const std::string& _name, int _width, int _height,
+                                 const uint8_t* _data, const TextureOptions& _options);
 
     std::shared_ptr<Texture> get(const std::string& name);
 };
@@ -108,6 +110,8 @@ public:
     auto& tileSources() const { return m_tileSources; }
     auto& featureSelection() const { return m_featureSelection; }
     auto& fontContext() const { return m_fontContext; }
+    // so we can call SceneTextures::add() ... should we use a Scene::addTexture() instead?
+    auto& sceneTextures() { return m_textures; }
 
     const auto& config() const { return m_config; }
     const auto& functions() const { return m_jsFunctions; }
