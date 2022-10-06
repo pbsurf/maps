@@ -109,6 +109,7 @@ std::string gpxFile;
 std::vector<MarkerID> trackMarkers;
 MarkerID trackHoverMarker = 0;
 std::vector<MarkerID> searchMarkers;
+std::vector<MarkerID> dotMarkers;
 
 // icons and text are linked by set Label::setRelative() in PointStyleBuilder::addFeature()
 // labels are collected and collided by LabelManager::updateLabelSet() - sorted by priority (lower number
@@ -130,6 +131,17 @@ text:
     size: 12px
     fill: black
     stroke: { color: white, width: 2px }
+)#";
+
+const char* dotMarkerStyleStr = R"#(
+style: point
+collide: false
+order: 900
+size: 6px
+color: "#CF513D"
+outline:
+  width: 1px
+  color: "#9A291D"
 )#";
 
 struct PointMarker {
@@ -185,6 +197,14 @@ double lngLatDist(LngLat r1, LngLat r2) {
     return 12742 * asin(sqrt(a));  // kilometers
 }
 
+void clearSearch()
+{
+  for(MarkerID mrkid : searchMarkers)
+    map->markerSetVisible(mrkid, false);
+  for(MarkerID mrkid : dotMarkers)
+    map->markerSetVisible(mrkid, false);
+}
+
 void loadSceneFile(bool setPosition, std::vector<SceneUpdate> updates) {
 
     for (auto& update : updates) {
@@ -218,6 +238,7 @@ void loadSceneFile(bool setPosition, std::vector<SceneUpdate> updates) {
     polyline_marker = 0;
     trackMarkers.clear();
     searchMarkers.clear();
+    dotMarkers.clear();
     pickResultMarker = 0;
 }
 
@@ -456,8 +477,7 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
       map->markerSetStylingFromPath(pickResultMarker, "layers.pick-result.draw.pick-marker");
       map->markerSetPoint(pickResultMarker, pickResultCoord);
       map->markerSetVisible(pickResultMarker, true);
-      for(MarkerID mrkid : searchMarkers)
-        map->markerSetVisible(mrkid, false);
+      clearSearch();  // ???
       pickResultProps.clear();
       pickLabelStr = fstring("lat = %.6f\nlon = %.6f", pickResultCoord.latitude, pickResultCoord.longitude);
       return;
@@ -538,8 +558,7 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
                 fstring(searchMarkerStyleStr, "marker-stroked", 2, namestr.c_str()).c_str());
             map->markerSetPoint(pickResultMarker, result->coordinates);
             map->markerSetVisible(pickResultMarker, true);
-            for(MarkerID mrkid : searchMarkers)
-              map->markerSetVisible(mrkid, false);
+            clearSearch();  // ???
 
             // query OSM API with id - append .json to get JSON instead of XML
             if(!itemId.empty()) {
@@ -835,9 +854,11 @@ sqlite3* searchDB = NULL;
 
 typedef std::function<void(sqlite3_stmt*)> SQLiteStmtFn;
 
+// note that indices for sqlite3_column_* start from 0 while indices for sqlite3_bind_* start from 1
 static bool DB_exec(sqlite3* db, const char* sql, SQLiteStmtFn cb = SQLiteStmtFn(), SQLiteStmtFn bind = SQLiteStmtFn())
 {
   //if(sqlite3_exec(searchDB, sql, cb ? sqlite_static_helper : NULL, cb ? &cb : NULL, &zErrMsg) != SQLITE_OK) {
+  auto t0 = std::chrono::high_resolution_clock::now();
   int res;
   sqlite3_stmt* stmt;
   if (sqlite3_prepare_v2(db, sql, -1, &stmt, 0) != SQLITE_OK) {
@@ -853,6 +874,8 @@ static bool DB_exec(sqlite3* db, const char* sql, SQLiteStmtFn cb = SQLiteStmtFn
   if(res != SQLITE_DONE && res != SQLITE_OK)
     logMsg("sqlite3_step error: %s\n", sqlite3_errmsg(searchDB));
   sqlite3_finalize(stmt);
+  auto t1 = std::chrono::high_resolution_clock::now();
+  //logMsg("Query time: %.6f s for %s\n", std::chrono::duration<float>(t1 - t0).count(), sql);
   return true;
 }
 
@@ -1028,6 +1051,7 @@ void showSearchGUI()
   static std::vector<LngLat> respts;
   static std::string searchStr;  // imgui compares to this to determine if text is edited, so make persistant
   static int currItem = -1;
+  static LngLat dotBounds00, dotBounds11;
 
   if(!searchDB) {
     if(!initSearch())
@@ -1116,7 +1140,7 @@ void showSearchGUI()
         }
         else if(ent || nextPage) {
           if(searchMarkers.empty()) {
-            std::string svg = fstring(markerSVG, "#FF0000", "#000");
+            std::string svg = fstring(markerSVG, "#CF513D", "#9A291D");
             textureFromSVG("search-marker-red", (char*)svg.data(), 1.25f);
           }
           if(markerIdx >= searchMarkers.size())
@@ -1150,6 +1174,45 @@ void showSearchGUI()
     }
     for(; markerIdx < searchMarkers.size(); ++markerIdx)
       map->markerSetVisible(searchMarkers[markerIdx], false);
+  }
+
+  // dot markers for complete results
+  // TODO: also repeat search if zooming in and we were at result limit
+  LngLat lngLat00, lngLat11;
+  int vieww = map->getViewportWidth(), viewh = map->getViewportHeight();
+  map->screenPositionToLngLat(0, 0, &lngLat00.longitude, &lngLat00.latitude);
+  map->screenPositionToLngLat(vieww, viewh, &lngLat11.longitude, &lngLat11.latitude);
+  if(searchActive && (lngLat00.longitude < dotBounds00.longitude || lngLat00.latitude < dotBounds00.latitude
+      || lngLat11.longitude > dotBounds11.longitude || lngLat11.latitude > dotBounds11.latitude)) {
+    double lng01 = lngLat11.longitude - lngLat00.longitude;
+    double lat01 = lngLat11.latitude - lngLat00.latitude;
+    dotBounds00 = LngLat(lngLat00.longitude - lng01/8, lngLat00.latitude - lat01/8);
+    dotBounds11 = LngLat(lngLat11.longitude + lng01/8, lngLat11.latitude + lat01/8);
+    int markerIdx = 0;
+    const char* query = "SELECT rowid, lng, lat FROM points_fts WHERE points_fts "
+        "MATCH ? AND lng >= ? AND lat >= ? AND lng <= ? AND lat <= ? ORDER BY rank LIMIT 1000;";
+    DB_exec(searchDB, query, [&](sqlite3_stmt* stmt){
+      double lng = sqlite3_column_double(stmt, 1);
+      double lat = sqlite3_column_double(stmt, 2);
+      //respts.push_back(LngLat(lng, lat));
+      if(markerIdx >= dotMarkers.size()) {
+        dotMarkers.push_back(map->markerAdd());
+        map->markerSetStylingFromString(dotMarkers[markerIdx], dotMarkerStyleStr);
+      }
+      map->markerSetVisible(dotMarkers[markerIdx], true);
+      map->markerSetPoint(dotMarkers[markerIdx], LngLat(lng, lat));
+      ++markerIdx;
+    }, [&](sqlite3_stmt* stmt){
+      std::string s(searchStr + "*");
+      std::replace(s.begin(), s.end(), '\'', ' ');
+      sqlite3_bind_text(stmt, 1, s.c_str(), -1, SQLITE_TRANSIENT);
+      sqlite3_bind_double(stmt, 2, dotBounds00.longitude);
+      sqlite3_bind_double(stmt, 3, dotBounds00.latitude);
+      sqlite3_bind_double(stmt, 4, dotBounds11.longitude);
+      sqlite3_bind_double(stmt, 5, dotBounds11.latitude);
+    });
+    for(; markerIdx < dotMarkers.size(); ++markerIdx)
+      map->markerSetVisible(dotMarkers[markerIdx], false);
   }
 
   std::vector<std::string> sresults;
@@ -1419,6 +1482,11 @@ void addGPXPolyline(const char* gpxfile)
 }
 
 void showSceneGUI() {
+    // always show map position ... what's the difference between getPosition/getZoom and getCameraPosition()?
+    double lng, lat;
+    map->getPosition(lng, lat);
+    ImGui::Text("lat,lng,zoom: %.7f, %.7f z%.2f", lat, lng, map->getZoom());
+
     if (ImGui::CollapsingHeader("Scene")) {
         if (ImGui::InputText("Scene URL", &sceneFile, ImGuiInputTextFlags_EnterReturnsTrue)) {
             loadSceneFile();
