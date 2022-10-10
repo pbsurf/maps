@@ -848,7 +848,9 @@ Label* TextStyleBuilder::addLabel(Label::Type _type, TextLabel::Coordinates _coo
     uint32_t selectionColor = 0;
 
     if (_params.interactive) {
-        selectionColor = _rule.featureSelection->nextColorIdentifier();
+        //selectionColor = _rule.featureSelection->nextColorIdentifier();
+        selectionColor = _rule.featureSelection ?  // copied from PointStyleBuilder::addLabel()
+              _rule.featureSelection->nextColorIdentifier() : _rule.selectionColor;
     }
 
     m_labels.emplace_back(new TextLabel(_coordinates, _type, _params.labelOptions,

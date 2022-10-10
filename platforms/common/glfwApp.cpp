@@ -110,6 +110,7 @@ std::vector<MarkerID> trackMarkers;
 MarkerID trackHoverMarker = 0;
 std::vector<MarkerID> searchMarkers;
 std::vector<MarkerID> dotMarkers;
+std::vector<MarkerID> bkmkMarkers;
 
 // icons and text are linked by set Label::setRelative() in PointStyleBuilder::addFeature()
 // labels are collected and collided by LabelManager::updateLabelSet() - sorted by priority (lower number
@@ -117,6 +118,7 @@ std::vector<MarkerID> dotMarkers;
 const char* searchMarkerStyleStr = R"#(
 style: pick-marker
 texture: %s
+interactive: true
 collide: false
 offset: [0px, -11px]
 priority: %d
@@ -134,7 +136,7 @@ text:
 )#";
 
 const char* dotMarkerStyleStr = R"#(
-style: point
+style: points
 collide: false
 order: 900
 size: 6px
@@ -154,9 +156,11 @@ std::vector<PointMarker> point_markers;
 MarkerID polyline_marker = 0;
 std::vector<LngLat> polyline_marker_coordinates;
 
-MarkerID pickResultMarker = 0;
-std::string pickResultProps;
-LngLat pickResultCoord(NAN, NAN);
+static MarkerID pickResultMarker = 0;
+static std::string pickResultProps;
+static LngLat pickResultCoord(NAN, NAN);
+static bool searchActive = false;
+static MarkerID pickedMarkerId = 0;
 
 std::vector<SceneUpdate> sceneUpdates;
 const char* apiKeyScenePath = "global.sdk_api_key";
@@ -239,6 +243,7 @@ void loadSceneFile(bool setPosition, std::vector<SceneUpdate> updates) {
     trackMarkers.clear();
     searchMarkers.clear();
     dotMarkers.clear();
+    bkmkMarkers.clear();
     pickResultMarker = 0;
 }
 
@@ -583,6 +588,15 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
             }
         });
 
+        map->pickMarkerAt(x, y, [&](const MarkerPickResult* result) {
+          if(!result || result->id == pickResultMarker)
+            return;
+          // hide pick result marker, since there is already a marker!
+          map->markerSetVisible(pickResultMarker, false);
+          // looking for search marker or bookmark marker?
+          pickedMarkerId = result->id;
+        });
+
         if (add_point_marker_on_click) {
             auto marker = map->markerAdd();
             map->markerSetPoint(marker, location);
@@ -821,8 +835,9 @@ void framebufferResizeCallback(GLFWwindow* window, int fWidth, int fHeight) {
 
 // rasterizing SVG markers
 
+// nanosvgrast.h doesn't support stroke-alignment - separate widths for left, right, make one zero, no joins for that side?
 const char* markerSVG = R"#(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24">
-  <g fill="%s" stroke="%s" stroke-width="1">
+  <g fill="%s" stroke="#000" stroke-opacity="0.2" stroke-width="1" stroke-alignment="inner">
     <path d="M5 8c0-3.517 3.271-6.602 7-6.602s7 3.085 7 6.602c0 3.455-2.563 7.543-7 14.527-4.489-7.073-7-11.072-7-14.527"/>
   </g>
 </svg>)#";
@@ -1039,7 +1054,20 @@ static bool initSearch()
   return true;
 }
 
-static bool searchActive = false;
+static void getMapBounds(LngLat& lngLatMin, LngLat& lngLatMax)
+{
+  int vieww = map->getViewportWidth(), viewh = map->getViewportHeight();
+  double lng00, lng01, lng10, lng11, lat00, lat01, lat10, lat11;
+  map->screenPositionToLngLat(0, 0, &lng00, &lat00);
+  map->screenPositionToLngLat(0, viewh, &lng01, &lat01);
+  map->screenPositionToLngLat(vieww, 0, &lng10, &lat10);
+  map->screenPositionToLngLat(vieww, viewh, &lng11, &lat11);
+
+  lngLatMin.latitude  = std::min(std::min(lat00, lat01), std::min(lat10, lat11));
+  lngLatMin.longitude = std::min(std::min(lng00, lng01), std::min(lng10, lng11));
+  lngLatMax.latitude  = std::max(std::max(lat00, lat01), std::max(lat10, lat11));
+  lngLatMax.longitude = std::max(std::max(lng00, lng01), std::max(lng10, lng11));
+}
 
 void showSearchGUI()
 {
@@ -1085,10 +1113,10 @@ void showSearchGUI()
       for(const auto& s : autocomplete)
         cautoc.push_back(s.c_str());
 
-      int currItem;
-      if(ImGui::ListBox("History", &currItem, cautoc.data(), cautoc.size())) {
+      int histItem = -1;
+      if(ImGui::ListBox("History", &histItem, cautoc.data(), cautoc.size())) {
         ent = true;
-        searchStr = autocomplete[currItem];
+        searchStr = autocomplete[histItem];
         //autocomplete.clear();
       }
     }
@@ -1103,6 +1131,9 @@ void showSearchGUI()
     //ImGui::SetKeyboardFocusHere(-1);
     if(searchActive)
       map->updateGlobals({SceneUpdate{"global.search_active", "false"}});
+    for(MarkerID mrkid : dotMarkers)
+      map->markerSetVisible(mrkid, false);
+    // showBookmarkGUI() will redisplay bookmark markers
     searchActive = false;
     searchStr.clear();
     autocomplete.clear();
@@ -1118,6 +1149,7 @@ void showSearchGUI()
     if(!nextPage) {
       results.clear();
       respts.clear();
+      map->markerSetVisible(pickResultMarker, false);
       currItem = -1;
     }
     resultOffset = nextPage ? resultOffset + 20 : 0;
@@ -1140,8 +1172,10 @@ void showSearchGUI()
         }
         else if(ent || nextPage) {
           if(searchMarkers.empty()) {
-            std::string svg = fstring(markerSVG, "#CF513D", "#9A291D");
+            std::string svg = fstring(markerSVG, "#CF513D");  //"#9A291D"
             textureFromSVG("search-marker-red", (char*)svg.data(), 1.25f);
+            svg = fstring(markerSVG, "#CF513D");  // SVG parsing is destructive!!!
+            textureFromSVG("pick-marker-red", (char*)svg.data(), 1.5f);
           }
           if(markerIdx >= searchMarkers.size())
             searchMarkers.push_back(map->markerAdd());
@@ -1170,6 +1204,8 @@ void showSearchGUI()
     }
     if(!searchActive && ent && !results.empty()) {
       map->updateGlobals({SceneUpdate{"global.search_active", "true"}});
+      for(MarkerID mrkid : bkmkMarkers)
+        map->markerSetVisible(mrkid, false);
       searchActive = true;
     }
     for(; markerIdx < searchMarkers.size(); ++markerIdx)
@@ -1179,13 +1215,11 @@ void showSearchGUI()
   // dot markers for complete results
   // TODO: also repeat search if zooming in and we were at result limit
   LngLat lngLat00, lngLat11;
-  int vieww = map->getViewportWidth(), viewh = map->getViewportHeight();
-  map->screenPositionToLngLat(0, 0, &lngLat00.longitude, &lngLat00.latitude);
-  map->screenPositionToLngLat(vieww, viewh, &lngLat11.longitude, &lngLat11.latitude);
-  if(searchActive && (lngLat00.longitude < dotBounds00.longitude || lngLat00.latitude < dotBounds00.latitude
+  getMapBounds(lngLat00, lngLat11);
+  if(searchActive && (ent || lngLat00.longitude < dotBounds00.longitude || lngLat00.latitude < dotBounds00.latitude
       || lngLat11.longitude > dotBounds11.longitude || lngLat11.latitude > dotBounds11.latitude)) {
-    double lng01 = lngLat11.longitude - lngLat00.longitude;
-    double lat01 = lngLat11.latitude - lngLat00.latitude;
+    double lng01 = fabs(lngLat11.longitude - lngLat00.longitude);
+    double lat01 = fabs(lngLat11.latitude - lngLat00.latitude);
     dotBounds00 = LngLat(lngLat00.longitude - lng01/8, lngLat00.latitude - lat01/8);
     dotBounds11 = LngLat(lngLat11.longitude + lng01/8, lngLat11.latitude + lat01/8);
     int markerIdx = 0;
@@ -1225,15 +1259,28 @@ void showSearchGUI()
   for(const auto& s : sresults)
     cresults.push_back(s.c_str());
 
+  int prevItem = currItem;
+  bool updatePickMarker = false;
+  if(pickedMarkerId > 0) {
+    for(size_t ii = 0; ii < searchMarkers.size(); ++ii) {
+      if(searchMarkers[ii] == pickedMarkerId) {
+        currItem = ii;
+        pickedMarkerId = 0;
+        updatePickMarker = true;
+        break;
+      }
+    }
+  }
+
   double scrx, scry;
-  if(ImGui::ListBox("Results", &currItem, cresults.data(), cresults.size())) {
+  if(ImGui::ListBox("Results", &currItem, cresults.data(), cresults.size()) || updatePickMarker) {
     // if item selected, show info and place single marker
     pickLabelStr.clear();
     for (auto& m : results[currItem].GetObject())
       pickLabelStr += m.name.GetString() + std::string(" = ") + m.value.GetString() + "\n";
-    for(MarkerID mrkid : searchMarkers)
-      map->markerSetVisible(mrkid, false);
-
+    if(prevItem >= 0)
+      map->markerSetVisible(searchMarkers[prevItem], true);
+    map->markerSetVisible(searchMarkers[currItem], false);
     if (pickResultMarker == 0)
       pickResultMarker = map->markerAdd();
     map->markerSetVisible(pickResultMarker, true);
@@ -1241,7 +1288,7 @@ void showSearchGUI()
     std::string namestr = results[currItem]["name"].GetString();
     std::replace(namestr.begin(), namestr.end(), '"', '\'');
     map->markerSetStylingFromString(pickResultMarker,
-        fstring(searchMarkerStyleStr, "marker-stroked", 2, namestr.c_str()).c_str());
+        fstring(searchMarkerStyleStr, "pick-marker-red", 1, namestr.c_str()).c_str());
     map->markerSetPoint(pickResultMarker, respts[currItem]);
 
     StringBuffer sb;
@@ -1359,28 +1406,32 @@ void showBookmarkGUI()
     int markerIdx = 0;
     const char* query = "SELECT rowid, props, lng, lat FROM bookmarks WHERE list = ?;";
     DB_exec(bkmkDB, query, [&](sqlite3_stmt* stmt){
+      if(bkmkMarkers.empty()) {
+        std::string svg = fstring(markerSVG, "#12B5CB");
+        textureFromSVG("bkmk-marker-cyan", (char*)svg.data(), 1.25f);
+      }
       double lng = sqlite3_column_double(stmt, 2);
       double lat = sqlite3_column_double(stmt, 3);
       placeRowIds.push_back(sqlite3_column_int(stmt, 0));
       rapidjson::Document doc;
       doc.Parse((const char*)(sqlite3_column_text(stmt, 1)));
-      if(markerIdx >= searchMarkers.size())
-        searchMarkers.push_back(map->markerAdd());
-      map->markerSetVisible(searchMarkers[markerIdx], true);
+      if(markerIdx >= bkmkMarkers.size())
+        bkmkMarkers.push_back(map->markerAdd());
+      map->markerSetVisible(bkmkMarkers[markerIdx], true);
       // note that 6th decimal place of lat/lng is 11 cm (at equator)
       std::string namestr = doc.IsObject() && doc.HasMember("name") ?
             doc["name"].GetString() : fstring("%.6f, %.6f", lat, lng);
       placeNames.push_back(namestr);
       std::replace(namestr.begin(), namestr.end(), '"', '\'');
-      map->markerSetStylingFromString(searchMarkers[markerIdx],
-          fstring(searchMarkerStyleStr, "marker-stroked", markerIdx+2, namestr.c_str()).c_str());
-      map->markerSetPoint(searchMarkers[markerIdx], LngLat(lng, lat));
+      map->markerSetStylingFromString(bkmkMarkers[markerIdx],
+          fstring(searchMarkerStyleStr, "bkmk-marker-cyan", markerIdx+2, namestr.c_str()).c_str());
+      map->markerSetPoint(bkmkMarkers[markerIdx], LngLat(lng, lat));
       ++markerIdx;
     }, [&](sqlite3_stmt* stmt){
       sqlite3_bind_text(stmt, 1, currList.c_str(), -1, SQLITE_STATIC);
     });
-    for(; markerIdx < searchMarkers.size(); ++markerIdx)
-      map->markerSetVisible(searchMarkers[markerIdx], false);
+    for(; markerIdx < bkmkMarkers.size(); ++markerIdx)
+      map->markerSetVisible(bkmkMarkers[markerIdx], false);
     updatePlaces = false;
   }
 

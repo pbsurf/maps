@@ -268,8 +268,10 @@ bool MarkerManager::update(const View& _view, float _dt) {
     m_dirty = false;
 
     for (auto& marker : m_markers) {
-        int builtZoom = marker->builtZoomLevel();
+        // skip hidden markers (else we'll end up rendering continuously since buildStyling() doesn't finish)
+        if (!marker->isVisible()) continue;
 
+        int builtZoom = marker->builtZoomLevel();
         if (m_zoom != builtZoom || !marker->mesh()) {
             if (builtZoom < 0) { buildStyling(*marker); }
 
