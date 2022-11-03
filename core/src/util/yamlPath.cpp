@@ -49,7 +49,9 @@ YamlPath YamlPath::add(const std::string& key) {
 }
 
 bool YamlPath::get(YAML::Node root, YAML::Node& out) {
-    size_t beginToken = 0, endToken = 0, pathSize = codedPath.size();
+    size_t beginToken = 0, pathSize = codedPath.size();
+    bool createPath = pathSize && codedPath[0] == '+';
+    size_t endToken = createPath ? 1 : 0;
     auto delimiter = MAP_DELIM; // First token must be a map key.
     while (endToken < pathSize) {
         if (!root.IsDefined()) {
@@ -68,6 +70,8 @@ bool YamlPath::get(YAML::Node root, YAML::Node& out) {
             }
         } else if (delimiter == MAP_DELIM) {
             auto key = codedPath.substr(beginToken, endToken - beginToken);
+            if (createPath && !root[key])
+                root[key] = YAML::Node(YAML::NodeType::Null);
             if (root.IsMap()) {
                 root.reset(root[key]);
             } else {

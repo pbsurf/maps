@@ -49,14 +49,7 @@ void dropCallback(GLFWwindow* window, int count, const char** paths);
 void framebufferResizeCallback(GLFWwindow* window, int fWidth, int fHeight);
 
 // Forward-declare GUI functions.
-void showBookmarkGUI();
-void showSearchGUI();
-void showPickLabelGUI();
-void showSceneVarsGUI();
-void showDebugFlagsGUI();
-void showViewportGUI();
-void showSceneGUI();
-void showMarkerGUI();
+void showGUI();
 
 constexpr double double_tap_time = 0.5; // seconds
 constexpr double scroll_span_multiplier = 0.05; // scaling for zoom and rotation
@@ -135,6 +128,7 @@ text:
     stroke: { color: white, width: 2px }
 )#";
 
+// outline: https://github.com/tangrams/tangram-es/pull/1702
 const char* dotMarkerStyleStr = R"#(
 style: points
 collide: false
@@ -163,7 +157,9 @@ static bool searchActive = false;
 static MarkerID pickedMarkerId = 0;
 
 std::vector<SceneUpdate> sceneUpdates;
-const char* apiKeyScenePath = "global.sdk_api_key";
+const char* apiKeyScenePath = "+global.sdk_api_key";
+
+const char* sourcesFile =  "../mapsources.yaml";
 
 // common fns
 
@@ -194,6 +190,17 @@ Container<std::string, Container_Params... > splitStr(std::string s, const char*
   return elems;
 }
 
+template<typename T>
+std::string joinStr(const std::vector<T>& strs, const char* sep)
+{
+  std::stringstream ss;
+  if(!strs.empty())
+    ss << strs[0];
+  for(size_t ii = 1; ii < strs.size(); ++ii)
+    ss << sep << strs[ii];
+  return ss.str();
+}
+
 // https://stackoverflow.com/questions/27928
 double lngLatDist(LngLat r1, LngLat r2) {
     constexpr double p = 3.14159265358979323846/180;
@@ -211,29 +218,31 @@ void clearSearch()
 
 void loadSceneFile(bool setPosition, std::vector<SceneUpdate> updates) {
 
-    for (auto& update : updates) {
-        bool found = false;
-        for (auto& prev : sceneUpdates) {
-            if (update.path == prev.path) {
-                prev = update;
-                found = true;
-                break;
-            }
-        }
-        if (!found) { sceneUpdates.push_back(update); }
-    }
+    //for (auto& update : updates) {
+    //    bool found = false;
+    //    for (auto& prev : sceneUpdates) {
+    //        if (update.path == prev.path) {
+    //            prev = update;
+    //            found = true;
+    //            break;
+    //        }
+    //    }
+    //    if (!found) { sceneUpdates.push_back(update); }
+    //}
+    for (auto& update : sceneUpdates)  // add persistent updates (e.g. API key)
+      updates.push_back(update);
 
     if (load_async) {
         if (!sceneYaml.empty()) {
-            map->loadSceneYamlAsync(sceneYaml, sceneFile, setPosition, sceneUpdates);
+            map->loadSceneYamlAsync(sceneYaml, sceneFile, setPosition, updates);  //sceneUpdates);
         } else {
-            map->loadSceneAsync(sceneFile, setPosition, sceneUpdates);
+            map->loadSceneAsync(sceneFile, setPosition, updates);  //sceneUpdates);
         }
     } else {
         if (!sceneYaml.empty()) {
-            map->loadSceneYaml(sceneYaml, sceneFile, setPosition, sceneUpdates);
+            map->loadSceneYaml(sceneYaml, sceneFile, setPosition, updates);  //sceneUpdates);
         } else {
-            map->loadScene(sceneFile, setPosition, sceneUpdates);
+            map->loadScene(sceneFile, setPosition, updates);  //sceneUpdates);
         }
     }
 
@@ -382,14 +391,7 @@ void run() {
 
             // Create ImGui interface.
             // ImGui::ShowDemoWindow();
-            showSceneGUI();
-            showViewportGUI();
-            showMarkerGUI();
-            showDebugFlagsGUI();
-            showSceneVarsGUI();
-            showSearchGUI();
-            showBookmarkGUI();
-            showPickLabelGUI();
+            showGUI();
         }
         double currentTime = glfwGetTime();
         double delta = currentTime - lastTime;
@@ -1069,7 +1071,7 @@ static void getMapBounds(LngLat& lngLatMin, LngLat& lngLatMax)
   lngLatMax.longitude = std::max(std::max(lng00, lng01), std::max(lng10, lng11));
 }
 
-void showSearchGUI()
+static void showSearchGUI()
 {
   using namespace rapidjson;
 
@@ -1222,7 +1224,7 @@ void showSearchGUI()
     double lat01 = fabs(lngLat11.latitude - lngLat00.latitude);
     dotBounds00 = LngLat(lngLat00.longitude - lng01/8, lngLat00.latitude - lat01/8);
     dotBounds11 = LngLat(lngLat11.longitude + lng01/8, lngLat11.latitude + lat01/8);
-    int markerIdx = 0;
+    size_t markerIdx = 0;
     const char* query = "SELECT rowid, lng, lat FROM points_fts WHERE points_fts "
         "MATCH ? AND lng >= ? AND lat >= ? AND lng <= ? AND lat <= ? ORDER BY rank LIMIT 1000;";
     DB_exec(searchDB, query, [&](sqlite3_stmt* stmt){
@@ -1316,23 +1318,8 @@ void showSearchGUI()
 }
 
 // bookmarks (saved places)
-// - list of bookmark lists; each list has list of places
-// - combo box to pick list, then list of places on list; can select place to delete (multi-select w/ cut copy paste?)
-// - add, delete, show/hide options for lists
-// - schema: 1 table for all places, w/ list name as column vs. separate table for each list?
-//  - separate tables supports assigning place to multiple lists better (otherwise we have to duplicate)
-//  - when a place is selected, we'd want to show list membership ... this will be done via osm ID! ... easier w/ single table
-// ... let's go w/ single table
 
-// do we need a separate table for lists? description, visibility and ordering in UI (this could be in config file)
-
-// all (>1 in general) selected lists should be shown on map, but hidden when search active
-
-// long press (popup menu?) to place marker at any position on map
-// possible markers: saved places, search, picked place, pin at arbitrary lat/lng
-// - should we have a single list of markers?
-
-void showBookmarkGUI()
+static void showBookmarkGUI()
 {
   static sqlite3* bkmkDB = NULL;
   static std::vector<int> placeRowIds;
@@ -1532,7 +1519,140 @@ void addGPXPolyline(const char* gpxfile)
   }
 }
 
-void showSceneGUI() {
+class SourceBuilder
+{
+public:
+  const YAML::Node& sources;
+  std::vector<SceneUpdate> updates;
+  YAML::Node vectorSrc;
+  int order = 0;
+
+  SourceBuilder(const YAML::Node& s) : sources(s) {}
+
+  void addLayer(const std::string& key, const YAML::Node& src);
+  void apply();
+};
+
+void SourceBuilder::addLayer(const std::string& key, const YAML::Node& src)
+{
+  if(src["type"].Scalar() == "Multi") {
+    for (const auto& layer : src["layers"]) {
+      std::string layerkey = layer["source"].Scalar();
+      addLayer(layerkey, sources[layerkey]);
+    }
+  }
+  else if(src["type"].Scalar() == "Raster") {
+    for (const auto& attr : src) {
+      if(attr.first.Scalar() != "title") {
+        YAML::Emitter emitter;
+        emitter.SetSeqFormat(YAML::Flow);
+        emitter.SetMapFormat(YAML::Flow);
+        emitter << attr.second;
+        updates.emplace_back("+sources." + key + "." + attr.first.Scalar(), emitter.c_str());
+      }
+    }
+    // separate style is required for each overlay layer
+    std::string style = "raster";
+    if(order > 0) {
+      style = fstring("overlay-raster-%d", order);
+      updates.emplace_back("+styles." + style, fstring("{base: raster, blend: overlay, blend_order: %d}", order));
+    }
+    updates.emplace_back("+layers." + key + ".data.source", key);
+    // order is ignored (and may not be required) for raster styles
+    updates.emplace_back("+layers." + key + ".draw." + style + ".order", std::to_string(order++));
+  }
+  else {  // vector map
+    vectorSrc = src;  //src["url"].Scalar();
+    order = 9001;  // subsequent rasters should be drawn on top of the vector map
+  }
+}
+
+void SourceBuilder::apply()
+{
+  // main.cpp prepends file://<cwd>/ to sceneFile!
+  // we'll probably want to skip curl for reading from filesystem in scene/importer.cpp - see tests/src/mockPlatform.cpp
+  // or maybe add a Url getParent() method to Url class
+  if(vectorSrc.size() > 0) {
+    sceneFile = vectorSrc["url"].Scalar();
+    if(sceneFile.find("://") == std::string::npos) {
+      std::size_t sep = std::string(sourcesFile).find_last_of("/\\");
+      if(sep != std::string::npos)
+        sceneFile = std::string(sourcesFile, sep+1) + sceneFile;
+    }
+  }
+  else if(updates.empty())
+    return;
+
+  sceneYaml = vectorSrc.size() > 0 ? "" : "global:\n\nsources:\n\nstyles:\n\nlayers:\n";
+  loadSceneFile(false, updates);
+}
+
+static void showSourceGUI() {
+  static YAML::Node mapSources = YAML::LoadFile(sourcesFile);
+  static constexpr int MAX_SOURCES = 8;
+  static std::vector<int> currSrcIdx(MAX_SOURCES, 0);
+  static int nSources = 1;
+  static std::string newSrcTitle;
+
+  if (!ImGui::CollapsingHeader("Sources"))
+    return;
+
+  std::vector<std::string> titles = {"None"};
+  for (const auto& src : mapSources)
+    titles.push_back(src.second["title"].Scalar());
+
+  std::vector<const char*> ctitles;
+  for(const auto& s : titles)
+    ctitles.push_back(s.c_str());
+
+  bool reload = false;
+  for(int ii = 0; ii < nSources; ++ii) {
+    if(ImGui::Combo(fstring("Source %d", ii+1).c_str(), &currSrcIdx[ii], ctitles.data(), ctitles.size()))
+      reload = true;  // selected source changed - reload scene
+  }
+
+  if(reload) {
+    SourceBuilder builder(mapSources);
+    for(int ii = 0; ii < nSources; ++ii) {
+      if(currSrcIdx[ii] > 0) {
+        auto it = mapSources.begin();
+        std::advance(it, currSrcIdx[ii]-1);
+        builder.addLayer(it->first.Scalar(), it->second);
+      }
+    }
+    builder.apply();
+  }
+
+  if (nSources > 1) {
+    ImGui::SameLine();
+    if (ImGui::Button("Remove"))
+      --nSources;
+  }
+  if (nSources < MAX_SOURCES && ImGui::Button("Add Layer"))
+    ++nSources;
+
+  if(nSources > 1) {
+    bool ent = ImGui::InputText("Name", &newSrcTitle, ImGuiInputTextFlags_EnterReturnsTrue);
+    ent = ImGui::Button("Save") || ent;
+    if(ent && !newSrcTitle.empty()) {
+      std::fstream fs(sourcesFile, std::fstream::app | std::fstream::binary);
+      std::vector<std::string> newsrc;
+      fs << "\n";
+      fs << "custom-" << mapSources.size() << ":\n";
+      fs << "  type: Multi\n";
+      fs << "  title: " << newSrcTitle << "\n";
+      fs << "  layers:\n";
+      for(int ii = 0; ii < nSources; ++ii) {
+        if(currSrcIdx[ii] > 0)
+          fs << "    - source: " << mapSources[currSrcIdx[ii]-1].Tag() << "\n";
+      }
+      newSrcTitle.clear();
+      mapSources = YAML::LoadFile(sourcesFile);  // reload
+    }
+  }
+}
+
+static void showSceneGUI() {
     // always show map position ... what's the difference between getPosition/getZoom and getCameraPosition()?
     double lng, lat;
     map->getPosition(lng, lat);
@@ -1551,7 +1671,7 @@ void showSceneGUI() {
     }
 }
 
-void showMarkerGUI() {
+static void showMarkerGUI() {
     if (ImGui::CollapsingHeader("Markers")) {
         ImGui::Checkbox("Add point markers on click", &add_point_marker_on_click);
         if (ImGui::RadioButton("Use Styling Path", markerUseStylingPath)) { markerUseStylingPath = true; }
@@ -1659,7 +1779,7 @@ void showMarkerGUI() {
     }
 }
 
-void showViewportGUI() {
+static void showViewportGUI() {
     if (ImGui::CollapsingHeader("Viewport")) {
         CameraPosition camera = map->getCameraPosition();
         float lngLatZoom[3] = {static_cast<float>(camera.longitude), static_cast<float>(camera.latitude), camera.zoom};
@@ -1682,7 +1802,7 @@ void showViewportGUI() {
     }
 }
 
-void showDebugFlagsGUI() {
+static void showDebugFlagsGUI() {
     if (ImGui::CollapsingHeader("Debug Flags")) {
         bool flag;
         flag = getDebugFlag(DebugFlags::freeze_tiles);
@@ -1725,7 +1845,7 @@ void showDebugFlagsGUI() {
     }
 }
 
-void showSceneVarsGUI() {
+static void showSceneVarsGUI() {
     if (ImGui::CollapsingHeader("Scene Variables", ImGuiTreeNodeFlags_DefaultOpen)) {
         for(int ii = 0; ii < 100; ++ii) {
             std::string name = map->readSceneValue(fstring("global.gui_variables#%d.name", ii));
@@ -1745,10 +1865,22 @@ void showSceneVarsGUI() {
     }
 }
 
-void showPickLabelGUI() {
+static void showPickLabelGUI() {
     if (ImGui::CollapsingHeader("Picked Object", ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::TextUnformatted(pickLabelStr.c_str());
     }
+}
+
+void showGUI() {
+  showSceneGUI();
+  showSourceGUI();
+  showViewportGUI();
+  showMarkerGUI();
+  showDebugFlagsGUI();
+  showSceneVarsGUI();
+  showSearchGUI();
+  showBookmarkGUI();
+  showPickLabelGUI();
 }
 
 } // namespace GlfwApp

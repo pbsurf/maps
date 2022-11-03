@@ -461,7 +461,7 @@ void UrlClient::curlLoop() {
                     response.error = requestCancelledError;
 
                 } else {
-                    LOGW("Failed with error for url: %s", task.curlErrorString, url);
+                    LOGW("Failed with error %s for url: %s", task.curlErrorString, url);
                     response.error = task.curlErrorString;
                 }
 
