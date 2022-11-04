@@ -46,17 +46,22 @@ public:
     /// Set the view to the position provided by the scene
     bool useScenePosition = true;
 
-    /// Add styles toggled by DebguFlags
+    /// Add styles toggled by DebugFlags
     bool debugStyles = false;
 
     /// Start loading tiles as soon as possible
     bool prefetchTiles = true;
 
-    /// Start loading tiles as soon as possible
+    /// Number of threads fetching tiles
     uint32_t numTileWorkers = 2;
 
     /// 16MB default in-memory DataSource cache
     size_t memoryTileCacheSize = CACHE_SIZE;
+
+    /// persistent MBTiles DataSource cache
+    size_t diskTileCacheSize = 0;
+
+    std::string diskTileCacheDir;
 
 private:
     static constexpr size_t CACHE_SIZE = 16 * (1024 * 1024);

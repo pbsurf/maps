@@ -216,35 +216,15 @@ void clearSearch()
     map->markerSetVisible(mrkid, false);
 }
 
-void loadSceneFile(bool setPosition, std::vector<SceneUpdate> updates) {
-
-    //for (auto& update : updates) {
-    //    bool found = false;
-    //    for (auto& prev : sceneUpdates) {
-    //        if (update.path == prev.path) {
-    //            prev = update;
-    //            found = true;
-    //            break;
-    //        }
-    //    }
-    //    if (!found) { sceneUpdates.push_back(update); }
-    //}
+void loadSceneFile(bool setPosition, std::vector<SceneUpdate> updates)
+{
     for (auto& update : sceneUpdates)  // add persistent updates (e.g. API key)
       updates.push_back(update);
-
-    if (load_async) {
-        if (!sceneYaml.empty()) {
-            map->loadSceneYamlAsync(sceneYaml, sceneFile, setPosition, updates);  //sceneUpdates);
-        } else {
-            map->loadSceneAsync(sceneFile, setPosition, updates);  //sceneUpdates);
-        }
-    } else {
-        if (!sceneYaml.empty()) {
-            map->loadSceneYaml(sceneYaml, sceneFile, setPosition, updates);  //sceneUpdates);
-        } else {
-            map->loadScene(sceneFile, setPosition, updates);  //sceneUpdates);
-        }
-    }
+    // sceneFile will be used iff sceneYaml is empty
+    SceneOptions options{sceneYaml, Url(sceneFile), setPosition, updates};
+    options.diskTileCacheSize = 256*1024*1024;
+    options.diskTileCacheDir = "/home/mwhite/maps/";
+    map->loadScene(std::move(options), load_async);
 
     // markers are invalidated ... technically we should use SceneReadyCallback for this if loading async
     point_markers.clear();

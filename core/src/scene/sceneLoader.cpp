@@ -811,17 +811,21 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
         return nullptr;
 #endif
     } else if (isTiled) {
-        auto cacheSize = _options.memoryTileCacheSize;
-        if (cacheSize > 0) {
-            auto cache = std::make_unique<MemoryCacheDataSource>();
-            cache->setCacheSize(cacheSize);
-            rawSources = std::move(cache);
+        rawSources = std::make_unique<NetworkDataSource>(_platform, url, urlOptions);
+
+        if (_options.diskTileCacheSize > 0) {
+            std::string cachefile = _options.diskTileCacheDir + _name + ".mbtiles";
+            auto s = std::make_unique<MBTilesDataSource>(_platform, _name, cachefile, "", true);
+            s->next = std::move(rawSources);
+            rawSources = std::move(s);
+            LOGW("using %s as cache for source %s", cachefile.c_str(), _name.c_str());
         }
 
-        auto s = std::make_unique<NetworkDataSource>(_platform, url, urlOptions);
-        if (rawSources) {
-            rawSources->next = std::move(s);
-        } else {
+        auto cacheSize = _options.memoryTileCacheSize;
+        if (cacheSize > 0) {
+            auto s = std::make_unique<MemoryCacheDataSource>();
+            s->setCacheSize(cacheSize);
+            s->next = std::move(rawSources);
             rawSources = std::move(s);
         }
     }
