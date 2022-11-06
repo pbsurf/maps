@@ -52,6 +52,11 @@ CREATE TABLE IF NOT EXISTS metadata (
     value text
 );
 
+CREATE TABLE IF NOT EXISTS offline_tiles (
+    tile_id INTEGER,
+    offline_id INTEGER
+);
+
 -- CREATE TABLE IF NOT EXISTS geocoder_data (
 --     type TEXT,
 --     shard INTEGER,
@@ -73,7 +78,8 @@ CREATE VIEW IF NOT EXISTS tiles AS
         map.zoom_level AS zoom_level,
         map.tile_column AS tile_column,
         map.tile_row AS tile_row,
-        images.tile_data AS tile_data
+        images.tile_data AS tile_data,
+        images.tile_id AS tile_id
     FROM map
     JOIN images ON images.tile_id = map.tile_id;
 
@@ -108,10 +114,14 @@ struct MBTilesQueries {
     // REPLACE INTO statement in images table
     SQLite::Statement putImage;
 
+    // REPLACE INTO statement in images table
+    SQLite::Statement putOffline;
+
     MBTilesQueries(SQLite::Database& _db, bool _cache)
-        : getTileData(_db, "SELECT tile_data FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;"),
+        : getTileData(_db, "SELECT tile_data, tile_id FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;"),
           putMap(_db, _cache ? "REPLACE INTO map (zoom_level, tile_column, tile_row, tile_id) VALUES (?, ?, ?, ?);" : ";" ),
-          putImage(_db, _cache ? "REPLACE INTO images (tile_id, tile_data) VALUES (?, ?);" : ";") {}
+          putImage(_db, _cache ? "REPLACE INTO images (tile_id, tile_data) VALUES (?, ?);" : ";"),
+          putOffline(_db, _cache ? "REPLACE INTO offline_tiles (tile_id, offline_id) VALUES (?, ?);" : ";") {}
 
 };
 
@@ -153,7 +163,7 @@ bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb
             auto& task = static_cast<BinaryTileTask&>(*_task);
             task.rawTileData = std::make_shared<std::vector<char>>();
 
-            getTileData(tileId, *task.rawTileData);
+            getTileData(tileId, *task.rawTileData, task.offlineId);
 
             if (task.hasData()) {
                 LOGW("loaded tile: %s, %d", tileId.toString().c_str(), task.rawTileData->size());
@@ -201,7 +211,7 @@ bool MBTilesDataSource::loadNextSource(std::shared_ptr<TileTask> _task, TileTask
 
                         LOGW("store tile: %s, %d", _task->tileId().toString().c_str(), task.hasData());
 
-                        storeTileData(_task->tileId(), *task.rawTileData);
+                        storeTileData(_task->tileId(), *task.rawTileData, task.offlineId);
                     });
             }
 
@@ -215,7 +225,7 @@ bool MBTilesDataSource::loadNextSource(std::shared_ptr<TileTask> _task, TileTask
                 auto& task = static_cast<BinaryTileTask&>(*_task);
                 task.rawTileData = std::make_shared<std::vector<char>>();
 
-                getTileData(_task->tileId(), *task.rawTileData);
+                getTileData(_task->tileId(), *task.rawTileData, task.offlineId);
 
                 LOGW("loaded tile: %s, %d", _task->tileId().toString().c_str(), task.rawTileData->size());
 
@@ -423,7 +433,7 @@ void MBTilesDataSource::initSchema(SQLite::Database& db, std::string _name, std:
     }
 }
 
-bool MBTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _data) {
+bool MBTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _data, int offlineId) {
 
     auto& stmt = m_queries->getTileData;
     try {
@@ -457,8 +467,16 @@ bool MBTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _d
                 _data.resize(length);
                 memcpy(_data.data(), blob, length);
             }
-
             stmt.reset();
+
+            if (offlineId) {
+                SQLite::Column column2 = stmt.getColumn(1);
+                auto& stmt2 = m_queries->putOffline;
+                stmt2.bind(1, column2.getText());
+                stmt2.bind(2, offlineId);
+                stmt2.exec();
+                stmt2.reset();
+            }
             return true;
         }
 
@@ -472,7 +490,7 @@ bool MBTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _d
     return false;
 }
 
-void MBTilesDataSource::storeTileData(const TileID& _tileId, const std::vector<char>& _data) {
+void MBTilesDataSource::storeTileData(const TileID& _tileId, const std::vector<char>& _data, int offlineId) {
     int z = _tileId.z;
     int y = (1 << z) - 1 - _tileId.y;
 
@@ -511,6 +529,18 @@ void MBTilesDataSource::storeTileData(const TileID& _tileId, const std::vector<c
 
     } catch (std::exception& e) {
         LOGE("MBTiles SQLite put image statement failed: %s", e.what());
+    }
+
+    if (offlineId) {
+        try {
+            auto& stmt = m_queries->putOffline;
+            stmt.bind(1, md5id);
+            stmt.bind(2, offlineId);
+            stmt.exec();
+            stmt.reset();
+        } catch (std::exception& e) {
+            LOGE("MBTiles SQLite offline id statement failed: %s", e.what());
+        }
     }
 }
 

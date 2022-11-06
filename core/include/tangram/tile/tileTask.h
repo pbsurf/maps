@@ -76,6 +76,8 @@ public:
 
     int rawSource = 0;
 
+    int offlineId = 0;
+
     bool needsLoading() const { return m_needsLoading; }
 
     // Set whether DataSource should (re)try loading data

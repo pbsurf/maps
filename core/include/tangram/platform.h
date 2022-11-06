@@ -90,6 +90,8 @@ public:
 
     virtual std::vector<FontSourceHandle> systemFontFallbacksHandle() const;
 
+    std::function<void(void)> onUrlRequestsThreshold;
+
 protected:
     // Platform implementation specific id for URL requests. This id is
     // interpreted differently for each platform type, so do not perform any

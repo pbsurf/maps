@@ -811,14 +811,30 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
         return nullptr;
 #endif
     } else if (isTiled) {
-        rawSources = std::make_unique<NetworkDataSource>(_platform, url, urlOptions);
 
-        if (_options.diskTileCacheSize > 0) {
+        if (_options.enableOfflineDL) {
             std::string cachefile = _options.diskTileCacheDir + _name + ".mbtiles";
-            auto s = std::make_unique<MBTilesDataSource>(_platform, _name, cachefile, "", true);
-            s->next = std::move(rawSources);
-            rawSources = std::move(s);
-            LOGW("using %s as cache for source %s", cachefile.c_str(), _name.c_str());
+            rawSources = OfflineDLManager::findDataSource(cachefile);
+        }
+
+        if(rawSources) {
+            LOGW("found existing offline tile downloader for source %s", _name.c_str());
+        } else {
+            rawSources = std::make_unique<NetworkDataSource>(_platform, url, urlOptions);
+
+            if (_options.diskTileCacheSize > 0 || _options.enableOfflineDL) {
+                std::string cachefile = _options.diskTileCacheDir + _name + ".mbtiles";
+                auto s = std::make_unique<MBTilesDataSource>(_platform, _name, cachefile, "", true);
+                s->next = std::move(rawSources);
+                rawSources = std::move(s);
+                LOGW("using %s as cache for source %s", cachefile.c_str(), _name.c_str());
+            }
+
+            if (_options.enableOfflineDL) {
+                std::string cachefile = _options.diskTileCacheDir + _name + ".mbtiles";
+                rawSources = OfflineDLManager::createDataSource(cachefile, std::move(rawSources));
+                LOGW("created new offline tile downloader for source %s", _name.c_str());
+            }
         }
 
         auto cacheSize = _options.memoryTileCacheSize;

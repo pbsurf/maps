@@ -9,6 +9,7 @@
 #include "rapidxml_utils.hpp"
 
 // for building search DB
+#include <deque>
 #include "document.h"  // rapidjson
 #include "writer.h"  // rapidjson
 #include "data/tileData.h"
@@ -1498,6 +1499,229 @@ void addGPXPolyline(const char* gpxfile)
     trk = trk->next_sibling("trk");
   }
 }
+
+
+// Source selection, offline maps
+
+class OfflineDLDataSource : public TileSource::DataSource
+{
+public:
+    OfflineDLDataSource();
+    ~OfflineDLDataSource() override { LOGW("OfflineDLDataSource deleted"); }
+
+    bool loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb _cb) override;
+    //void clear() override { next->clear(); }  // no-op
+
+    size_t remainingTiles() const { return m_queued.size() + m_pending.size(); }
+
+private:
+
+    struct OfflineTile_t { TileID tileId; int offlineId; };
+
+    std::deque<TileID> m_queued;
+    std::map<TileID, TileTaskCb> m_pending;
+    int offlineId = 0;
+
+    std::mutex m_mutexQueue;
+};
+
+// this protects OfflineDLDataSource from deletion
+class OfflineDLDataSourceWrapper : public TileSource::DataSource
+{
+public:
+  OfflineDLDataSourceWrapper(std::shared_ptr<DataSource> s) : src(std::move(s)) {}
+  ~OfflineDLDataSourceWrapper() override { LOGW("OfflineDLDataSourceWrapper deleted"); }  //if(dataSource->m_queued.empty() && dataSource->m_pending.empty()) delete dataSource; }
+
+  bool loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb _cb) override { return src->loadTileData(_task, _cb); }
+  void clear() override { src->clear(); }
+
+private:
+  std::shared_ptr<DataSource> src;
+};
+
+class OfflineDLManager
+{
+public:
+
+  struct OfflineDLSource { std::string key; int sourceId; std::shared_ptr<OfflineDLDataSource> dataSrc; };
+
+  static std::map<std::string, std::shared_ptr<OfflineDLDataSource>> offlineDLSources;
+
+  static std::unique_ptr<OfflineDLDataSourceWrapper> findDataSource(std::string key);
+  static std::unique_ptr<OfflineDLDataSourceWrapper> createDataSource(std::string key, std::unique_ptr<TileSource::DataSource> s);
+
+  static void onUrlClientIdle();
+
+  static int totalTiles;
+  static size_t remainingTiles();
+
+
+};
+
+// how to find OfflineDLDataSource given Tile (which only gives us TileSource via sourceId)?
+// - for each source, get DataSources (not currently exposed) and traverse to find matching OfflineDLDataSource
+// - add a offlineDLSource member to TileSource
+// - retain (bare) pointer to OfflineDLDataSourceWrapper, set Source ID after creating TileSource <== DEFAULT OPTION
+
+// If we're actually offline, we should disable NetworkDataSource
+
+// Deleting offline map:
+// - select tile_id from offline_tiles where offline_id = ? and select count(1) from offline_tiles group by tile_id;
+
+// duplicate requests for tiles (due to overlapping offline regions): we need both requests to hit mbtiles source,
+//  but it would be nice to avoid duplicate network requests, possible if we start downloading second region while first is still pending
+// - just ignore for now?
+// - don't start downloading 2nd region until 1st is finished? ... I think we'd want to do this anyway so region is complete before next starts
+//  - store current offlineId in OfflineDLManager and use in onUrlClientIdle()?
+
+// offline maps actions: save current view, list of offline maps, delete offline map
+//  - data stored for each offline map: title (source + bounds or id number), id, bounds,
+//   associated sources (using names from mapsources.yaml? what if user created w/ multiple layers w/o saving as Multi source?)
+// - globally (where? global config file? mapsources.yaml, offlinemaps.yaml), or store in mbtiles file?
+
+std::unique_ptr<OfflineDLDataSourceWrapper> OfflineDLManager::findDataSource(std::string key)
+{
+  auto it = offlineDLSources.find(key);
+  return it != offlineDLSources.end()
+      ? std::make_unique<OfflineDLDataSourceWrapper>(it->second)
+      : std::unique_ptr<OfflineDLDataSourceWrapper>();
+}
+
+std::unique_ptr<OfflineDLDataSourceWrapper> OfflineDLManager::createDataSource(std::string key, std::unique_ptr<TileSource::DataSource> s)
+{
+  offlineDLSources[key] = std::make_shared<OfflineDLDataSource>();
+  offlineDLSources[key]->next = std::move(s);
+  return std::make_unique<OfflineDLDataSourceWrapper>(offlineDLSources[key]);
+}
+
+void OfflineDLManager::onUrlClientIdle()
+{
+  for(auto& src : offlineDLSources) {
+    if(!src.second) continue;
+    while(src.second->onUrlClientIdle()) {
+      if(map->getPlatform().activeUrlRequests() > 10)
+        return;
+    }
+  }
+}
+
+size_t OfflineDLManager::remainingTiles()
+{
+  size_t n = 0;
+  for(auto& src : offlineDLSources) {
+    if(src.second)
+      n += src.second->remainingTiles();
+  }
+  return n;
+}
+
+void OfflineDLManager::loadTiles(int sourceId, const TileID& tileId, int maxZoom)
+{
+  for(auto& src : offlineDLSources) {
+    if(src.second && src.second)
+      _loadTiles(tileId, maxZoom);
+  }
+}
+
+void OfflineDLDataSource::_loadTiles(const TileID& tileId, int maxZoom)
+{
+  m_queued.push_back(tileId);
+  // add children of tile up to maxZoom
+  if(tileId.z < maxZoom) {
+    _loadTiles(tileId.getChild(0, maxZoom), maxZoom);
+    _loadTiles(tileId.getChild(1, maxZoom), maxZoom);
+    _loadTiles(tileId.getChild(2, maxZoom), maxZoom);
+    _loadTiles(tileId.getChild(3, maxZoom), maxZoom);
+  }
+}
+
+void OfflineDLDataSource::loadTiles(const TileID& tileId, int maxZoom)
+{
+  std::lock_guard<std::mutex> lock(m_mutexQueue);
+  _loadTiles(tileId, maxZoom);
+}
+
+bool OfflineDLDataSource::onUrlClientIdle()
+{
+  if(m_queued.empty()) return false;
+  std::unique_lock<std::mutex> lock(m_mutexQueue);
+  auto task = std::make_shared<BinaryTileTask>(m_queued.front(), NULL);
+  task->offlineId = offlineId;
+  m_queued.pop_front();
+  lock.unlock();
+  TileTaskCb cb{[this](std::shared_ptr<TileTask> _task) { tileTaskCallback(_task); }};
+  next->loadTileData(task, cb);
+  return true;
+}
+
+void OfflineDLDataSource::tileTaskCallback(std::shared_ptr<TileTask> _task)
+{
+  std::lock_guard<std::mutex> lock(m_mutexQueue);
+
+  TileID id = _task->tileId();
+  auto pendingit = m_pending.find(id);
+  if(pendingit == m_pending.end()) {
+    LOGW("Pending tile entry not found for tile!");
+    return;
+  }
+  if(pendingit->second.func)
+    pendingit->second.func(_task);
+  m_pending.erase(pendingit);
+}
+
+bool OfflineDLDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb _cb)
+{
+  std::unique_lock<std::mutex> lock(m_mutexQueue);
+
+  TileID id = _task->tileId();
+  auto pendingit = m_pending.find(id);
+  if(pendingit != m_pending.end()) {
+    pendingit->second.func = [=](std::shared_ptr<TileTask> _bgtask){
+      if(!_task->source() || _task->isCanceled()) return;
+      static_cast<BinaryTileTask&>(*_task).rawTileData = static_cast<BinaryTileTask&>(*_bgtask).rawTileData;
+      _cb.func(std::move(_task));
+    };
+    return true;
+  }
+  auto queuedit = std::find(m_queued.begin(), m_queued.end(), id);
+  if(queuedit != m_queued.end()) {
+    m_queued.erase(queuedit);
+    _task->offlineId = offlineId;
+  }
+  lock.unlock();
+  return next->loadTileData(_task, _cb);
+}
+
+static void showOfflineTilesGUI()
+{
+  static int maxZoom = 13;
+  if (!ImGui::CollapsingHeader("Offline Maps", ImGuiTreeNodeFlags_DefaultOpen))
+    return;
+
+  ImGui::InputInt("Max zoom level", &maxZoom);
+  if (ImGui::Button("Save Offline Map") && maxZoom > 0 && maxZoom < 20) {
+    // reload scene to add offline download sources
+    //updates.emplace_back();
+    if(!enableOfflineDL)
+      loadSceneFile(false, enableOfflineDL);
+
+    map->getPlatform().onUrlRequestsThreshold = OfflineDLManager::onUrlClientIdle;
+
+    // queue offline downloads
+    Scene* scene = map->getScene();
+    //auto& tileSources = scene->tileSources();
+    TileManager* tileManager = scene->tileManager();
+    for(auto& tile : tileManager->getVisibleTiles()) {  //tileSet.visibleTiles
+      TileID tileID = tile->getID();
+      auto source = scene->getTileSource(tile->sourceID());
+      //source->
+
+
+      OfflineDLManager::loadTiles(tile->sourceID(), tile->getID(), std::min(maxZoom, source->maxZoom()));
+    }
+  }
+}
+
 
 std::string yamlToStr(const YAML::Node& node)
 {

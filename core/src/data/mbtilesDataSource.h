@@ -27,8 +27,8 @@ public:
     void clear() override {}
 
 private:
-    bool getTileData(const TileID& _tileId, std::vector<char>& _data);
-    void storeTileData(const TileID& _tileId, const std::vector<char>& _data);
+    bool getTileData(const TileID& _tileId, std::vector<char>& _data, int offlineId);
+    void storeTileData(const TileID& _tileId, const std::vector<char>& _data, int offlineId);
     bool loadNextSource(std::shared_ptr<TileTask> _task, TileTaskCb _cb);
 
     void openMBTiles();

@@ -138,6 +138,9 @@ void Platform::cancelUrlRequest(const UrlRequestHandle _request) {
             callback(std::move(response));
         }
     }
+
+    if(m_urlCallbacks.size() == m_urlRequestsThreshold && onUrlRequestsThreshold)
+      onUrlRequestsThreshold();
 }
 
 void Platform::onUrlResponse(const UrlRequestHandle _request, UrlResponse&& _response) {
@@ -156,6 +159,9 @@ void Platform::onUrlResponse(const UrlRequestHandle _request, UrlResponse&& _res
         }
     }
     if (callback) { callback(std::move(_response)); }
+
+    if(m_urlCallbacks.size() == m_urlRequestsThreshold && onUrlRequestsThreshold)
+      onUrlRequestsThreshold();
 }
 
 } // namespace Tangram
