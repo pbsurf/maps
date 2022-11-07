@@ -799,6 +799,7 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
     }
 
     std::unique_ptr<TileSource::DataSource> rawSources;
+    std::string cachefile = _options.diskTileCacheDir + _name + ".mbtiles";
 
     if (isMBTilesFile) {
 #ifdef TANGRAM_MBTILES_DATASOURCE
@@ -813,7 +814,6 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
     } else if (isTiled) {
 
         if (_options.enableOfflineDL) {
-            std::string cachefile = _options.diskTileCacheDir + _name + ".mbtiles";
             rawSources = OfflineDLManager::findDataSource(cachefile);
         }
 
@@ -823,7 +823,6 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
             rawSources = std::make_unique<NetworkDataSource>(_platform, url, urlOptions);
 
             if (_options.diskTileCacheSize > 0 || _options.enableOfflineDL) {
-                std::string cachefile = _options.diskTileCacheDir + _name + ".mbtiles";
                 auto s = std::make_unique<MBTilesDataSource>(_platform, _name, cachefile, "", true);
                 s->next = std::move(rawSources);
                 rawSources = std::move(s);
@@ -831,7 +830,6 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
             }
 
             if (_options.enableOfflineDL) {
-                std::string cachefile = _options.diskTileCacheDir + _name + ".mbtiles";
                 rawSources = OfflineDLManager::createDataSource(cachefile, std::move(rawSources));
                 LOGW("created new offline tile downloader for source %s", _name.c_str());
             }
@@ -877,6 +875,10 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
                  "This source will be ignored.", _name.c_str());
             return nullptr;
         }
+    }
+
+    if (_options.enableOfflineDL) {
+        OfflineDLManager::setTileSourceId(cachefile, sourcePtr->id());
     }
 
     return sourcePtr;

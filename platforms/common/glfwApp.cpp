@@ -234,7 +234,7 @@ void loadSceneFile(bool setPosition, std::vector<SceneUpdate> updates)
     // sceneFile will be used iff sceneYaml is empty
     SceneOptions options{sceneYaml, Url(sceneFile), setPosition, updates};
     options.diskTileCacheSize = 256*1024*1024;
-    options.diskTileCacheDir = "/home/mwhite/maps/";
+    options.diskTileCacheDir = "/home/mwhite/maps/cache/";
     options.enableOfflineDL = enableOfflineDL;
     map->loadScene(std::move(options), load_async);
 
@@ -1532,26 +1532,24 @@ public:
 
     size_t remainingTiles() const { return m_queued.size() + m_pending.size(); }
     bool fetchNextTile();
-    void queueTile(const TileID& tileId);
+    void queueTile(const TileID& tileId, int offlineId);
 
 private:
     void tileTaskCallback(std::shared_ptr<TileTask> _task);
 
-    struct OfflineTile_t { TileID tileId; int offlineId; };
-
-    std::deque<TileID> m_queued;
-    std::map<TileID, TileTaskCb> m_pending;
-    int offlineId = 0;
-
+    struct QueuedTile { TileID tileId; int offlineId; };
+    struct PendingTile { QueuedTile tile; TileTaskCb callback; };
+    std::deque<QueuedTile> m_queued;
+    std::vector<PendingTile> m_pending;
     std::mutex m_mutexQueue;
 };
 
 // this protects OfflineDLDataSource from deletion
-class OfflineDLDataSourceWrapper : public TileSource::DataSource
+class OfflineDLWrapper : public TileSource::DataSource
 {
 public:
-  OfflineDLDataSourceWrapper(std::shared_ptr<DataSource> s) : src(std::move(s)) {}
-  ~OfflineDLDataSourceWrapper() override { LOGW("OfflineDLDataSourceWrapper deleted"); }  //if(dataSource->m_queued.empty() && dataSource->m_pending.empty()) delete dataSource; }
+  OfflineDLWrapper(std::shared_ptr<DataSource> s) : src(std::move(s)) {}
+  ~OfflineDLWrapper() override { LOGW("OfflineDLWrapper deleted"); }
 
   bool loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb _cb) override { return src->loadTileData(_task, _cb); }
   void clear() override { src->clear(); }
@@ -1567,18 +1565,27 @@ public:
   struct OfflineDLSource { std::string key; int sourceId; std::shared_ptr<OfflineDLDataSource> dataSrc; };
   static std::vector<OfflineDLSource> offlineDLSources;
 
-  static std::unique_ptr<OfflineDLDataSourceWrapper> findDataSource(std::string key);
-  static std::unique_ptr<OfflineDLDataSourceWrapper> createDataSource(std::string key, std::unique_ptr<TileSource::DataSource> s);
-  static bool setDataSourceSourceId(std::string key, int sourceId);
-  static OfflineDLDataSource* getDataSourceBySourceId(int sourceId);
+  static std::unique_ptr<OfflineDLWrapper> findDataSource(std::string key);
+  static std::unique_ptr<OfflineDLWrapper> createDataSource(std::string key, std::unique_ptr<TileSource::DataSource> s);
+  static bool setTileSourceId(std::string key, int sourceId);
+  static OfflineDLDataSource* findByTileSourceId(int sourceId);
 
   static void onUrlClientIdle();
 
-  static void loadTiles(int sourceId, const TileID& tileId, int maxZoom);
-
-  static int totalTiles;  // UI can manage this, reseting after it displays 100% progress (i.e., completion)
+  //static int totalTiles;  // UI can manage this, reseting after it displays 100% progress (i.e., completion)
   static size_t remainingTiles();
 };
+
+
+// what about mbtiles file path?
+// - specified in YAML source: block? "cache" key
+//  - cache = true to automatically generate (URL or source name)
+// - automatically generated from URL (as opposed to source name?)
+
+// - setting cache size - global limit and option per source limit
+
+
+// scan for entries to remove from offlineDLSources when closing scene and when m_pending, m_queued emptied and scene is closed
 
 
 // aside: DataSource.level doesn't do anything because we just assign to .next instead of using DataSource::setNext()
@@ -1597,34 +1604,47 @@ public:
 // - just ignore for now?
 // - don't start downloading 2nd region until 1st is finished? ... I think we'd want to do this anyway so region is complete before next starts
 //  - store current offlineId in OfflineDLManager and use in onUrlClientIdle()?
+// - check pending for same tileID and move to back of queued if match
 
 // offline maps actions: save current view, list of offline maps, delete offline map
 //  - data stored for each offline map: title (source + bounds or id number), id, bounds,
 //   associated sources (using names from mapsources.yaml? what if user created w/ multiple layers w/o saving as Multi source?)
 // - globally (where? global config file? mapsources.yaml, offlinemaps.yaml), or store in mbtiles file?
+// - option to add region to existing offline map instead of creating new map (for easier deletion)?
 
-std::unique_ptr<OfflineDLDataSourceWrapper> OfflineDLManager::findDataSource(std::string key)
+std::unique_ptr<OfflineDLWrapper> OfflineDLManager::findDataSource(std::string key)
 {
   for(auto& src : offlineDLSources) {
     if(src.key == key)
-      return std::make_unique<OfflineDLDataSourceWrapper>(src.dataSrc);
+      return std::make_unique<OfflineDLWrapper>(src.dataSrc);
   }
-  return std::unique_ptr<OfflineDLDataSourceWrapper>();
+  return std::unique_ptr<OfflineDLWrapper>();
 }
 
-std::unique_ptr<OfflineDLDataSourceWrapper> OfflineDLManager::createDataSource(std::string key, std::unique_ptr<TileSource::DataSource> s)
+std::unique_ptr<OfflineDLWrapper> OfflineDLManager::createDataSource(std::string key, std::unique_ptr<TileSource::DataSource> s)
 {
-  offlineDLSources.emplace_back(key, -1, std::move(s));
-  return std::make_unique<OfflineDLDataSourceWrapper>(offlineDLSources.back().dataSrc);
+  offlineDLSources.push_back({key, -1, std::move(s)});
+  return std::make_unique<OfflineDLWrapper>(offlineDLSources.back().dataSrc);
 }
 
-OfflineDLDataSource* OfflineDLManager::getDataSourceBySourceId(int sourceId)
+OfflineDLDataSource* OfflineDLManager::findByTileSourceId(int sourceId)
 {
   for(auto& src : offlineDLSources) {
     if(src.sourceId == sourceId)
       return src.dataSrc.get();
   }
   return NULL;
+}
+
+bool OfflineDLManager::setTileSourceId(std::string key, int sourceId)
+{
+  for(auto& src : offlineDLSources) {
+    if(src.key == key) {
+      src.sourceId = sourceId;
+      return true;
+    }
+  }
+  return false;
 }
 
 void OfflineDLManager::onUrlClientIdle()
@@ -1648,9 +1668,10 @@ size_t OfflineDLManager::remainingTiles()
   return n;
 }
 
-void OfflineDLDataSource::queueTile(const TileID& tileId)
+void OfflineDLDataSource::queueTile(const TileID& tileId, int offlineId)
 {
-  m_queued.push_back(tileId);
+  std::lock_guard<std::mutex> lock(m_mutexQueue);
+  m_queued.push_back({tileId, offlineId});
 }
 
 bool OfflineDLDataSource::fetchNextTile()
@@ -1658,9 +1679,9 @@ bool OfflineDLDataSource::fetchNextTile()
   if(m_queued.empty()) return false;
   std::unique_lock<std::mutex> lock(m_mutexQueue);
   auto task = std::make_shared<BinaryTileTask>(m_queued.front(), NULL);
-  task->offlineId = offlineId;
+  task->offlineId = m_queued.front().offlineId;
+  m_pending.push_back({m_queued.front(), TileTaskCb{}});
   m_queued.pop_front();
-  m_pending[task->tileId()] = TileTaskCb{};
   lock.unlock();
   TileTaskCb cb{[this](std::shared_ptr<TileTask> _task) { tileTaskCallback(_task); }};
   next->loadTileData(task, cb);
@@ -1668,66 +1689,78 @@ bool OfflineDLDataSource::fetchNextTile()
   return true;
 }
 
-void OfflineDLDataSource::tileTaskCallback(std::shared_ptr<TileTask> _task)
+void OfflineDLDataSource::tileTaskCallback(std::shared_ptr<TileTask> task)
 {
   std::lock_guard<std::mutex> lock(m_mutexQueue);
 
-  TileID tileId = _task->tileId();
-  auto pendingit = m_pending.find(tileId);
+  TileID tileId = task->tileId();
+  auto pendingit = m_pending.begin();
+  while(pendingit != m_pending.end() && pendingit->tile.tileId != tileId) ++pendingit;
   if(pendingit == m_pending.end()) {
     LOGW("Pending tile entry not found for tile!");
     return;
   }
   // put back in queue (at end) on failure
-  if(!_task->hasData())
-    m_queued.push_back(tileId);
-  if(pendingit->second.func)
-    pendingit->second.func(_task);
+  if(!task->hasData())
+    m_queued.push_back(pendingit->tile);
+  if(pendingit->callback.func)
+    pendingit->callback.func(task);
   m_pending.erase(pendingit);
   //if(m_pending.empty() && m_queued.empty() && onDownloadComplete) onDownloadComplete();
 }
 
-bool OfflineDLDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb _cb)
+//#define DEDUP_TILE_REQUESTS 1
+bool OfflineDLDataSource::loadTileData(std::shared_ptr<TileTask> task, TileTaskCb cb)
 {
+#ifdef DEDUP_TILE_REQUESTS
   std::unique_lock<std::mutex> lock(m_mutexQueue);
 
-  TileID tileId = _task->tileId();
-  bool wasPending = true;
-  auto pendingit = m_pending.find(tileId);
-  if(pendingit == m_pending.end()) {
-    wasPending = false;
+  TileID tileId = task->tileId();
+  auto pendingit = m_pending.begin();
+  while(pendingit != m_pending.end() && pendingit->tile.tileId != tileId) ++pendingit;
+  bool wasPending = pendingit != m_pending.end();
+  if(!wasPending) {
     auto queuedit = std::find(m_queued.begin(), m_queued.end(), tileId);
     if(queuedit != m_queued.end()) {
-      _task->offlineId = offlineId;
-      m_pending[tileId] = TileTaskCb{};
-      pendingit = m_pending.find(tileId);
+      task->offlineId = queuedit->offlineId;
+      m_pending.push_back({*queuedit, TileTaskCb{}});
+      pendingit = std::prev(m_pending.end());
       m_queued.erase(queuedit);
     }
   }
   if(pendingit != m_pending.end()) {
-    pendingit->second.func = [=](std::shared_ptr<TileTask> _bgtask){
-      if(!_task->source() || _task->isCanceled()) return;
-      static_cast<BinaryTileTask&>(*_task).rawTileData = static_cast<BinaryTileTask&>(*_bgtask).rawTileData;
-      _cb.func(std::move(_task));
+    pendingit->callback.func = [=](std::shared_ptr<TileTask> bgtask){
+      if(!task->source() || task->isCanceled()) return;
+      static_cast<BinaryTileTask&>(*task).rawTileData = static_cast<BinaryTileTask&>(*bgtask).rawTileData;
+      cb.func(std::move(task));
     };
+    LOGW("Deduplicated request for tile: %s", tildId.toString().c_str());
     if(wasPending)
       return true;
+    TileTaskCb _cb{[this](std::shared_ptr<TileTask> _task) { tileTaskCallback(_task); }};
+    lock.unlock();
+    return next->loadTileData(task, _cb);
   }
   lock.unlock();
-  return next->loadTileData(_task, _cb);
+#endif
+  return next->loadTileData(task, cb);
 }
 
-void OfflineDLDataSource::cancelLoadingTile(TileTask& _task)
+void OfflineDLDataSource::cancelLoadingTile(TileTask& task)
 {
+#ifdef DEDUP_TILE_REQUESTS
   std::unique_lock<std::mutex> lock(m_mutexQueue);
 
-  auto pendingit = m_pending.find(_task.tileId());
-  if(pendingit != m_pending.end())
-    pendingit->second.func = 0;  // clear the non-offline callback
-  else if(next) {
-    lock.unlock();
-    next->cancelLoadingTile(_task);
+  TileID tileId = task.tileId();
+  auto pendingit = m_pending.begin();
+  while(pendingit != m_pending.end() && pendingit->tile.tileId != tileId) ++pendingit;
+  if(pendingit != m_pending.end()) {
+    pendingit->callback.func = 0;  // clear the non-offline callback
+    return;
   }
+  lock.unlock();
+#endif
+  next->cancelLoadingTile(task);
 }
 
 static void showOfflineTilesGUI()
@@ -1741,7 +1774,9 @@ static void showOfflineTilesGUI()
     // reload scene to add offline download sources
     if(!enableOfflineDL) {
       enableOfflineDL = true;
+      bool old_async = std::exchange(load_async, false);
       loadSceneFile(false);
+      load_async = old_async;
     }
 
     map->getPlatform().onUrlRequestsThreshold = OfflineDLManager::onUrlClientIdle;
@@ -1756,7 +1791,7 @@ static void showOfflineTilesGUI()
     Scene* scene = map->getScene();
     auto& tileSources = scene->tileSources();
     for(auto& tileSource : tileSources) {
-      OfflineDLDataSource* dlSource = OfflineDLManager::getDataSourceBySourceId(tileSource->id());
+      OfflineDLDataSource* dlSource = OfflineDLManager::findByTileSourceId(tileSource->id());
       int srcMaxZoom = std::min(maxZoom, tileSource->maxZoom());
       // if zoomed past srcMaxZoom, download tiles at srcMaxZoom
       for(int z = std::min(zoom, srcMaxZoom); z <= srcMaxZoom; ++z) {
