@@ -90,6 +90,10 @@ public:
 
     virtual std::vector<FontSourceHandle> systemFontFallbacksHandle() const;
 
+    size_t activeUrlRequests() const { return m_urlCallbacks.size(); }
+
+    std::atomic<bool> isOffline{false};
+    size_t urlRequestsThreshold = 0;
     std::function<void(void)> onUrlRequestsThreshold;
 
 protected:

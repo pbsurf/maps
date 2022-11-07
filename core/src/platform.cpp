@@ -12,6 +12,7 @@ std::mutex tangram_log_time_mutex;
 
 constexpr char const* shutdown_message = "Shutting down";
 constexpr char const* cancel_message = "Request canceled";
+constexpr char const* offline_message = "Offline";
 
 namespace Tangram {
 
@@ -81,9 +82,9 @@ UrlRequestHandle Platform::startUrlRequest(Url _url, UrlCallback&& _callback) {
 
     assert(_callback);
 
-    if (m_shutdown) {
+    if (m_shutdown || isOffline) {
         UrlResponse response;
-        response.error = shutdown_message;
+        response.error = m_shutdown ? shutdown_message : offline_message;
         _callback(std::move(response));
         return 0;
     }
@@ -139,8 +140,8 @@ void Platform::cancelUrlRequest(const UrlRequestHandle _request) {
         }
     }
 
-    if(m_urlCallbacks.size() == m_urlRequestsThreshold && onUrlRequestsThreshold)
-      onUrlRequestsThreshold();
+    if (activeUrlRequests() == urlRequestsThreshold && onUrlRequestsThreshold)
+        onUrlRequestsThreshold();
 }
 
 void Platform::onUrlResponse(const UrlRequestHandle _request, UrlResponse&& _response) {
@@ -160,8 +161,8 @@ void Platform::onUrlResponse(const UrlRequestHandle _request, UrlResponse&& _res
     }
     if (callback) { callback(std::move(_response)); }
 
-    if(m_urlCallbacks.size() == m_urlRequestsThreshold && onUrlRequestsThreshold)
-      onUrlRequestsThreshold();
+    if (activeUrlRequests() == urlRequestsThreshold && onUrlRequestsThreshold)
+        onUrlRequestsThreshold();
 }
 
 } // namespace Tangram

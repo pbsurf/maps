@@ -72,6 +72,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS name ON metadata (name);
 CREATE INDEX IF NOT EXISTS map_grid_id ON map (grid_id);
 -- CREATE INDEX IF NOT EXISTS geocoder_type_index ON geocoder_data (type);
 -- CREATE UNIQUE INDEX IF NOT EXISTS geocoder_shard_index ON geocoder_data (type, shard);
+CREATE UNIQUE INDEX IF NOT EXISTS offline_index ON offline_tiles (tile_id, offline_id);
 
 CREATE VIEW IF NOT EXISTS tiles AS
     SELECT
