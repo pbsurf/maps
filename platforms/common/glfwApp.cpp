@@ -16,6 +16,10 @@
 #include "scene/scene.h"
 #include "sqlite3/sqlite3.h"
 
+// for offline download
+#include "data/mbtilesDataSource.h"
+#include "data/networkDataSource.h"
+
 #define NANOSVG_IMPLEMENTATION
 #include "nanosvg/nanosvg.h"
 #define NANOSVGRAST_IMPLEMENTATION
@@ -161,7 +165,6 @@ std::vector<SceneUpdate> sceneUpdates;
 const char* apiKeyScenePath = "+global.sdk_api_key";
 
 const char* sourcesFile =  "../mapsources.yaml";
-bool enableOfflineDL = false;
 
 // common fns
 
@@ -235,7 +238,6 @@ void loadSceneFile(bool setPosition, std::vector<SceneUpdate> updates)
     SceneOptions options{sceneYaml, Url(sceneFile), setPosition, updates};
     options.diskTileCacheSize = 256*1024*1024;
     options.diskTileCacheDir = "/home/mwhite/maps/cache/";
-    options.enableOfflineDL = enableOfflineDL;
     map->loadScene(std::move(options), load_async);
 
     // markers are invalidated ... technically we should use SceneReadyCallback for this if loading async
@@ -1518,249 +1520,128 @@ void addGPXPolyline(const char* gpxfile)
 }
 
 
-// Source selection, offline maps
+// Offline maps
 
-class OfflineDLDataSource : public TileSource::DataSource
+struct OfflineSourceInfo
+{
+  std::string name;
+  std::string cacheFile;
+  std::string url;
+  std::vector<std::string> urlSubdomains;
+  bool urlIsTms;
+  int maxZoom;
+};
+
+// We'll need to resume offline downloads after app or device restart, so use easily serializable data format
+struct OfflineMapInfo
+{
+  int id;
+  LngLat lngLat00, lngLat11;
+  int zoom, maxZoom;
+  std::vector<OfflineSourceInfo> sources;
+};
+
+class OfflineDownloader
 {
 public:
-    OfflineDLDataSource();
-    ~OfflineDLDataSource() override { LOGW("OfflineDLDataSource deleted"); }
-
-    bool loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb _cb) override;
-    void cancelLoadingTile(TileTask& _task) override;
-    //void clear() override { next->clear(); }  // no-op
-
+    OfflineDownloader(Platform& _platform, const OfflineMapInfo& ofl, const OfflineSourceInfo& src);
     size_t remainingTiles() const { return m_queued.size() + m_pending.size(); }
     bool fetchNextTile();
-    void queueTile(const TileID& tileId, int offlineId);
 
 private:
     void tileTaskCallback(std::shared_ptr<TileTask> _task);
 
-    struct QueuedTile { TileID tileId; int offlineId; };
-    struct PendingTile { QueuedTile tile; TileTaskCb callback; };
-    std::deque<QueuedTile> m_queued;
-    std::vector<PendingTile> m_pending;
+    int offlineId;
+    std::string name;
+    std::deque<TileID> m_queued;
+    std::vector<TileID> m_pending;
     std::mutex m_mutexQueue;
+    std::unique_ptr<MBTilesDataSource> mbtiles;
 };
 
-// this protects OfflineDLDataSource from deletion
-class OfflineDLWrapper : public TileSource::DataSource
+static std::deque<OfflineMapInfo> offlinePending;
+static std::mutex mutexOfflineQueue;
+static std::vector<std::unique_ptr<OfflineDownloader>> offlineDownloaders;
+
+static void onUrlClientIdle()
 {
-public:
-  OfflineDLWrapper(std::shared_ptr<DataSource> s) : src(std::move(s)) {}
-  ~OfflineDLWrapper() override { LOGW("OfflineDLWrapper deleted"); }
+  std::unique_lock<std::mutex> lock(mutexOfflineQueue);
 
-  bool loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb _cb) override { return src->loadTileData(_task, _cb); }
-  void clear() override { src->clear(); }
-  void cancelLoadingTile(TileTask& _task) override { src->cancelLoadingTile(_task); }
-
-private:
-  std::shared_ptr<DataSource> src;
-};
-
-class OfflineDLManager
-{
-public:
-  struct OfflineDLSource { std::string key; int sourceId; std::shared_ptr<OfflineDLDataSource> dataSrc; };
-  static std::vector<OfflineDLSource> offlineDLSources;
-
-  static std::unique_ptr<OfflineDLWrapper> findDataSource(std::string key);
-  static std::unique_ptr<OfflineDLWrapper> createDataSource(std::string key, std::unique_ptr<TileSource::DataSource> s);
-  static bool setTileSourceId(std::string key, int sourceId);
-  static OfflineDLDataSource* findByTileSourceId(int sourceId);
-
-  static void onUrlClientIdle();
-
-  //static int totalTiles;  // UI can manage this, reseting after it displays 100% progress (i.e., completion)
-  static size_t remainingTiles();
-};
-
-
-// what about mbtiles file path?
-// - specified in YAML source: block? "cache" key
-//  - cache = true to automatically generate (URL or source name)
-// - automatically generated from URL (as opposed to source name?)
-
-// - setting cache size - global limit and option per source limit
-
-
-// scan for entries to remove from offlineDLSources when closing scene and when m_pending, m_queued emptied and scene is closed
-
-
-// aside: DataSource.level doesn't do anything because we just assign to .next instead of using DataSource::setNext()
-
-// optional callback to notify after final tile downloaded - called from tileTaskCallback
-
-// How to back off downloads after failures
-// - after 1 or 2 failures, just submit requests one at a time
-// - if isOffline is cleared, we should call onUrlClientIdle()
-
-// Deleting offline map:
-// - select tile_id from offline_tiles where offline_id = ? and select count(1) from offline_tiles group by tile_id;
-
-// duplicate requests for tiles (due to overlapping offline regions): we need both requests to hit mbtiles source,
-//  but it would be nice to avoid duplicate network requests, possible if we start downloading second region while first is still pending
-// - just ignore for now?
-// - don't start downloading 2nd region until 1st is finished? ... I think we'd want to do this anyway so region is complete before next starts
-//  - store current offlineId in OfflineDLManager and use in onUrlClientIdle()?
-// - check pending for same tileID and move to back of queued if match
-
-// offline maps actions: save current view, list of offline maps, delete offline map
-//  - data stored for each offline map: title (source + bounds or id number), id, bounds,
-//   associated sources (using names from mapsources.yaml? what if user created w/ multiple layers w/o saving as Multi source?)
-// - globally (where? global config file? mapsources.yaml, offlinemaps.yaml), or store in mbtiles file?
-// - option to add region to existing offline map instead of creating new map (for easier deletion)?
-
-std::unique_ptr<OfflineDLWrapper> OfflineDLManager::findDataSource(std::string key)
-{
-  for(auto& src : offlineDLSources) {
-    if(src.key == key)
-      return std::make_unique<OfflineDLWrapper>(src.dataSrc);
-  }
-  return std::unique_ptr<OfflineDLWrapper>();
-}
-
-std::unique_ptr<OfflineDLWrapper> OfflineDLManager::createDataSource(std::string key, std::unique_ptr<TileSource::DataSource> s)
-{
-  offlineDLSources.push_back({key, -1, std::move(s)});
-  return std::make_unique<OfflineDLWrapper>(offlineDLSources.back().dataSrc);
-}
-
-OfflineDLDataSource* OfflineDLManager::findByTileSourceId(int sourceId)
-{
-  for(auto& src : offlineDLSources) {
-    if(src.sourceId == sourceId)
-      return src.dataSrc.get();
-  }
-  return NULL;
-}
-
-bool OfflineDLManager::setTileSourceId(std::string key, int sourceId)
-{
-  for(auto& src : offlineDLSources) {
-    if(src.key == key) {
-      src.sourceId = sourceId;
-      return true;
+  while(!offlinePending.empty()) {
+    while(!offlineDownloaders.empty()) {
+      while(offlineDownloaders.back()->fetchNextTile()) {
+        if(map->getPlatform().activeUrlRequests() > 10)
+          return;
+      }
+      if(offlineDownloaders.back()->remainingTiles())
+        return;  // m_queued empty, m_pending not empty
+      offlineDownloaders.pop_back();
     }
+    offlinePending.pop_front();
+    if(offlinePending.empty())
+      break;
+
+    auto& dl = offlinePending.front();
+    for(auto& source : dl.sources)
+      offlineDownloaders.emplace_back(new OfflineDownloader(map->getPlatform(), dl, source));
   }
-  return false;
+  map->getPlatform().onUrlRequestsThreshold = nullptr;  // all done!
 }
 
-void OfflineDLManager::onUrlClientIdle()
+OfflineDownloader::OfflineDownloader(Platform& _platform, const OfflineMapInfo& ofl, const OfflineSourceInfo& src)
 {
-  for(auto& src : offlineDLSources) {
-    if(!src.dataSrc) continue;
-    while(src.dataSrc->fetchNextTile()) {
-      if(map->getPlatform().activeUrlRequests() > 10)
-        return;
+  mbtiles = std::make_unique<MBTilesDataSource>(_platform, src.name, src.cacheFile, "", true);
+  NetworkDataSource::UrlOptions urlOptions = {src.urlSubdomains, src.urlIsTms};
+  mbtiles->next = std::make_unique<NetworkDataSource>(_platform, src.url, urlOptions);
+  name = src.name + "-" + std::to_string(ofl.id);
+
+  int srcMaxZoom = std::min(ofl.maxZoom, src.maxZoom);
+  // if zoomed past srcMaxZoom, download tiles at srcMaxZoom
+  for(int z = std::min(ofl.zoom, srcMaxZoom); z <= srcMaxZoom; ++z) {
+    TileID tile00 = lngLatTile(ofl.lngLat00, z);
+    TileID tile11 = lngLatTile(ofl.lngLat11, z);
+    for(int x = tile00.x; x <= tile11.x; ++x) {
+      for(int y = tile00.y; y <= tile11.y; ++y)
+        m_queued.emplace_back(x, y, z);
     }
   }
 }
 
-size_t OfflineDLManager::remainingTiles()
+bool OfflineDownloader::fetchNextTile()
 {
-  size_t n = 0;
-  for(auto& src : offlineDLSources) {
-    if(src.dataSrc)
-      n += src.dataSrc->remainingTiles();
-  }
-  return n;
-}
-
-void OfflineDLDataSource::queueTile(const TileID& tileId, int offlineId)
-{
-  std::lock_guard<std::mutex> lock(m_mutexQueue);
-  m_queued.push_back({tileId, offlineId});
-}
-
-bool OfflineDLDataSource::fetchNextTile()
-{
-  if(m_queued.empty()) return false;
   std::unique_lock<std::mutex> lock(m_mutexQueue);
+  if(m_queued.empty()) return false;
   auto task = std::make_shared<BinaryTileTask>(m_queued.front(), NULL);
-  task->offlineId = m_queued.front().offlineId;
-  m_pending.push_back({m_queued.front(), TileTaskCb{}});
+  task->offlineId = offlineId;
+  m_pending.push_back(m_queued.front());
   m_queued.pop_front();
   lock.unlock();
   TileTaskCb cb{[this](std::shared_ptr<TileTask> _task) { tileTaskCallback(_task); }};
-  next->loadTileData(task, cb);
-  LOGW("Requested download of offline tile: %s", task->tileId().toString().c_str());
+  mbtiles->loadTileData(task, cb);
+  LOGW("%s: requested download of offline tile %s", name.c_str(), task->tileId().toString().c_str());
   return true;
 }
 
-void OfflineDLDataSource::tileTaskCallback(std::shared_ptr<TileTask> task)
+void OfflineDownloader::tileTaskCallback(std::shared_ptr<TileTask> task)
 {
-  std::lock_guard<std::mutex> lock(m_mutexQueue);
+  std::unique_lock<std::mutex> lock(m_mutexQueue);
 
   TileID tileId = task->tileId();
-  auto pendingit = m_pending.begin();
-  while(pendingit != m_pending.end() && pendingit->tile.tileId != tileId) ++pendingit;
+  auto pendingit = std::find(m_pending.begin(), m_pending.begin(), tileId);
   if(pendingit == m_pending.end()) {
     LOGW("Pending tile entry not found for tile!");
     return;
   }
   // put back in queue (at end) on failure
   if(!task->hasData())
-    m_queued.push_back(pendingit->tile);
-  if(pendingit->callback.func)
-    pendingit->callback.func(task);
+    m_queued.push_back(*pendingit);
   m_pending.erase(pendingit);
-  //if(m_pending.empty() && m_queued.empty() && onDownloadComplete) onDownloadComplete();
-}
 
-//#define DEDUP_TILE_REQUESTS 1
-bool OfflineDLDataSource::loadTileData(std::shared_ptr<TileTask> task, TileTaskCb cb)
-{
-#ifdef DEDUP_TILE_REQUESTS
-  std::unique_lock<std::mutex> lock(m_mutexQueue);
-
-  TileID tileId = task->tileId();
-  auto pendingit = m_pending.begin();
-  while(pendingit != m_pending.end() && pendingit->tile.tileId != tileId) ++pendingit;
-  bool wasPending = pendingit != m_pending.end();
-  if(!wasPending) {
-    auto queuedit = std::find(m_queued.begin(), m_queued.end(), tileId);
-    if(queuedit != m_queued.end()) {
-      task->offlineId = queuedit->offlineId;
-      m_pending.push_back({*queuedit, TileTaskCb{}});
-      pendingit = std::prev(m_pending.end());
-      m_queued.erase(queuedit);
-    }
-  }
-  if(pendingit != m_pending.end()) {
-    pendingit->callback.func = [=](std::shared_ptr<TileTask> bgtask){
-      if(!task->source() || task->isCanceled()) return;
-      static_cast<BinaryTileTask&>(*task).rawTileData = static_cast<BinaryTileTask&>(*bgtask).rawTileData;
-      cb.func(std::move(task));
-    };
-    LOGW("Deduplicated request for tile: %s", tildId.toString().c_str());
-    if(wasPending)
-      return true;
-    TileTaskCb _cb{[this](std::shared_ptr<TileTask> _task) { tileTaskCallback(_task); }};
+  LOGW("%s: completed download of offline tile %s", name.c_str(), task->tileId().toString().c_str());
+  if(m_pending.empty() && m_queued.empty()) {
     lock.unlock();
-    return next->loadTileData(task, _cb);
+    onUrlClientIdle();
   }
-  lock.unlock();
-#endif
-  return next->loadTileData(task, cb);
-}
-
-void OfflineDLDataSource::cancelLoadingTile(TileTask& task)
-{
-#ifdef DEDUP_TILE_REQUESTS
-  std::unique_lock<std::mutex> lock(m_mutexQueue);
-
-  TileID tileId = task.tileId();
-  auto pendingit = m_pending.begin();
-  while(pendingit != m_pending.end() && pendingit->tile.tileId != tileId) ++pendingit;
-  if(pendingit != m_pending.end()) {
-    pendingit->callback.func = 0;  // clear the non-offline callback
-    return;
-  }
-  lock.unlock();
-#endif
-  next->cancelLoadingTile(task);
 }
 
 static void showOfflineTilesGUI()
@@ -1771,44 +1652,45 @@ static void showOfflineTilesGUI()
 
   ImGui::InputInt("Max zoom level", &maxZoom);
   if (ImGui::Button("Save Offline Map") && maxZoom > 0 && maxZoom < 20) {
-    // reload scene to add offline download sources
-    if(!enableOfflineDL) {
-      enableOfflineDL = true;
-      bool old_async = std::exchange(load_async, false);
-      loadSceneFile(false);
-      load_async = old_async;
-    }
-
-    map->getPlatform().onUrlRequestsThreshold = OfflineDLManager::onUrlClientIdle;
-    map->getPlatform().urlRequestsThreshold = 5;
-
+    std::unique_lock<std::mutex> lock(mutexOfflineQueue);
     // don't load tiles outside visible region at any zoom level (as using TileID::getChild() recursively
     //  would do - these could potentially outnumber the number of desired tiles!)
     int zoom = int(map->getZoom());
     LngLat lngLat00, lngLat11;
     getMapBounds(lngLat00, lngLat11);
     // queue offline downloads
-    Scene* scene = map->getScene();
-    auto& tileSources = scene->tileSources();
-    for(auto& tileSource : tileSources) {
-      OfflineDLDataSource* dlSource = OfflineDLManager::findByTileSourceId(tileSource->id());
-      int srcMaxZoom = std::min(maxZoom, tileSource->maxZoom());
-      // if zoomed past srcMaxZoom, download tiles at srcMaxZoom
-      for(int z = std::min(zoom, srcMaxZoom); z <= srcMaxZoom; ++z) {
-        TileID tile00 = lngLatTile(lngLat00, z);
-        TileID tile11 = lngLatTile(lngLat11, z);
-        for(int x = tile00.x; x <= tile11.x; ++x) {
-          for(int y = tile00.y; y <= tile11.y; ++y)
-            dlSource->queueTile(TileID(x, y, z));
-        }
-      }
+    int offlineId = (unsigned)time(NULL);
+    offlinePending.push_back({offlineId, lngLat00, lngLat11, zoom, maxZoom, {}});
+    auto& tileSources = map->getScene()->tileSources();
+    for(auto& src : tileSources) {
+      auto& info = src->offlineInfo();
+      if(info.cacheFile.empty())
+        LOGE("Cannot save offline tiles for source %s - no cache file specified", src->name().c_str());
+      else
+        offlinePending.back().sources.push_back(
+            {src->name(), info.cacheFile, info.url, info.urlSubdomains, info.urlIsTms, src->maxZoom()});
     }
+
+    map->getPlatform().onUrlRequestsThreshold = onUrlClientIdle;
+    map->getPlatform().urlRequestsThreshold = 5;
+    lock.unlock();
     // manually start downloads if active requests below threshold
     if(map->getPlatform().activeUrlRequests() <= 5)
-      OfflineDLManager::onUrlClientIdle();
+      onUrlClientIdle();
   }
 }
 
+// - background task to get last access time and size of each tile in each mbtiles cache, sort, and delete tiles
+//  until cache is less than limit
+
+// how will user manage existing offline maps?
+// - persist OfflineMapInfo until offline map is deleted - then we can draw a rectangle on top of map to indicate offline map bounds
+// - deletion: select tile_id from offline_tiles where offline_id = ? and select count(1) from offline_tiles group by tile_id;
+
+// aside: DataSource.level doesn't do anything because we just assign to .next instead of using DataSource::setNext()
+
+
+// Source selection
 
 std::string yamlToStr(const YAML::Node& node)
 {
@@ -1850,6 +1732,9 @@ void SourceBuilder::addLayer(const std::string& key)  //, const YAML::Node& src)
       if(attr.first.Scalar() != "title")
         updates.emplace_back("+sources." + key + "." + attr.first.Scalar(), yamlToStr(attr.second));
     }
+    // if cache file is not explicitly specified, use key since it is guaranteed to be unique
+    if(!src["cache"] || src["cache"].Scalar() != "false")
+      updates.emplace_back("+sources." + key + ".cache", key);
     // separate style is required for each overlay layer; overlay layers are always drawn over opaque layers
     //  text and points are drawn as overlays w/ blend_order -1, so use blend_order < -1 to place rasters
     //  under vector map text
@@ -2222,6 +2107,7 @@ static void showPickLabelGUI() {
 void showGUI() {
   showSceneGUI();
   showSourceGUI();
+  showOfflineTilesGUI();
   showViewportGUI();
   showMarkerGUI();
   showDebugFlagsGUI();

@@ -63,8 +63,6 @@ public:
 
     std::string diskTileCacheDir;
 
-    bool enableOfflineDL = false;
-
 private:
     static constexpr size_t CACHE_SIZE = 16 * (1024 * 1024);
 

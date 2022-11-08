@@ -799,7 +799,7 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
     }
 
     std::unique_ptr<TileSource::DataSource> rawSources;
-    std::string cachefile = _options.diskTileCacheDir + _name + ".mbtiles";
+    std::string cachefile;
 
     if (isMBTilesFile) {
 #ifdef TANGRAM_MBTILES_DATASOURCE
@@ -812,26 +812,18 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
         return nullptr;
 #endif
     } else if (isTiled) {
+        rawSources = std::make_unique<NetworkDataSource>(_platform, url, urlOptions);
 
-        if (_options.enableOfflineDL) {
-            rawSources = OfflineDLManager::findDataSource(cachefile);
-        }
-
-        if(rawSources) {
-            LOGW("found existing offline tile downloader for source %s", _name.c_str());
-        } else {
-            rawSources = std::make_unique<NetworkDataSource>(_platform, url, urlOptions);
-
-            if (_options.diskTileCacheSize > 0 || _options.enableOfflineDL) {
+        if (_options.diskTileCacheSize > 0) {
+            std::string cachename = _source["cache"].as<std::string>();
+            if (cachename.empty()) {
+                LOGW("no cache file specified for source %s", _name.c_str());
+            } else {
+                cachefile = _options.diskTileCacheDir + cachename + ".mbtiles";
                 auto s = std::make_unique<MBTilesDataSource>(_platform, _name, cachefile, "", true);
                 s->next = std::move(rawSources);
                 rawSources = std::move(s);
                 LOGW("using %s as cache for source %s", cachefile.c_str(), _name.c_str());
-            }
-
-            if (_options.enableOfflineDL) {
-                rawSources = OfflineDLManager::createDataSource(cachefile, std::move(rawSources));
-                LOGW("created new offline tile downloader for source %s", _name.c_str());
             }
         }
 
@@ -877,9 +869,7 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
         }
     }
 
-    if (_options.enableOfflineDL) {
-        OfflineDLManager::setTileSourceId(cachefile, sourcePtr->id());
-    }
+    sourcePtr->setOfflineInfo({cachefile, url, urlOptions.subdomains, urlOptions.isTms});
 
     return sourcePtr;
 }

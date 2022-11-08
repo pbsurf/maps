@@ -77,6 +77,13 @@ public:
         Mvt,
     };
 
+    struct OfflineInfo {
+      std::string cacheFile;
+      std::string url;
+      std::vector<std::string> urlSubdomains;
+      bool urlIsTms;
+    };
+
     /* Tile data sources must have a name and a URL template that defines where to find
      * a tile based on its coordinates. A URL template includes exactly one occurrance
      * each of '{x}', '{y}', and '{z}' which will be replaced by the x index, y index,
@@ -148,6 +155,9 @@ public:
 
     void setFormat(Format format) { m_format = format; }
 
+    const OfflineInfo& offlineInfo() const { return m_offlineInfo; }
+    void setOfflineInfo(const OfflineInfo& info) { m_offlineInfo = info; }
+
 protected:
 
     void addRasterTasks(TileTask& _task);
@@ -163,6 +173,9 @@ protected:
 
     // zoom dependent props
     ZoomOptions m_zoomOptions;
+
+    // data needed to recreate MBTilesDataSource and NetworkDataSource for offline tile downloader
+    OfflineInfo m_offlineInfo;
 
     // Unique id for TileSource
     int32_t m_id;

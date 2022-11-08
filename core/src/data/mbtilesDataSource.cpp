@@ -53,8 +53,13 @@ CREATE TABLE IF NOT EXISTS metadata (
 );
 
 CREATE TABLE IF NOT EXISTS offline_tiles (
-    tile_id INTEGER,
+    tile_id TEXT,
     offline_id INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS tile_last_access (
+    tile_id TEXT,
+    last_access INTEGER
 );
 
 -- CREATE TABLE IF NOT EXISTS geocoder_data (
@@ -73,6 +78,7 @@ CREATE INDEX IF NOT EXISTS map_grid_id ON map (grid_id);
 -- CREATE INDEX IF NOT EXISTS geocoder_type_index ON geocoder_data (type);
 -- CREATE UNIQUE INDEX IF NOT EXISTS geocoder_shard_index ON geocoder_data (type, shard);
 CREATE UNIQUE INDEX IF NOT EXISTS offline_index ON offline_tiles (tile_id, offline_id);
+CREATE UNIQUE INDEX IF NOT EXISTS last_access_index ON tile_last_access (tile_id);
 
 CREATE VIEW IF NOT EXISTS tiles AS
     SELECT
@@ -115,14 +121,18 @@ struct MBTilesQueries {
     // REPLACE INTO statement in images table
     SQLite::Statement putImage;
 
-    // REPLACE INTO statement in images table
+    // caching and offline maps
+    SQLite::Statement getOffline;
     SQLite::Statement putOffline;
+    SQLite::Statement putLastAccess;
 
     MBTilesQueries(SQLite::Database& _db, bool _cache)
         : getTileData(_db, "SELECT tile_data, tile_id FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;"),
           putMap(_db, _cache ? "REPLACE INTO map (zoom_level, tile_column, tile_row, tile_id) VALUES (?, ?, ?, ?);" : ";" ),
           putImage(_db, _cache ? "REPLACE INTO images (tile_id, tile_data) VALUES (?, ?);" : ";"),
-          putOffline(_db, _cache ? "REPLACE INTO offline_tiles (tile_id, offline_id) VALUES (?, ?);" : ";") {}
+          getOffline(_db, "SELECT tile_id FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;"),
+          putOffline(_db, _cache ? "REPLACE INTO offline_tiles (tile_id, offline_id) VALUES (?, ?);" : ";"),
+          putLastAccess(_db, _cache ? "REPLACE INTO tile_last_access (tile_id, last_access) VALUES (?, CURRENT_TIMESTAMP);" : ";") {}
 
 };
 
@@ -436,7 +446,7 @@ void MBTilesDataSource::initSchema(SQLite::Database& db, std::string _name, std:
 
 bool MBTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _data, int offlineId) {
 
-    auto& stmt = m_queries->getTileData;
+    auto& stmt = offlineId ? m_queries->getOffline : m_queries->getTileData;
     try {
         // Google TMS to WMTS
         // https://github.com/mapbox/node-mbtiles/blob/
@@ -449,6 +459,19 @@ bool MBTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _d
         stmt.bind(3, y);
 
         if (stmt.executeStep()) {
+            if (offlineId) {
+                // if offlineId > 0, request was just to cache tile - caller does not need data
+                SQLite::Column column2 = stmt.getColumn(0);
+                auto& stmt2 = m_queries->putOffline;
+                stmt2.bind(1, column2.getText());
+                stmt2.bind(2, offlineId);
+                stmt2.exec();
+                stmt2.reset();
+                stmt.reset();  // reset both statements!
+                _data.push_back('\0');  // make TileTask::hasData() true
+                return true;
+            }
+
             SQLite::Column column = stmt.getColumn(0);
             const char* blob = (const char*) column.getBlob();
             const int length = column.getBytes();
@@ -468,16 +491,14 @@ bool MBTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _d
                 _data.resize(length);
                 memcpy(_data.data(), blob, length);
             }
-            stmt.reset();
-
-            if (offlineId) {
-                SQLite::Column column2 = stmt.getColumn(1);
-                auto& stmt2 = m_queries->putOffline;
-                stmt2.bind(1, column2.getText());
-                stmt2.bind(2, offlineId);
+            // update access time
+            if (m_cacheMode) {
+                auto& stmt2 = m_queries->putLastAccess;
+                stmt2.bind(1, stmt.getColumn(1).getText());
                 stmt2.exec();
                 stmt2.reset();
             }
+            stmt.reset();
             return true;
         }
 
