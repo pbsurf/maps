@@ -815,7 +815,7 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
         rawSources = std::make_unique<NetworkDataSource>(_platform, url, urlOptions);
 
         if (_options.diskTileCacheSize > 0) {
-            std::string cachename = _source["cache"].as<std::string>();
+            std::string cachename = _source["cache"].as<std::string>("");
             if (cachename.empty()) {
                 LOGW("no cache file specified for source %s", _name.c_str());
             } else {
