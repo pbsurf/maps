@@ -126,13 +126,15 @@ struct MBTilesQueries {
     SQLite::Statement putOffline;
     SQLite::Statement putLastAccess;
 
-    MBTilesQueries(SQLite::Database& _db, bool _cache)
-        : getTileData(_db, "SELECT tile_data, tile_id FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;"),
-          putMap(_db, _cache ? "REPLACE INTO map (zoom_level, tile_column, tile_row, tile_id) VALUES (?, ?, ?, ?);" : ";" ),
-          putImage(_db, _cache ? "REPLACE INTO images (tile_id, tile_data) VALUES (?, ?);" : ";"),
-          getOffline(_db, "SELECT tile_id FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;"),
-          putOffline(_db, _cache ? "REPLACE INTO offline_tiles (tile_id, offline_id) VALUES (?, ?);" : ";"),
-          putLastAccess(_db, _cache ? "REPLACE INTO tile_last_access (tile_id, last_access) VALUES (?, CURRENT_TIMESTAMP);" : ";") {}
+    MBTilesQueries(SQLite::Database& _db, bool _cache) :
+        getTileData(_db, _cache ?
+            "SELECT tile_data, images.tile_id FROM images JOIN map ON images.tile_id = map.tile_id WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;" :
+            "SELECT tile_data FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;"),
+        putMap(_db, _cache ? "REPLACE INTO map (zoom_level, tile_column, tile_row, tile_id) VALUES (?, ?, ?, ?);" : ";" ),
+        putImage(_db, _cache ? "REPLACE INTO images (tile_id, tile_data) VALUES (?, ?);" : ";"),
+        getOffline(_db, _cache ? "SELECT tile_id FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;" : ";"),
+        putOffline(_db, _cache ? "REPLACE INTO offline_tiles (tile_id, offline_id) VALUES (?, ?);" : ";"),
+        putLastAccess(_db, _cache ? "REPLACE INTO tile_last_access (tile_id, last_access) VALUES (?, CURRENT_TIMESTAMP);" : ";") {}
 
 };
 
@@ -155,6 +157,7 @@ MBTilesDataSource::~MBTilesDataSource() {
 
 bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb _cb) {
 
+    // currently, DataSource.level is always zero because SceneLoader doesn't use DataSource::setNext()
     if (m_offlineMode) {
         if (_task->rawSource == this->level) {
             // Try next source
@@ -172,12 +175,14 @@ bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb
             TileID tileId = _task->tileId();
 
             auto& task = static_cast<BinaryTileTask&>(*_task);
-            task.rawTileData = std::make_shared<std::vector<char>>();
+            auto tileData = std::make_unique<std::vector<char>>();
+            // RasterTileTask::hasData() doesn't check if rawTileData is empty - it probably should, but
+            //  let's not set rawTileData to empty vector, to match NetworkDataSource behavior
+            getTileData(tileId, *tileData, task.offlineId);
 
-            getTileData(tileId, *task.rawTileData, task.offlineId);
-
-            if (task.hasData()) {
-                LOGW("loaded tile: %s, %d", tileId.toString().c_str(), task.rawTileData->size());
+            if (!tileData->empty()) {
+                task.rawTileData = std::move(tileData);
+                LOGW("loaded tile: %s, %d bytes", tileId.toString().c_str(), task.rawTileData->size());
 
                 _cb.func(_task);
 
@@ -446,6 +451,10 @@ void MBTilesDataSource::initSchema(SQLite::Database& db, std::string _name, std:
 
 bool MBTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _data, int offlineId) {
 
+    if (offlineId && !m_cacheMode) {
+        LOGE("Offline tiles cannot be created: database is read-only!");
+        return false;
+    }
     auto& stmt = offlineId ? m_queries->getOffline : m_queries->getTileData;
     try {
         // Google TMS to WMTS

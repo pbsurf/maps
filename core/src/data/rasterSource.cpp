@@ -27,6 +27,7 @@ public:
     }
 
     bool hasData() const override {
+        // probably should be "return BinaryTileTask::hasData() || ..."
         return bool(rawTileData) || bool(texture) || bool(raster);
     }
 

@@ -11,8 +11,8 @@ namespace Tangram {
 TileTask::TileTask(TileID& _tileId, std::shared_ptr<TileSource> _source) :
     m_tileId(_tileId),
     m_source(_source),
-    m_sourceId(_source->id()),
-    m_sourceGeneration(_source->generation()),
+    m_sourceId(_source ? _source->id() : 0),
+    m_sourceGeneration(_source ? _source->generation() : 0),
     m_ready(false),
     m_canceled(false),
     m_needsLoading(true),

@@ -82,7 +82,7 @@ UrlRequestHandle Platform::startUrlRequest(Url _url, UrlCallback&& _callback) {
 
     assert(_callback);
 
-    if (m_shutdown || isOffline) {
+    if (m_shutdown || (isOffline && !_url.hasFileScheme())) {
         UrlResponse response;
         response.error = m_shutdown ? shutdown_message : offline_message;
         _callback(std::move(response));

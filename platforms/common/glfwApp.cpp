@@ -166,6 +166,46 @@ const char* apiKeyScenePath = "+global.sdk_api_key";
 
 const char* sourcesFile =  "../mapsources.yaml";
 
+class Semaphore
+{
+private:
+  std::mutex mtx;
+  std::condition_variable cond;
+  unsigned long cnt = 0;
+  const unsigned long max;
+
+public:
+  Semaphore(unsigned long _max = ULONG_MAX) : max(_max) {}
+
+  void post()
+  {
+    std::lock_guard<decltype(mtx)> lock(mtx);
+    cnt = std::min(max, cnt+1);
+    cond.notify_one();
+  }
+
+  void wait()
+  {
+    std::unique_lock<decltype(mtx)> lock(mtx);
+    cond.wait(lock, [this](){ return cnt > 0; });
+    --cnt;
+  }
+
+  // returns true if semaphore was signaled, false if timeout occurred
+  bool waitForMsec(unsigned long ms)
+  {
+    std::unique_lock<decltype(mtx)> lock(mtx);
+    bool res = cond.wait_for(lock, std::chrono::milliseconds(ms), [this](){ return cnt > 0; });
+    if(res)
+      --cnt;
+    return res;
+  }
+};
+
+static bool runOfflineWorker = false;
+static std::unique_ptr<std::thread> offlineWorker;
+static Semaphore semOfflineWorker(1);
+
 // common fns
 
 template<typename ... Args>
@@ -438,6 +478,11 @@ void stop(int) {
 }
 
 void destroy() {
+    if(offlineWorker) {
+      runOfflineWorker = false;
+      semOfflineWorker.post();
+      offlineWorker->join();
+    }
     if (map) {
         delete map;
         map = nullptr;
@@ -460,6 +505,7 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
 
     ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
     if (ImGui::GetIO().WantCaptureMouse) {
+        map->getPlatform().requestRender();  // necessary for proper update of combo boxes, etc
         return; // Imgui is handling this event.
     }
 
@@ -700,9 +746,13 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
             case GLFW_KEY_R:
                 loadSceneFile();
                 break;
+            case GLFW_KEY_EQUAL:
+            case GLFW_KEY_MINUS:
+                if(mods != GLFW_MOD_CONTROL)
+                    break;
             case GLFW_KEY_Z: {
                 auto pos = map->getCameraPosition();
-                pos.zoom += 1.f;
+                pos.zoom += key == GLFW_KEY_MINUS ? -1.f : 1.f;
                 map->setCameraPositionEased(pos, 1.5f);
                 break;
             }
@@ -1390,7 +1440,7 @@ static void showBookmarkGUI()
   else if(updatePlaces) {
     placeNames.clear();
     placeRowIds.clear();
-    int markerIdx = 0;
+    size_t markerIdx = 0;
     const char* query = "SELECT rowid, props, lng, lat FROM bookmarks WHERE list = ?;";
     DB_exec(bkmkDB, query, [&](sqlite3_stmt* stmt){
       if(bkmkMarkers.empty()) {
@@ -1521,6 +1571,7 @@ void addGPXPolyline(const char* gpxfile)
 
 
 // Offline maps
+// - initial discussion https://github.com/tangrams/tangram-es/issues/931
 
 struct OfflineSourceInfo
 {
@@ -1547,45 +1598,55 @@ public:
     OfflineDownloader(Platform& _platform, const OfflineMapInfo& ofl, const OfflineSourceInfo& src);
     size_t remainingTiles() const { return m_queued.size() + m_pending.size(); }
     bool fetchNextTile();
+    std::string name;
 
 private:
     void tileTaskCallback(std::shared_ptr<TileTask> _task);
 
     int offlineId;
-    std::string name;
     std::deque<TileID> m_queued;
     std::vector<TileID> m_pending;
     std::mutex m_mutexQueue;
     std::unique_ptr<MBTilesDataSource> mbtiles;
 };
 
+static int maxOfflineDownloads = 4;
 static std::deque<OfflineMapInfo> offlinePending;
 static std::mutex mutexOfflineQueue;
 static std::vector<std::unique_ptr<OfflineDownloader>> offlineDownloaders;
 
-static void onUrlClientIdle()
+static void offlineDLStep()
 {
   std::unique_lock<std::mutex> lock(mutexOfflineQueue);
 
   while(!offlinePending.empty()) {
+    if(offlineDownloaders.empty()) {
+      auto& dl = offlinePending.front();
+      for(auto& source : dl.sources)
+        offlineDownloaders.emplace_back(new OfflineDownloader(map->getPlatform(), dl, source));
+    }
     while(!offlineDownloaders.empty()) {
-      while(offlineDownloaders.back()->fetchNextTile()) {
-        if(map->getPlatform().activeUrlRequests() > 10)
-          return;
-      }
-      if(offlineDownloaders.back()->remainingTiles())
+      // DB access (and this network requests for missing tiles) are async, so activeUrlRequests() won't update
+      int nreq = maxOfflineDownloads - int(map->getPlatform().activeUrlRequests());
+      while(nreq > 0 && offlineDownloaders.back()->fetchNextTile()) --nreq;
+      if(nreq <= 0 || offlineDownloaders.back()->remainingTiles())
         return;  // m_queued empty, m_pending not empty
+      LOGW("completed offline tile downloads for layer %s", offlineDownloaders.back()->name.c_str());
       offlineDownloaders.pop_back();
     }
+    LOGW("completed offline tile downloads for map %d", offlinePending.front().id);
     offlinePending.pop_front();
-    if(offlinePending.empty())
-      break;
-
-    auto& dl = offlinePending.front();
-    for(auto& source : dl.sources)
-      offlineDownloaders.emplace_back(new OfflineDownloader(map->getPlatform(), dl, source));
   }
   map->getPlatform().onUrlRequestsThreshold = nullptr;  // all done!
+}
+
+static void offlineDLMain()
+{
+  semOfflineWorker.wait();
+  while(runOfflineWorker) {
+    offlineDLStep();
+    semOfflineWorker.wait();
+  }
 }
 
 OfflineDownloader::OfflineDownloader(Platform& _platform, const OfflineMapInfo& ofl, const OfflineSourceInfo& src)
@@ -1601,7 +1662,7 @@ OfflineDownloader::OfflineDownloader(Platform& _platform, const OfflineMapInfo& 
     TileID tile00 = lngLatTile(ofl.lngLat00, z);
     TileID tile11 = lngLatTile(ofl.lngLat11, z);
     for(int x = tile00.x; x <= tile11.x; ++x) {
-      for(int y = tile00.y; y <= tile11.y; ++y)
+      for(int y = tile11.y; y <= tile00.y; ++y)  // note y tile index incr for decr latitude
         m_queued.emplace_back(x, y, z);
     }
   }
@@ -1611,7 +1672,7 @@ bool OfflineDownloader::fetchNextTile()
 {
   std::unique_lock<std::mutex> lock(m_mutexQueue);
   if(m_queued.empty()) return false;
-  auto task = std::make_shared<BinaryTileTask>(m_queued.front(), NULL);
+  auto task = std::make_shared<BinaryTileTask>(m_queued.front(), nullptr);
   task->offlineId = offlineId;
   m_pending.push_back(m_queued.front());
   m_queued.pop_front();
@@ -1638,10 +1699,7 @@ void OfflineDownloader::tileTaskCallback(std::shared_ptr<TileTask> task)
   m_pending.erase(pendingit);
 
   LOGW("%s: completed download of offline tile %s", name.c_str(), task->tileId().toString().c_str());
-  if(m_pending.empty() && m_queued.empty()) {
-    lock.unlock();
-    onUrlClientIdle();
-  }
+  semOfflineWorker.post();
 }
 
 static void showOfflineTilesGUI()
@@ -1671,23 +1729,14 @@ static void showOfflineTilesGUI()
             {src->name(), info.cacheFile, info.url, info.urlSubdomains, info.urlIsTms, src->maxZoom()});
     }
 
-    map->getPlatform().onUrlRequestsThreshold = onUrlClientIdle;
-    map->getPlatform().urlRequestsThreshold = 5;
-    lock.unlock();
-    // manually start downloads if active requests below threshold
-    if(map->getPlatform().activeUrlRequests() <= 5)
-      onUrlClientIdle();
+    map->getPlatform().onUrlRequestsThreshold = [&](){ semOfflineWorker.post(); };  //onUrlClientIdle;
+    map->getPlatform().urlRequestsThreshold = maxOfflineDownloads - 1;
+    semOfflineWorker.post();
+    runOfflineWorker = true;
+    if(!offlineWorker)
+      offlineWorker = std::make_unique<std::thread>(offlineDLMain);
   }
 }
-
-// - background task to get last access time and size of each tile in each mbtiles cache, sort, and delete tiles
-//  until cache is less than limit
-
-// how will user manage existing offline maps?
-// - persist OfflineMapInfo until offline map is deleted - then we can draw a rectangle on top of map to indicate offline map bounds
-// - deletion: select tile_id from offline_tiles where offline_id = ? and select count(1) from offline_tiles group by tile_id;
-
-// aside: DataSource.level doesn't do anything because we just assign to .next instead of using DataSource::setNext()
 
 
 // Source selection
@@ -1812,7 +1861,7 @@ static void showSourceGUI()
     if (ImGui::Button("Remove"))
       mapSources.remove(keys[currIdx]);
   }
-
+  ImGui::Separator();
   for(int ii = 0; ii < nSources; ++ii) {
     if(ImGui::Combo(fstring("Layer %d", ii+1).c_str(), &currSrcIdx[ii], ctitles.data(), ctitles.size()))
       reload = 2;  // layer changed - reload scene
@@ -1834,7 +1883,7 @@ static void showSourceGUI()
       newSrcTitle = titles[currIdx];
 
     nSources = std::max(int(builder.layerkeys.size()), nSources);
-    for(int ii = 0; ii < builder.layerkeys.size(); ++ii) {
+    for(size_t ii = 0; ii < builder.layerkeys.size(); ++ii) {
       for(int jj = 0; jj < keys.size(); ++jj) {
         if(builder.layerkeys[ii] == keys[jj]) {
           currSrcIdx[ii] = jj;
