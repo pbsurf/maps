@@ -48,7 +48,7 @@ void TileTask::process(TileBuilder& _tileBuilder) {
 void TileTask::complete() {
 
     for (auto& subTask : m_subTasks) {
-        assert(subTask->isReady());
+        //assert(subTask->isReady());
         subTask->complete(*this);
     }
 

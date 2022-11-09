@@ -77,13 +77,17 @@ public:
         addRaster(*m_tile);
 
         for (auto& subTask : m_subTasks) {
-            assert(subTask->isReady());
+            //assert(subTask->isReady());
             subTask->complete(*this);
         }
     }
 
     void complete(TileTask& _mainTask) override {
-        addRaster(*_mainTask.tile());
+        if (!isReady()) {  //isCanceled()?
+            _mainTask.tile()->rasters().emplace_back(tileId(), rasterSource()->m_emptyTexture);
+        } else {
+            addRaster(*_mainTask.tile());
+        }
     }
 };
 
@@ -129,19 +133,6 @@ std::unique_ptr<Texture> RasterSource::createTexture(TileID _tile, const std::ve
     auto length = _rawTileData.size();
 
     return std::make_unique<Texture>(data, length, m_texOptions);
-}
-
-void RasterSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb _cb) {
-    // TODO, remove this
-    // Overwrite cb to set empty texture on failure
-    TileTaskCb cb{[this, _cb](std::shared_ptr<TileTask> _task) {
-        if (!_task->hasData()) {
-            auto& task = static_cast<RasterTileTask&>(*_task);
-            task.raster = std::make_unique<Raster>(task.tileId(), m_emptyTexture);
-        }
-        _cb.func(_task);
-    }};
-    TileSource::loadTileData(_task, cb);
 }
 
 std::shared_ptr<TileData> RasterSource::parse(const TileTask& _task) const {

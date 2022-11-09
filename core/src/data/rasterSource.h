@@ -47,7 +47,7 @@ public:
     // TODO Is this always PNG or can it also be JPEG?
     const char* mimeType() const override { return "image/png"; };
 
-    void loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb _cb) override;
+    //void loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb _cb) override;
 
     std::shared_ptr<TileTask> createTask(TileID _tile) override;
 

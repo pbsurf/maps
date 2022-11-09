@@ -59,7 +59,7 @@ struct TileManager::TileEntry {
         if (task->needsLoading()) { return true; }
 
         for (auto& subtask : task->subTasks()) {
-            if (subtask->needsLoading()) { return true; }
+            if (subtask->needsLoading() && !subtask->isCanceled()) { return true; }
         }
         return false;
     }
@@ -71,8 +71,8 @@ struct TileManager::TileEntry {
     bool completeTileTask() {
         if (bool(task) && task->isReady()) {
 
-            for (auto& rTask : task->subTasks()) {
-                if (!rTask->isReady()) { return false; }
+            for (auto& subtask : task->subTasks()) {
+                if (!subtask->isReady() && !subtask->isCanceled()) { return false; }
             }
 
             task->complete();
@@ -86,8 +86,8 @@ struct TileManager::TileEntry {
 
     void clearTask() {
         if (task) {
-            for (auto& raster : task->subTasks()) {
-                raster->cancel();
+            for (auto& subtask : task->subTasks()) {
+                subtask->cancel();
             }
             task->subTasks().clear();
             task->cancel();
