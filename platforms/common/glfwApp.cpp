@@ -278,6 +278,9 @@ void loadSceneFile(bool setPosition, std::vector<SceneUpdate> updates)
     SceneOptions options{sceneYaml, Url(sceneFile), setPosition, updates};
     options.diskTileCacheSize = 256*1024*1024;
     options.diskCacheDir = "/home/mwhite/maps/cache/";
+#ifdef DEBUG
+    options.debugStyles = true;
+#endif
     map->loadScene(std::move(options), load_async);
 
     // markers are invalidated ... technically we should use SceneReadyCallback for this if loading async
@@ -1841,6 +1844,8 @@ static void showSourceGUI()
   if (!ImGui::CollapsingHeader("Sources", ImGuiTreeNodeFlags_DefaultOpen))
     return;
 
+  try {
+
   std::vector<std::string> titles = {"None"};
   std::vector<std::string> keys = {""};
   for (const auto& src : mapSources) {
@@ -1931,6 +1936,10 @@ static void showSourceGUI()
       mapSources[savekey] = YAML::Load(fs.str());
       // we'd set a flag here to save mapsources.yaml on exit
     }
+  }
+
+  } catch (std::exception& e) {
+    ImGui::TextWrapped("Error parsing mapsources.yaml: %s", e.what());
   }
 }
 

@@ -182,7 +182,7 @@ bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb
 
             if (!tileData->empty()) {
                 task.rawTileData = std::move(tileData);
-                LOGW("loaded tile: %s, %d bytes", tileId.toString().c_str(), task.rawTileData->size());
+                LOGD("loaded tile: %s, %d bytes", tileId.toString().c_str(), task.rawTileData->size());
 
                 _cb.func(_task);
 
@@ -198,7 +198,7 @@ bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb
                     m_platform.requestRender();
                 }
             } else {
-                LOGW("missing tile: %s, %d", _task->tileId().toString().c_str());
+                LOGD("missing tile: %s, %d", _task->tileId().toString().c_str());
                 _cb.func(_task);  // added 2022-09-27 ... were doing this in loadNextSource, why not here?
             }
         });
@@ -225,7 +225,7 @@ bool MBTilesDataSource::loadNextSource(std::shared_ptr<TileTask> _task, TileTask
 
                         auto& task = static_cast<BinaryTileTask&>(*_task);
 
-                        LOGW("store tile: %s, %d", _task->tileId().toString().c_str(), task.hasData());
+                        LOGD("store tile: %s, %d", _task->tileId().toString().c_str(), task.hasData());
 
                         storeTileData(_task->tileId(), *task.rawTileData, task.offlineId);
                     });
@@ -234,7 +234,7 @@ bool MBTilesDataSource::loadNextSource(std::shared_ptr<TileTask> _task, TileTask
             _cb.func(_task);
 
         } else if (m_offlineMode) {
-            LOGW("try fallback tile: %s, %d", _task->tileId().toString().c_str());
+            LOGD("try fallback tile: %s, %d", _task->tileId().toString().c_str());
 
             m_worker->enqueue([this, _task, _cb](){
 
@@ -243,13 +243,13 @@ bool MBTilesDataSource::loadNextSource(std::shared_ptr<TileTask> _task, TileTask
 
                 getTileData(_task->tileId(), *task.rawTileData, task.offlineId);
 
-                LOGW("loaded tile: %s, %d", _task->tileId().toString().c_str(), task.rawTileData->size());
+                LOGD("loaded tile: %s, %d", _task->tileId().toString().c_str(), task.rawTileData->size());
 
                 _cb.func(_task);
 
             });
         } else {
-            LOGW("missing tile: %s, %d", _task->tileId().toString().c_str());
+            LOGD("missing tile: %s, %d", _task->tileId().toString().c_str());
             _cb.func(_task);
         }
     }};
