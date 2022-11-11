@@ -1,0 +1,94 @@
+global:
+    sdk_api_key: ''
+    gui_variables:
+        - name: u_exaggerate
+          style: hillshade
+          label: Hillshade Exaggeration
+
+sources:
+    #normals:
+    #    type: Raster
+    #    url: https://elevation-tiles-prod.s3.amazonaws.com/normal/{z}/{x}/{y}.png
+    #    url_params:
+    #        api_key: global.sdk_api_key
+
+    elevation:
+        type: Raster
+        url: https://tile.nextzen.org/tilezen/terrain/v1/256/terrarium/{z}/{x}/{y}.png
+        #url: https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png
+        url_params:
+            api_key: global.sdk_api_key
+        max_zoom: 14
+        filtering: nearest
+        cache: terrarium
+
+    osm-raster:
+        type: Raster
+        #url: http://a.tile.stamen.com/terrain-background/{z}/{x}/{y}.jpg
+        url: https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png
+        url_subdomains: [a, b, c]
+        rasters: [elevation]  #[terrain-normals]
+        cache: osm-raster
+
+
+styles:
+    hillshade:
+        base: polygons
+        raster: custom
+        texcoords: true
+        shaders:
+            defines:
+                # not sure if there is any way to figure this out in shader
+                ELEVATION_MAX_ZOOM: 14.0
+            uniforms:
+                u_exaggerate: 1.5
+            blocks:
+                global: |
+                    #ifdef TANGRAM_FRAGMENT_SHADER
+                    float getElevation(sampler2D tex, vec2 uv) {
+                        // Tangram doesn't use GLSL #version statement - need #version 130 for texelFetch
+                        // - might be able to use extension - shader: {extensions: ... } }
+                        // - for now, we just set `filtering: nearest` for source and use texture2D
+                        // data format: https://github.com/tilezen/joerd/blob/master/docs/formats.md
+                        vec4 h = texture2D(tex, uv);  //texelFetch(tex, px, 0);
+                        return (h.r*256. + h.g + h.b/256.)*255. - 32768.;  // in meters
+                    }
+                    #endif
+                normal: |
+                    // Normal from heightmap - adapted from
+                    // - http://stackoverflow.com/questions/5281261/generating-a-normal-map-from-a-height-map
+                    // - http://stackoverflow.com/questions/15178225/normal-map-from-height-map-artifact
+                    // fancier calculations: hillshade_prepare.fragment.glsl , hillshade.fragment.glsl in
+                    //  mapbox/maplibre-gl-js
+                    // Sample heightmap at center, left, right, above, below
+                    vec2 uv = currentRasterUV(1);
+                    vec2 duv = 1./rasterPixelSize(1);
+                    float h11 = getElevation(u_rasters[1], uv);
+                    float h01 = getElevation(u_rasters[1], uv + vec2(-duv.x, 0.));  // off.xy)));
+                    float h21 = getElevation(u_rasters[1], uv + vec2( duv.x, 0.));  // off.zy)));
+                    float h10 = getElevation(u_rasters[1], uv + vec2(0., -duv.y));  // off.yx)));
+                    float h12 = getElevation(u_rasters[1], uv + vec2(0.,  duv.y));  // off.yz)));
+                    // no underwater terrain for now
+                    float hscale = h11 > 0. ? u_exaggerate : 0.; // /pow(u_meters_per_pixel, 0.7)/65536.;
+                    // proj meters per elevation tile pixel (u_tile_origin.z is tile zoom, u_map_position.z is real zoom)
+                    vec2 dxy_elev = 2.*3.141592*6378137.0*exp2(-min(ELEVATION_MAX_ZOOM, u_tile_origin.z))*duv;
+                    vec2 grad = vec2(h21 - h01, h12 - h10)/dxy_elev/2.0;
+                    //vec2 grad = vec2(h21 - h11, h12 - h11)/dxy_elev;  -- for forward difference
+                    normal = normalize(vec3(-hscale*grad, 1.));
+
+                color: |
+                    color = sampleRaster(0); // color from first raster (basemap)
+
+
+lights:
+    # point1: { type: point, position: [0, 0, 200px], origin: ground }
+    light2: { type: directional, direction: [1, 1, -.9], diffuse: 0.8, ambient: 0.3 }
+
+
+layers:
+    earth:
+        data: { source: osm-raster }
+        draw:
+            hillshade:
+                color: white
+                order: 0

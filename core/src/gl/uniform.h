@@ -37,9 +37,9 @@ class UniformLocation {
 public:
     UniformLocation(const std::string& _name) : name(_name) {}
 
-private:
     const std::string name;
 
+private:
     mutable int location = -2;
 
     friend class ShaderProgram;

@@ -1,0 +1,142 @@
+# contours calculated in shader aren't completely unreasonable - we will eventually have to generate vector
+#  contours w/ elevation labels of course
+# - the main issue is poor resolution in elevation tiles - we need to add support for zoom_offset < 0 !
+
+global:
+    sdk_api_key: ''
+    gui_variables:
+        - name: u_exaggerate
+          style: hillshade
+          label: Hillshade Exaggeration
+
+sources:
+    #normals:
+    #    type: Raster
+    #    url: https://elevation-tiles-prod.s3.amazonaws.com/normal/{z}/{x}/{y}.png
+    #    url_params:
+    #        api_key: global.sdk_api_key
+
+    elevation:
+        type: Raster
+        url: https://tile.nextzen.org/tilezen/terrain/v1/256/terrarium/{z}/{x}/{y}.png
+        #url: https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png
+        url_params:
+            api_key: global.sdk_api_key
+        max_zoom: 14
+        #zoom_offset: -1  -- negative zoom_offset not supported
+        filtering: nearest
+        cache: terrarium
+
+    #osm-raster:
+    #    type: Raster
+    #    #url: http://a.tile.stamen.com/terrain-background/{z}/{x}/{y}.jpg
+    #    url: https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png
+    #    url_subdomains: [a, b, c]
+    #    rasters: [elevation]  #[terrain-normals]
+    #    cache: osm-raster
+
+    osmand-raster:
+        type: Raster
+        url: https://tile.osmand.net/hd/{z}/{x}/{y}.png
+        #user-agent: OsmAnd~
+        rasters: [elevation]
+        cache: osmand-raster2x
+
+
+styles:
+    hillshade:
+        base: polygons
+        raster: custom
+        texcoords: true
+        shaders:
+            defines:
+                # orange/brown: #C56008
+                CONTOUR_COLOR: vec4(0.773,0.376,0.031,1.)
+                # not sure if there is any way to figure this out in shader
+                ELEVATION_MAX_ZOOM: 14.0
+            uniforms:
+                u_exaggerate: 1.5
+                # https://github.com/der-stefan/OpenTopoMap/blob/master/mapnik/relief_color_text_file.txt
+                u_terrain_color: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADMAAAABCAYAAABzE5aMAAAAU0lEQVR4nGMUrGD+b67lxBAgo8vgL6PD8OvzZ4ZfXz4z/P78meHXl09w/q/PEPz7y2eGX58/wcX+/WNi+PeXCSv9F4c4nObgIArz8/Mz8PHxEaQBkIhP/pBqnoYAAAAASUVORK5CYII=
+                # this colormap is based on matplotlib terrain colormap
+                #data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAYAAAABCAYAAAD9yd/wAAAAJElEQVR4nAEZAOb/ADMzmf8Amf//AMxm////mf+AXFT//////7WBEIg9mVbsAAAAAElFTkSuQmCC
+            blocks:
+                global: |
+                    #ifdef TANGRAM_FRAGMENT_SHADER
+                    float getElevation(sampler2D tex, vec2 uv) {
+                        // Tangram doesn't use GLSL #version statement - need #version 130 for texelFetch
+                        // - might be able to use extension - shader: {extensions: ... } }
+                        // - for now, we just set `filtering: nearest` for source and use texture2D
+                        // data format: https://github.com/tilezen/joerd/blob/master/docs/formats.md
+                        vec4 h = texture2D(tex, uv);  //texelFetch(tex, px, 0);
+                        return (h.r*256. + h.g + h.b/256.)*255. - 32768.;  // in meters
+                    }
+                    #endif
+                normal: |
+                    // Normal from heightmap - adapted from
+                    // - http://stackoverflow.com/questions/5281261/generating-a-normal-map-from-a-height-map
+                    // - http://stackoverflow.com/questions/15178225/normal-map-from-height-map-artifact
+                    // fancier calculations: hillshade_prepare.fragment.glsl , hillshade.fragment.glsl in
+                    //  mapbox/maplibre-gl-js
+                    // Sample heightmap at center, left, right, above, below
+                    vec2 uv = currentRasterUV(1);
+                    vec2 duv = 1./rasterPixelSize(1);
+                    float h11 = getElevation(u_rasters[1], uv);
+                    float h01 = getElevation(u_rasters[1], uv + vec2(-duv.x, 0.));  // off.xy)));
+                    float h21 = getElevation(u_rasters[1], uv + vec2( duv.x, 0.));  // off.zy)));
+                    float h10 = getElevation(u_rasters[1], uv + vec2(0., -duv.y));  // off.yx)));
+                    float h12 = getElevation(u_rasters[1], uv + vec2(0.,  duv.y));  // off.yz)));
+                    // no underwater terrain for now
+                    float hscale = h11 > 0. ? u_exaggerate : 0.; // /pow(u_meters_per_pixel, 0.7)/65536.;
+                    // proj meters per elevation tile pixel (u_tile_origin.z is tile zoom, u_map_position.z is real zoom)
+                    vec2 dxy_elev = 2.*3.141592*6378137.0*exp2(-min(ELEVATION_MAX_ZOOM, u_tile_origin.z))*duv;
+                    vec2 grad = vec2(h21 - h01, h12 - h10)/dxy_elev/2.0;
+                    //vec2 grad = vec2(h21 - h11, h12 - h11)/dxy_elev;  -- for forward difference
+                    normal = normalize(vec3(-hscale*grad, 1.));
+
+                color: |
+                    float z = u_map_position.z;
+                    if(z < 10.) {
+                        vec4 tint = texture2D(u_terrain_color, vec2(h11/5000., 0.5));
+                        color = mix(sampleRaster(0), tint, 0.5);
+                    } else {
+                        // slope from gradient calculated above
+                        float slope = length(grad);
+                        // contour line radius in pixels
+                        //float linehw = 0.5;
+                        // spacing between contour lines in meters - 10m has too many artifacts
+                        float interval = z >= 13.5 ? 25. : z >= 11.5 ? 50. : 100.;  //z >= 11. ? 100. : 200.;
+                        float zstep = z >= 13.5 ? 13.5 : z >= 11.5 ? 11.5 : 9.5;
+                        float linehw = mix(0.3, 0.5, clamp(0.5*(z - zstep), 0., 1.));
+                        //float intervals[4] = float[](10., 20., 50., 100.);  -- need GLES 3
+                        //float interval = 10.*clamp(exp2(15. - u_tile_origin.z), 1., 100.);
+                        // no underwater contour lines!
+                        float hc = max(h11, interval/2.);
+                        // distance in pixels to nearest contour lines (above and below)
+                        float dup = fract(hc/interval)*interval/slope / u_meters_per_pixel;
+                        float ddn = abs(1. - fract(hc/interval))*interval/slope / u_meters_per_pixel;
+                        // contour line pixel coverage
+                        float cov = max(0.5 - dup + linehw, 0.) + max(0.5 - ddn + linehw, 0.);
+                        // coarse lines
+                        float coarsehw = 2.*linehw;  //0.75;
+                        float coarse = z >= 13.5 ? 100. : z >= 11.5 ? 200. : 500.;
+                        dup = fract(hc/coarse)*coarse/slope / u_meters_per_pixel;
+                        ddn = abs(1. - fract(hc/coarse))*coarse/slope / u_meters_per_pixel;
+                        cov += max(0.5 - dup + coarsehw, 0.) + max(0.5 - ddn + coarsehw, 0.);
+                        // blend
+                        color = mix(sampleRaster(0), CONTOUR_COLOR, min(cov, 1.));
+                    }
+
+
+lights:
+    # point1: { type: point, position: [0, 0, 200px], origin: ground }
+    light2: { type: directional, direction: [1, 1, -.9], diffuse: 0.8, ambient: 0.3 }
+
+
+layers:
+    earth:
+        data: { source: osmand-raster }
+        draw:
+            hillshade:
+                color: white
+                order: 0

@@ -819,7 +819,7 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
             if (cachename.empty()) {
                 LOGW("no cache file specified for source %s", _name.c_str());
             } else {
-                cachefile = _options.diskTileCacheDir + cachename + ".mbtiles";
+                cachefile = _options.diskCacheDir + cachename + ".mbtiles";
                 auto s = std::make_unique<MBTilesDataSource>(_platform, _name, cachefile, "", true);
                 s->next = std::move(rawSources);
                 rawSources = std::move(s);

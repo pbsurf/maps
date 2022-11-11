@@ -124,7 +124,7 @@ struct MBTilesQueries {
     // caching and offline maps
     SQLite::Statement getOffline;
     SQLite::Statement putOffline;
-    SQLite::Statement putLastAccess;
+    SQLite::Statement putLastAccess;  // CURRENT_TIMESTAMP is a string - use CAST strftime('%s') AS INTEGER for int
 
     MBTilesQueries(SQLite::Database& _db, bool _cache) :
         getTileData(_db, _cache ?
@@ -437,7 +437,8 @@ void MBTilesDataSource::initSchema(SQLite::Database& db, std::string _name, std:
         stmt.exec();
         stmt.reset();
 
-        // Compression not yet implemented.
+        // Compression not yet implemented - no gain for raster tiles (png or jpg); gziping vector .mbtiles
+        //  gave around 40% size reduction
         // http://www.iana.org/assignments/http-parameters/http-parameters.xhtml#content-coding
         // identity means no compression
         stmt.bind(1, "compression");

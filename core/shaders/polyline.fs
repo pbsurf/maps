@@ -43,14 +43,14 @@ vec3 worldNormal() {
     return normalize(u_inverse_normal_matrix * v_normal);
 }
 
-#pragma tangram: material
-#pragma tangram: lighting
-#pragma tangram: global
-#pragma tangram: raster
-
 #ifdef TANGRAM_MODEL_POSITION_BASE_ZOOM_VARYING
     varying vec4 v_modelpos_base_zoom;
 #endif
+
+#pragma tangram: material
+#pragma tangram: lighting
+#pragma tangram: raster
+#pragma tangram: global
 
 void main(void) {
 

@@ -67,14 +67,14 @@ vec4 modelPositionBaseZoom() {
     return vec4(UNPACK_POSITION(a_position.xyz), 1.0);
 }
 
-#pragma tangram: material
-#pragma tangram: lighting
-#pragma tangram: global
-#pragma tangram: raster
-
 #ifdef TANGRAM_MODEL_POSITION_BASE_ZOOM_VARYING
     varying vec4 v_modelpos_base_zoom;
 #endif
+
+#pragma tangram: material
+#pragma tangram: lighting
+#pragma tangram: raster
+#pragma tangram: global
 
 void main() {
 

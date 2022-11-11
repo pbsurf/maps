@@ -277,7 +277,7 @@ void loadSceneFile(bool setPosition, std::vector<SceneUpdate> updates)
     // sceneFile will be used iff sceneYaml is empty
     SceneOptions options{sceneYaml, Url(sceneFile), setPosition, updates};
     options.diskTileCacheSize = 256*1024*1024;
-    options.diskTileCacheDir = "/home/mwhite/maps/cache/";
+    options.diskCacheDir = "/home/mwhite/maps/cache/";
     map->loadScene(std::move(options), load_async);
 
     // markers are invalidated ... technically we should use SceneReadyCallback for this if loading async
@@ -1705,7 +1705,7 @@ void OfflineDownloader::tileTaskCallback(std::shared_ptr<TileTask> task)
 static void showOfflineTilesGUI()
 {
   static int maxZoom = 13;
-  if (!ImGui::CollapsingHeader("Offline Maps", ImGuiTreeNodeFlags_DefaultOpen))
+  if (!ImGui::CollapsingHeader("Offline Maps"))  //, ImGuiTreeNodeFlags_DefaultOpen))
     return;
 
   ImGui::InputInt("Max zoom level", &maxZoom);
@@ -2128,23 +2128,51 @@ static void showDebugFlagsGUI() {
 }
 
 static void showSceneVarsGUI() {
-    if (ImGui::CollapsingHeader("Scene Variables", ImGuiTreeNodeFlags_DefaultOpen)) {
-        for(int ii = 0; ii < 100; ++ii) {
-            std::string name = map->readSceneValue(fstring("global.gui_variables#%d.name", ii));
-            if(name.empty()) break;
-            std::string label = map->readSceneValue(fstring("global.gui_variables#%d.label", ii));
-            std::string reload = map->readSceneValue(fstring("global.gui_variables#%d.reload", ii));
-            std::string value = map->readSceneValue("global." + name);
-            bool flag = value == "true";
-            if (ImGui::Checkbox(label.c_str(), &flag)) {
-                // we expect only one checkbox to change per frame, so this is OK
-                if(reload == "false")  // ... so default to reloading
-                    map->updateGlobals({SceneUpdate{"global." + name, flag ? "true" : "false"}});
+  if (ImGui::CollapsingHeader("Scene Variables", ImGuiTreeNodeFlags_DefaultOpen)) {
+    for(int ii = 0; ii < 100; ++ii) {
+      std::string name = map->readSceneValue(fstring("global.gui_variables#%d.name", ii));
+      if(name.empty()) break;
+      std::string label = map->readSceneValue(fstring("global.gui_variables#%d.label", ii));
+      std::string reload = map->readSceneValue(fstring("global.gui_variables#%d.reload", ii));
+
+      std::string stylename = map->readSceneValue(fstring("global.gui_variables#%d.style", ii));
+      if(!stylename.empty()) {
+        // shader uniform
+        auto& styles = map->getScene()->styles();
+        for(auto& style : styles) {
+          if(style->getName() == stylename) {
+            for(auto& uniform : style->styleUniforms()) {
+              if(uniform.first.name == name) {
+                if(uniform.second.is<float>()) {
+                  float val = uniform.second.get<float>();
+                  if(ImGui::InputFloat(label.c_str(), &val)) {
+                    uniform.second.set<float>(val);
+                  }
+                }
                 else
-                    loadSceneFile(false, {SceneUpdate{"global." + name, flag ? "true" : "false"}});
+                  LOGE("Cannot set %s.%s: only float uniforms currently supported in gui_variables!", stylename.c_str(), name.c_str());
+                return;
+              }
             }
+            break;
+          }
         }
+        LOGE("Cannot find style uniform %s.%s referenced in gui_variables!", stylename.c_str(), name.c_str());
+      }
+      else {
+        // global variable, accessed in scene file by JS functions
+        std::string value = map->readSceneValue("global." + name);
+        bool flag = value == "true";
+        if (ImGui::Checkbox(label.c_str(), &flag)) {
+            // we expect only one checkbox to change per frame, so this is OK
+            if(reload == "false")  // ... so default to reloading
+                map->updateGlobals({SceneUpdate{"global." + name, flag ? "true" : "false"}});
+            else
+                loadSceneFile(false, {SceneUpdate{"global." + name, flag ? "true" : "false"}});
+        }
+      }
     }
+  }
 }
 
 static void showPickLabelGUI() {

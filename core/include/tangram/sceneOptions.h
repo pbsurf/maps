@@ -61,7 +61,8 @@ public:
     /// persistent MBTiles DataSource cache
     size_t diskTileCacheSize = 0;
 
-    std::string diskTileCacheDir;
+    /// cache directory for tiles, fonts, etc
+    std::string diskCacheDir;
 
 private:
     static constexpr size_t CACHE_SIZE = 16 * (1024 * 1024);
