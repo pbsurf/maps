@@ -813,7 +813,7 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
 #endif
     } else if (isTiled) {
         rawSources = std::make_unique<NetworkDataSource>(_platform, url, urlOptions);
-
+#ifdef TANGRAM_MBTILES_DATASOURCE
         if (_options.diskTileCacheSize > 0) {
             std::string cachename = _source["cache"].as<std::string>("");
             if (cachename.empty()) {
@@ -826,7 +826,7 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
                 LOGW("using %s as cache for source %s", cachefile.c_str(), _name.c_str());
             }
         }
-
+#endif
         auto cacheSize = _options.memoryTileCacheSize;
         if (cacheSize > 0) {
             auto s = std::make_unique<MemoryCacheDataSource>();

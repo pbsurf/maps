@@ -17,7 +17,9 @@
 #include "util/lineSampler.h"
 #include "view/view.h"
 
-#ifndef FONTCONTEXT_STB
+#ifdef FONTCONTEXT_STB
+#include <codecvt>
+#else
 #include "unicode/unistr.h"
 #include "unicode/schriter.h"
 #include "unicode/brkiter.h"

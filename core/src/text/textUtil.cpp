@@ -1,3 +1,4 @@
+#ifndef FONTCONTEXT_STB
 #include "text/textUtil.h"
 
 #include "platform.h"
@@ -106,3 +107,4 @@ int TextWrapper::draw(alfons::TextBatch& _batch, float _maxWidth, const alfons::
 
 
 }
+#endif

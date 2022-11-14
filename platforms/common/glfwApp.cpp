@@ -262,6 +262,21 @@ TileID lngLatTile(LngLat ll, int z)
   return TileID(x, y, z);
 }
 
+static void getMapBounds(LngLat& lngLatMin, LngLat& lngLatMax)
+{
+  int vieww = map->getViewportWidth(), viewh = map->getViewportHeight();
+  double lng00, lng01, lng10, lng11, lat00, lat01, lat10, lat11;
+  map->screenPositionToLngLat(0, 0, &lng00, &lat00);
+  map->screenPositionToLngLat(0, viewh, &lng01, &lat01);
+  map->screenPositionToLngLat(vieww, 0, &lng10, &lat10);
+  map->screenPositionToLngLat(vieww, viewh, &lng11, &lat11);
+
+  lngLatMin.latitude  = std::min(std::min(lat00, lat01), std::min(lat10, lat11));
+  lngLatMin.longitude = std::min(std::min(lng00, lng01), std::min(lng10, lng11));
+  lngLatMax.latitude  = std::max(std::max(lat00, lat01), std::max(lat10, lat11));
+  lngLatMax.longitude = std::max(std::max(lng00, lng01), std::max(lng10, lng11));
+}
+
 void clearSearch()
 {
   for(MarkerID mrkid : searchMarkers)
@@ -1109,21 +1124,6 @@ static bool initSearch()
   return true;
 }
 
-static void getMapBounds(LngLat& lngLatMin, LngLat& lngLatMax)
-{
-  int vieww = map->getViewportWidth(), viewh = map->getViewportHeight();
-  double lng00, lng01, lng10, lng11, lat00, lat01, lat10, lat11;
-  map->screenPositionToLngLat(0, 0, &lng00, &lat00);
-  map->screenPositionToLngLat(0, viewh, &lng01, &lat01);
-  map->screenPositionToLngLat(vieww, 0, &lng10, &lat10);
-  map->screenPositionToLngLat(vieww, viewh, &lng11, &lat11);
-
-  lngLatMin.latitude  = std::min(std::min(lat00, lat01), std::min(lat10, lat11));
-  lngLatMin.longitude = std::min(std::min(lng00, lng01), std::min(lng10, lng11));
-  lngLatMax.latitude  = std::max(std::max(lat00, lat01), std::max(lat10, lat11));
-  lngLatMax.longitude = std::max(std::max(lng00, lng01), std::max(lng10, lng11));
-}
-
 static void showSearchGUI()
 {
   using namespace rapidjson;
@@ -1575,7 +1575,6 @@ void addGPXPolyline(const char* gpxfile)
 
 // Offline maps
 // - initial discussion https://github.com/tangrams/tangram-es/issues/931
-
 struct OfflineSourceInfo
 {
   std::string name;

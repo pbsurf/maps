@@ -24,7 +24,7 @@ sudo apt-get install make g++ pkg-config libcurl4-openssl-dev \
   libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libgl1-mesa-dev
 ```
 
-The demo application uses the Nextzen vector tile service, so you will need a Nextzen API key to build and run the demo. 
+The demo application uses the Nextzen vector tile service, so you will need a Nextzen API key to build and run the demo.
 
  1. Visit https://developers.nextzen.org/ to get an API key.
 
@@ -68,7 +68,7 @@ sudo apt-get install libglfw3-dev libicu-dev libfreetype6-dev libharfbuzz-dev
 Then compile with the following options:
 
 ```bash
-make linux CMAKE_OPTIONS="-DUSE_SYSTEM_GLFW_LIBS=1 -DUSE_SYSTEM_FONT_LIBS=1"
+make linux CMAKE_OPTIONS="-DTANGRAM_USE_SYSTEM_GLFW_LIBS=1 -DTANGRAM_USE_SYSTEM_FONT_LIBS=1"
 ```
 
 ### CLion ###
