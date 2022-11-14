@@ -10,7 +10,16 @@
 #include <vector>
 #include <string>
 
+#ifdef FONTCONTEXT_STB
+namespace Tangram {
+    using FontHandle = size_t;
+}
+#else
 namespace alfons { class Font; }
+namespace Tangram {
+    using FontHandle = std::shared_ptr<alfons::Font>;
+}
+#endif
 
 namespace Tangram {
 
@@ -24,7 +33,7 @@ public:
     constexpr static uint32_t DEFAULT_TEXT_WRAP_LENGTH = 15;
 
     struct Parameters {
-        std::shared_ptr<alfons::Font> font;
+        FontHandle font;
         std::string text = "";
         std::string textLeft = "";
         std::string textRight = "";

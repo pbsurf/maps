@@ -132,7 +132,7 @@ void FontContext::updateTextures(RenderState& rs) {
     for (auto& gt : m_textures) { gt->bind(rs, 0); }
 }
 
-void FontContext::bindTexture(RenderState& rs, alfons::AtlasID _id, GLuint _unit) {
+void FontContext::bindTexture(RenderState& rs, AtlasID _id, GLuint _unit) {
     std::lock_guard<std::mutex> lock(m_textureMutex);
 
     m_textures[_id]->bind(rs, _unit);
@@ -276,7 +276,7 @@ bool FontContext::layoutText(TextStyle::Parameters& _params, const icu::UnicodeS
     return true;
 }
 
-void FontContext::addFont(const FontDescription& _ft, alfons::InputSource _source) {
+void FontContext::addFont(const FontDescription& _ft, std::vector<char>&& _data) {
 
     // NB: Synchronize for calls from download thread
     std::lock_guard<std::mutex> lock(m_fontMutex);
@@ -284,7 +284,7 @@ void FontContext::addFont(const FontDescription& _ft, alfons::InputSource _sourc
     for (size_t i = 0; i < s_fontRasterSizes.size(); i++) {
         if (auto font = m_alfons.getFont(_ft.alias, s_fontRasterSizes[i])) {
 
-            font->addFace(m_alfons.addFontFace(_source, s_fontRasterSizes[i]));
+            font->addFace(m_alfons.addFontFace(alfons::InputSource(std::move(_data)), s_fontRasterSizes[i]));
 
             // add fallbacks from default font
             if (m_font[i]) { font->addFaces(*m_font[i]); }

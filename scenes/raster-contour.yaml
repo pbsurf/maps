@@ -19,6 +19,7 @@
 # - mapbox-gl calculates gradient from elevation in 1st pass ("hillshade_prepare") using Horn (Sobel operator)
 #  and GL_NEAREST, then in 2nd pass ("hillshade") calculates normal (reading gradients from texture w/
 #  GL_LINEAR) and does some fancy adjustments to get final hillshading
+# - Carto SDK generates normals from elevation on CPU (also using Horn/Sobel)
 
 global:
     sdk_api_key: ''

@@ -44,7 +44,7 @@ struct FontDescription {
 class FontContext : public alfons::TextureCallback {
 
 public:
-
+    using AtlasID = alfons::AtlasID;
     static constexpr int max_textures = 64;
 
     FontContext(Platform& _platform);
@@ -70,7 +70,7 @@ public:
     /* Update all textures batches, uploads the data to the GPU */
     void updateTextures(RenderState& rs);
 
-    std::shared_ptr<alfons::Font> getFont(const std::string& _family, const std::string& _style,
+    FontHandle getFont(const std::string& _family, const std::string& _style,
                                           const std::string& _weight, float _size);
 
     size_t glyphTextureCount() {
@@ -78,7 +78,7 @@ public:
         return m_textures.size();
     }
 
-    void bindTexture(RenderState& rs, alfons::AtlasID _id, GLuint _unit);
+    void bindTexture(RenderState& rs, AtlasID _id, GLuint _unit);
 
     float maxStrokeWidth() { return m_sdfRadius; }
 
@@ -92,7 +92,7 @@ public:
         std::vector<GlyphQuad>* quads;
     };
 
-    void addFont(const FontDescription& _ft, alfons::InputSource _source);
+    void addFont(const FontDescription& _ft, std::vector<char>&& _data);  //alfons::InputSource _source);
 
     void setPixelScale(float _scale);
 

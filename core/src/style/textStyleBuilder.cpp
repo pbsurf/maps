@@ -17,10 +17,12 @@
 #include "util/lineSampler.h"
 #include "view/view.h"
 
+#ifndef FONTCONTEXT_STB
 #include "unicode/unistr.h"
 #include "unicode/schriter.h"
 #include "unicode/brkiter.h"
 #include "unicode/locid.h"
+#endif
 
 #include <glm/gtx/norm.hpp>
 #include <algorithm>
@@ -744,6 +746,50 @@ TextStyle::Parameters TextStyleBuilder::applyRule(const DrawRule& _rule,
     return p;
 }
 
+#ifdef FONTCONTEXT_STB
+
+static std::wstring to_wstring(std::string const& s) {
+  std::wstring_convert<std::codecvt_utf8<wchar_t> > conv;
+  return conv.from_bytes(s);
+}
+
+static std::string to_string(std::wstring const& s) {
+  std::wstring_convert<std::codecvt_utf8<wchar_t> > conv;
+  return conv.to_bytes(s);
+}
+
+void applyTextTransform(const TextStyle::Parameters& _params, std::string& _string) {
+  static std::locale userlocale("");
+
+  if(_params.transform == TextLabelProperty::Transform::none)
+    return;
+  auto _wstring = to_wstring(_string);
+  switch (_params.transform) {
+  case TextLabelProperty::Transform::capitalize: {
+      bool was_space = true;
+      for (auto& c : _wstring) {
+          if(was_space)
+              c = std::toupper(c, userlocale);
+          was_space = std::isspace(c, userlocale);
+      }
+      break;
+  }
+  case TextLabelProperty::Transform::lowercase:
+      for (auto& c : _wstring)
+        c = std::tolower(c, userlocale);
+      break;
+  case TextLabelProperty::Transform::uppercase:
+      for (auto& c : _wstring)
+        c = std::toupper(c, userlocale);
+      break;
+  default:
+      break;
+  }
+  _string = to_string(_wstring);
+}
+
+#else
+
 void applyTextTransform(const TextStyle::Parameters& _params,
                         icu::UnicodeString& _string) {
 
@@ -787,6 +833,7 @@ bool isComplexShapingScript(const icu::UnicodeString& _text) {
     }
     return false;
 }
+#endif
 
 bool TextStyleBuilder::prepareLabel(TextStyle::Parameters& _params, Label::Type _type,
                                     LabelAttributes& _attributes) {
@@ -796,6 +843,11 @@ bool TextStyleBuilder::prepareLabel(TextStyle::Parameters& _params, Label::Type 
         return false;
     }
 
+#ifdef FONTCONTEXT_STB
+    auto& text = _params.text;
+    applyTextTransform(_params, text);
+    _params.fontScale = 1.f;
+#else
     auto text = icu::UnicodeString::fromUTF8(_params.text);
 
     applyTextTransform(_params, text);
@@ -806,6 +858,7 @@ bool TextStyleBuilder::prepareLabel(TextStyle::Parameters& _params, Label::Type 
 
     // Scale factor by which the texture glyphs are scaled to match fontSize
     _params.fontScale = _params.fontSize / _params.font->size();
+#endif
 
     // Stroke width is normalized by the distance of the SDF spread, then
     // scaled to 255 and packed into the "alpha" channel of stroke.

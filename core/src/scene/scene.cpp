@@ -238,7 +238,7 @@ bool Scene::load() {
                 return true;
             }
             auto&& data = task.response.content;
-            m_fontContext->addFont(task.ft, alfons::InputSource(std::move(data)));
+            m_fontContext->addFont(task.ft, std::move(data));  //alfons::InputSource(std::move(data)));
             return true;
         });
 
