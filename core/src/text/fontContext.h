@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef FONTCONTEXT_STB
+#include "fontContext_stb.h"
+#else
+
 #include "gl/glyphTexture.h"
 #include "labels/textLabel.h"
 #include "style/textStyle.h"
@@ -131,3 +135,4 @@ private:
 };
 
 }
+#endif

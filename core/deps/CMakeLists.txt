@@ -45,6 +45,8 @@ target_include_directories(miniz
   ${CMAKE_CURRENT_SOURCE_DIR}/miniz)
 
 
+if(NOT TANGRAM_USE_FONTCONTEXT_STB)
+
 ## Harfbuzz - ICU-Common - Freetype2 ##
 #######################################
 if(NOT TANGRAM_USE_SYSTEM_FONT_LIBS)
@@ -70,6 +72,9 @@ if(MSVC)
   # Use a lower warning level on MSVC because -Wall produces excessive output.
   target_compile_options(alfons PUBLIC "/W1")
 endif()
+
+endif()
+
 
 if (TANGRAM_MBTILES_DATASOURCE)
   ## SQLiteCpp ##

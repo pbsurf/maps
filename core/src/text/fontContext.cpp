@@ -1,3 +1,7 @@
+// this is easier than messing with cmake files
+#ifdef FONTCONTEXT_STB
+#include "fontContext_stb.cpp"
+#else
 #include "text/fontContext.h"
 
 #include "log.h"
@@ -374,3 +378,4 @@ std::shared_ptr<alfons::Font> FontContext::getFont(const std::string& _family, c
 }
 
 }
+#endif

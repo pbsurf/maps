@@ -1,15 +1,15 @@
 #include "util/zlibHelper.h"
 
-#include <zlib.h>
+//#include <zlib.h>
+#include "miniz.h"
 
 #include <assert.h>
 
 #define CHUNK 16384
 
 namespace Tangram {
-namespace zlib {
 
-int inflate(const char* _data, size_t _size, std::vector<char>& dst) {
+int zlib_inflate(const char* _data, size_t _size, std::vector<char>& dst) {
 
     int ret;
     unsigned char out[CHUNK];
@@ -17,7 +17,22 @@ int inflate(const char* _data, size_t _size, std::vector<char>& dst) {
     z_stream strm;
     memset(&strm, 0, sizeof(z_stream));
 
-    ret = inflateInit2(&strm, 16+MAX_WBITS);
+#ifdef MZ_DEFAULT_WINDOW_BITS
+    // miniz does not handle gzip - we will check for header and assume no extra header data; we can use
+    //  miniz_gzip.h for more robust handling in the future
+    if (_data[0] == 0x1F && (unsigned char)_data[1] == 0x8B && _size > 10) {
+      // last 4 bytes of gzip file contain uncompressed size
+      union { uint8_t bytes[4]; uint32_t dword; } inflsize;
+      memcpy(inflsize.bytes, &_data[_size-4], 4);
+      dst.reserve(std::min(uint32_t(10*_size), inflsize.dword));
+      //if(_data[3] & 0b0001'1110)  LOGE("Extra header fields present");
+      _data += 10;
+      _size -= 10;  //18;  -- in case footer is missing
+    }
+    ret = inflateInit2(&strm, -MZ_DEFAULT_WINDOW_BITS);
+#else
+    ret = inflateInit2(&strm, 16+MAX_WBITS);  // +16 to detect and handle gzip
+#endif
     if (ret != Z_OK) { return ret; }
 
     strm.avail_in = _size;
@@ -52,5 +67,4 @@ int inflate(const char* _data, size_t _size, std::vector<char>& dst) {
     return ret == Z_STREAM_END ? Z_OK : Z_DATA_ERROR;
 }
 
-}
 }

@@ -1,7 +1,7 @@
 project(tangram-core)
 
 # Build core library dependencies.
-find_package(ZLIB REQUIRED)
+#find_package(ZLIB REQUIRED) -- using miniz now
 
 if (TANGRAM_USE_VCPKG)
   find_package(yaml-cpp CONFIG REQUIRED)
@@ -238,11 +238,16 @@ target_link_libraries(tangram-core
   glm
   css-color-parser-cpp
   yaml-cpp
-  alfons
   double-conversion
   miniz
-  ZLIB::ZLIB
 )
+#ZLIB::ZLIB
+
+if(TANGRAM_USE_FONTCONTEXT_STB)
+  target_compile_definitions(tangram-core PRIVATE FONTCONTEXT_STB=1)
+else()
+  target_link_libraries(tangram-core PRIVATE alfons)
+endif()
 
 # Add JavaScript implementation.
 if(TANGRAM_JSCORE_ENABLED)

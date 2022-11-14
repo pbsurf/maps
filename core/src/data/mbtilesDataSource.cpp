@@ -489,7 +489,7 @@ bool MBTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _d
             if ((m_schemaOptions.compression == Compression::undefined) ||
                 (m_schemaOptions.compression == Compression::deflate)) {
 
-                if (zlib::inflate(blob, length, _data) != 0) {
+                if (zlib_inflate(blob, length, _data) != 0) {
                     if (m_schemaOptions.compression == Compression::undefined) {
                         _data.resize(length);
                         memcpy(_data.data(), blob, length);
