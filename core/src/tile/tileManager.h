@@ -14,10 +14,9 @@
 #include <set>
 #include <vector>
 
-class Platform;
-
 namespace Tangram {
 
+class Platform;
 class TileSource;
 class TileCache;
 class View;
