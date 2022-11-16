@@ -4,7 +4,7 @@
 #include "platform.h"
 #include "stops.h"
 #include "sceneOptions.h"
-#include "text/fontContext.h" // For FontDescription
+#include "util/fontDescription.h"
 #include "tile/tileManager.h"
 #include "util/color.h"
 #include "util/url.h"
