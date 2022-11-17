@@ -3,7 +3,6 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
-#include "imgui_stl.h"
 
 #ifdef TANGRAM_WINDOWS
 #define GLFW_INCLUDE_NONE
@@ -14,8 +13,12 @@
 #define GL_SILENCE_DEPRECATION
 #include <GLFW/glfw3.h>
 #include <cstdlib>
-#include <atomic>
-#include "gl.h"
+//#include "log.h"
+//#include "map.h"
+//#include <memory>
+#include <limits.h>
+//#include <stdlib.h>
+#include <unistd.h>
 
 #ifndef BUILD_NUM_STRING
 #define BUILD_NUM_STRING ""
@@ -27,32 +30,6 @@ namespace GlfwApp {
 
 GLFWwindow* main_window = nullptr;
 MapsApp* app = nullptr;
-
-
-void parseArgs(int argc, char* argv[]) {
-    // Load file from command line, if given.
-    int argi = 0;
-    while (++argi < argc) {
-        if (strcmp(argv[argi - 1], "-f") == 0) {
-            app->sceneFile = std::string(argv[argi]);
-            LOG("File from command line: %s\n", argv[argi]);
-            break;
-        }
-        if (strcmp(argv[argi - 1], "-s") == 0) {
-
-            if (argi+1 < argc) {
-                app->sceneYaml = std::string(argv[argi]);
-                app->sceneFile = std::string(argv[argi+1]);
-                LOG("Yaml from command line: %s, resource path: %s\n",
-                    app->sceneYaml.c_str(), app->sceneFile.c_str());
-            } else {
-                LOG("-s options requires YAML string and resource path");
-                exit(1);
-            }
-            break;
-        }
-    }
-}
 
 //void setScene(const std::string& _path, const std::string& _yaml) { sceneFile = _path; sceneYaml = _yaml; }
 
@@ -110,6 +87,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
             case GLFW_KEY_MINUS:
                 if(mods != GLFW_MOD_CONTROL)
                     break;
+                [[fallthrough]];
             case GLFW_KEY_Z: {
                 auto pos = map->getCameraPosition();
                 pos.zoom += key == GLFW_KEY_MINUS ? -1.f : 1.f;
@@ -238,7 +216,32 @@ void framebufferResizeCallback(GLFWwindow* window, int fWidth, int fHeight)
     app->onResize(wWidth, wHeight, fWidth, fHeight);
 }
 
-void create(std::unique_ptr<Platform> p, int width, int height)
+void parseArgs(int argc, char* argv[]) {
+    // Load file from command line, if given.
+    int argi = 0;
+    while (++argi < argc) {
+        if (strcmp(argv[argi - 1], "-f") == 0) {
+            app->sceneFile = std::string(argv[argi]);
+            LOG("File from command line: %s\n", argv[argi]);
+            break;
+        }
+        if (strcmp(argv[argi - 1], "-s") == 0) {
+
+            if (argi+1 < argc) {
+                app->sceneYaml = std::string(argv[argi]);
+                app->sceneFile = std::string(argv[argi+1]);
+                LOG("Yaml from command line: %s, resource path: %s\n",
+                    app->sceneYaml.c_str(), app->sceneFile.c_str());
+            } else {
+                LOG("-s options requires YAML string and resource path");
+                exit(1);
+            }
+            break;
+        }
+    }
+}
+
+void create(std::unique_ptr<Platform> p, int argc, char* argv[])
 {
     if (!glfwInit()) {
         assert(false);
@@ -262,13 +265,11 @@ void create(std::unique_ptr<Platform> p, int width, int height)
     std::snprintf(versionString, sizeof(versionString), "Tangram ES %d.%d.%d " BUILD_NUM_STRING,
         TANGRAM_VERSION_MAJOR, TANGRAM_VERSION_MINOR, TANGRAM_VERSION_PATCH);
 
-    const char* glsl_version = "#version 120";
-
     // Create a windowed mode window and its OpenGL context
     glfwWindowHint(GLFW_SAMPLES, 2);
     glfwWindowHint(GLFW_STENCIL_BITS, 8);
     if (!main_window) {
-        main_window = glfwCreateWindow(width, height, versionString, NULL, NULL);
+        main_window = glfwCreateWindow(1024, 768, versionString, NULL, NULL);
     }
     if (!main_window) {
         glfwTerminate();
@@ -289,33 +290,68 @@ void create(std::unique_ptr<Platform> p, int width, int height)
     glfwSetScrollCallback(main_window, scrollCallback);
     glfwSetKeyCallback(main_window, keyCallback);
     glfwSetDropCallback(main_window, dropCallback);
-
     glfwSetCharCallback(main_window, ImGui_ImplGlfw_CharCallback);
 
-    app = new MapsApp;
-    app->init(std::move(p), apiKey);
+    // Setup ImGui
+    const char* glsl_version = "#version 120";
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui_ImplOpenGL3_Init(glsl_version);
     ImGui_ImplGlfw_InitForOpenGL(main_window, false);
+
+    MapsApp::baseDir = "/home/mwhite/maps/";
+    MapsApp::apiKey = apiKey;
+    app = new MapsApp(std::move(p));
 
     int fWidth = 0, fHeight = 0;
     glfwGetFramebufferSize(main_window, &fWidth, &fHeight);
     framebufferResizeCallback(main_window, fWidth, fHeight);
 
+    // process args
+    app->sceneFile = "scenes/scene.yaml";
+    parseArgs(argc, argv);
+
+    // Resolve the input path against the current directory.
+    Url baseUrl("file:///");
+    char pathBuffer[PATH_MAX] = {0};
+    if (getcwd(pathBuffer, PATH_MAX) != nullptr) {
+        baseUrl = baseUrl.resolve(Url(std::string(pathBuffer) + "/"));
+    }
+    LOG("Base URL: %s", baseUrl.string().c_str());
+    Url sceneUrl = baseUrl.resolve(Url(app->sceneFile));
+    app->sceneFile = sceneUrl.string();
 }
 
 void run()
 {
+    app->loadSceneFile(false);
     //double lastTime = glfwGetTime();
     // Loop until the user closes the window
     while (!glfwWindowShouldClose(main_window)) {
 
         ImGui_ImplGlfw_NewFrame();
+        ImGui_ImplOpenGL3_NewFrame();
 
-        bool focused = glfwGetWindowAttrib(main_window, GLFW_FOCUSED) != 0;
-        int w, h, display_w, display_h;
-        double current_time = glfwGetTime();
-        glfwGetWindowSize(main_window, &w, &h);
-        glfwGetFramebufferSize(main_window, &display_w, &display_h);
-        app->drawFrame(w, h, display_w, display_h, current_time, focused);
+        const bool wireframe = app->wireframe_mode;
+        if(wireframe) {
+          glPolygonMode(GL_FRONT, GL_LINE);
+          glPolygonMode(GL_BACK, GL_LINE);
+        }
+
+        //bool focused = glfwGetWindowAttrib(main_window, GLFW_FOCUSED) != 0;
+        //int w, h, display_w, display_h;
+        //double current_time = glfwGetTime();
+        //glfwGetWindowSize(main_window, &w, &h);
+        //glfwGetFramebufferSize(main_window, &display_w, &display_h);
+        app->drawFrame();  //w, h, display_w, display_h, current_time, focused);
+
+        if(wireframe) {
+          glPolygonMode(GL_FRONT, GL_FILL);
+          glPolygonMode(GL_BACK, GL_FILL);
+        }
+
+        if(app->show_gui)
+            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         // Swap front and back buffers
         glfwSwapBuffers(main_window);

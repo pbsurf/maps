@@ -7,7 +7,7 @@ namespace Tangram {
 
 namespace GlfwApp {
 
-void create(std::unique_ptr<Platform> platform, int width, int height);
+void create(std::unique_ptr<Platform> platform, int argc, char* argv[]);
 void parseArgs(int argc, char* argv[]);
 void setWireframeMode(bool state);
 void run();
