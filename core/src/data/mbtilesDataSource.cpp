@@ -132,7 +132,7 @@ struct MBTilesQueries {
             "SELECT tile_data FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;"),
         putMap(_db, _cache ? "REPLACE INTO map (zoom_level, tile_column, tile_row, tile_id) VALUES (?, ?, ?, ?);" : ";" ),
         putImage(_db, _cache ? "REPLACE INTO images (tile_id, tile_data) VALUES (?, ?);" : ";"),
-        getOffline(_db, _cache ? "SELECT tile_id FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;" : ";"),
+        getOffline(_db, _cache ? "SELECT 1,tile_id FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;" : ";"),
         putOffline(_db, _cache ? "REPLACE INTO offline_tiles (tile_id, offline_id) VALUES (?, ?);" : ";"),
         putLastAccess(_db, _cache ? "REPLACE INTO tile_last_access (tile_id, last_access) VALUES (?, CURRENT_TIMESTAMP);" : ";") {}
 
@@ -456,7 +456,7 @@ bool MBTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _d
         LOGE("Offline tiles cannot be created: database is read-only!");
         return false;
     }
-    auto& stmt = offlineId ? m_queries->getOffline : m_queries->getTileData;
+    auto& stmt = offlineId > 0 ? m_queries->getOffline : m_queries->getTileData;
     try {
         // Google TMS to WMTS
         // https://github.com/mapbox/node-mbtiles/blob/
@@ -471,15 +471,18 @@ bool MBTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _d
         if (stmt.executeStep()) {
             if (offlineId) {
                 // if offlineId > 0, request was just to cache tile - caller does not need data
-                SQLite::Column column2 = stmt.getColumn(0);
+                // offlineId < 0 to request tile data (e.g. for search indexing)
+                SQLite::Column column2 = stmt.getColumn(1);
                 auto& stmt2 = m_queries->putOffline;
                 stmt2.bind(1, column2.getText());
-                stmt2.bind(2, offlineId);
+                stmt2.bind(2, std::abs(offlineId));
                 stmt2.exec();
                 stmt2.reset();
-                stmt.reset();  // reset both statements!
-                _data.push_back('\0');  // make TileTask::hasData() true
-                return true;
+                if(offlineId > 0) {
+                  stmt.reset();  // reset both statements!
+                  _data.push_back('\0');  // make TileTask::hasData() true
+                  return true;
+                }
             }
 
             SQLite::Column column = stmt.getColumn(0);
@@ -567,7 +570,7 @@ void MBTilesDataSource::storeTileData(const TileID& _tileId, const std::vector<c
         try {
             auto& stmt = m_queries->putOffline;
             stmt.bind(1, md5id);
-            stmt.bind(2, offlineId);
+            stmt.bind(2, std::abs(offlineId));
             stmt.exec();
             stmt.reset();
         } catch (std::exception& e) {

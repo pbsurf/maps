@@ -48,10 +48,10 @@ static jmethodID getFontFallbackFilePath = nullptr;
 
 static bool glExtensionsLoaded = false;
 
-void AndroidPlatform::jniOnLoad(JavaVM* javaVM, JNIEnv* jniEnv) {
+void AndroidPlatform::jniOnLoad(JavaVM* javaVM, JNIEnv* jniEnv, const char* ctrlClass) {
     // JNI OnLoad is invoked once when the native library is loaded so this is a good place to cache
     // any method or class IDs that we'll need.
-    jclass tangramClass = jniEnv->FindClass("com/mapzen/tangram/MapController");
+    jclass tangramClass = jniEnv->FindClass(ctrlClass);
     startUrlRequestMID = jniEnv->GetMethodID(tangramClass, "startUrlRequest", "(Ljava/lang/String;J)V");
     cancelUrlRequestMID = jniEnv->GetMethodID(tangramClass, "cancelUrlRequest", "(J)V");
     getFontFilePath = jniEnv->GetMethodID(tangramClass, "getFontFilePath", "(Ljava/lang/String;)Ljava/lang/String;");

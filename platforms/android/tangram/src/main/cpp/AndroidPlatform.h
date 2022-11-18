@@ -37,7 +37,7 @@ public:
 
     void onUrlComplete(JNIEnv* jniEnv, jlong jRequestHandle, jbyteArray jBytes, jstring jError);
 
-    static void jniOnLoad(JavaVM* javaVM, JNIEnv* jniEnv);
+    static void jniOnLoad(JavaVM* javaVM, JNIEnv* jniEnv, const char* ctrlClass = "com/mapzen/tangram/MapController");
 
 private:
 
