@@ -11,6 +11,7 @@ option(TANGRAM_USE_SYSTEM_GLFW_LIBS "Use system libraries for GLFW3 via pkgconfi
 option(TANGRAM_USE_SYSTEM_SQLITE_LIBS "Use system libraries for SQLite via pkgconfig" OFF)
 option(TANGRAM_MBTILES_DATASOURCE "Build MBTiles Datasource" ON)
 
+option(TANGRAM_BUILD_APP "Build maps app" ON)
 option(TANGRAM_BUILD_TESTS "Build unit tests" OFF)
 option(TANGRAM_BUNDLE_TESTS "Compile all tests into a single binary" ON)
 option(TANGRAM_BUILD_BENCHMARKS "Build benchmarks" OFF)
@@ -59,7 +60,12 @@ if(TANGRAM_DEV_MODE AND TANGRAM_BUILD_BENCHMARKS)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-omit-frame-pointer")
 endif()
 
-set(TANGRAM_PLATFORM_CONFIG_FILE "platforms/${TANGRAM_PLATFORM}/config.cmake")
+if(TANGRAM_BUILD_APP)
+  set(TANGRAM_PLATFORM_CONFIG_FILE "app/${TANGRAM_PLATFORM}/config.cmake")
+else()
+  set(TANGRAM_PLATFORM_CONFIG_FILE "platforms/${TANGRAM_PLATFORM}/config.cmake")
+endif()
+
 if(EXISTS "${PROJECT_SOURCE_DIR}/${TANGRAM_PLATFORM_CONFIG_FILE}")
   message(STATUS "Including platform CMake config file: ${TANGRAM_PLATFORM_CONFIG_FILE}")
 else()

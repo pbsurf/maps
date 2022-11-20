@@ -39,22 +39,29 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
   glfwGetCursorPos(window, &x, &y);
   double time = glfwGetTime();
   ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
-  app->onMouseButton(time, x, y, button, action, mods);
+  if (!ImGui::GetIO().WantCaptureMouse)
+      app->onMouseButton(time, x, y, button, action, mods);
+  else
+      app->map->getPlatform().requestRender();  // necessary for proper update of combo boxes, etc
 }
 
 void cursorMoveCallback(GLFWwindow* window, double x, double y)
 {
   int action = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_1);
   double time = glfwGetTime();
-  app->onMouseMove(time, x, y, action == GLFW_PRESS);
+  if (!ImGui::GetIO().WantCaptureMouse)
+      app->onMouseMove(time, x, y, action == GLFW_PRESS);
 }
 
 void scrollCallback(GLFWwindow* window, double scrollx, double scrolly)
 {
+  double mouse_x, mouse_y;
   bool rotating = glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_ALT) == GLFW_PRESS;
   bool shoving = glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS;
   ImGui_ImplGlfw_ScrollCallback(window, scrollx, scrolly);
-  app->onMouseWheel(scrollx, scrolly, rotating, shoving);
+  glfwGetCursorPos(window, &mouse_x, &mouse_y);
+  if (!ImGui::GetIO().WantCaptureMouse)
+      app->onMouseWheel(mouse_x, mouse_y, scrollx, scrolly, rotating, shoving);
 }
 
 
@@ -343,7 +350,8 @@ void run()
         //double current_time = glfwGetTime();
         //glfwGetWindowSize(main_window, &w, &h);
         //glfwGetFramebufferSize(main_window, &display_w, &display_h);
-        app->drawFrame();  //w, h, display_w, display_h, current_time, focused);
+        double time = glfwGetTime();
+        app->drawFrame(time);
 
         if(wireframe) {
           glPolygonMode(GL_FRONT, GL_FILL);
