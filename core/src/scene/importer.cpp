@@ -291,6 +291,7 @@ void Importer::mergeMapFields(Node& target, const Node& import) {
             const auto& key = entry.first.Scalar();
             const auto& source = entry.second;
             auto dest = target[key];
+            //if(dest.isMap() && source.IsNull) continue;  -- don't replace map w/ empty node?
             mergeMapFields(dest, source);
         }
     }

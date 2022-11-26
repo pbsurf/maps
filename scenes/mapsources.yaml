@@ -1,0 +1,119 @@
+# List w/ many tile sources: https://leaflet-extras.github.io/leaflet-providers/preview/
+# - To cache tiles, cache file names must be specified for vector sources as with mapzen-osm below; source
+#  name used for raster cache file name unless overridden (cache: false to disable)
+
+mapzen-osm:
+    type: Vector
+    title: Mapzen OSM
+    url: scene.yaml
+    updates: { sources.osm.cache: mapzen-osm }
+
+
+carto-voyager:
+    type: Vector
+    title: Carto OSM Voyager
+    url: voyager.yaml
+    updates: { sources.carto.cache: carto-streets }
+
+
+opentopomap:
+    type: Raster
+    title: OpenTopoMap
+    url: http://{s}.tile.opentopomap.org/{z}/{x}/{y}.png
+    url_subdomains: [a, b, c]
+
+
+opencyclemap:
+    type: Raster
+    title: OpenCycleMap
+    url: http://{s}.tile.thunderforest.com/cycle/{z}/{x}/{y}.png?apikey=a5dd6a2f1c934394bce6b0fb077203eb
+    url_subdomains: [a, b, c]
+
+
+osm-raster:
+    type: Raster
+    title: OpenStreetMap
+    url: https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png
+    url_subdomains: [a, b, c]
+
+
+# 512x512 (@2x) tiles w/ same style as openstreetmap.org
+osmand-raster2x:
+    type: Raster
+    title: OsmAnd OSM 2x
+    url: https://tile.osmand.net/hd/{z}/{x}/{y}.png
+    #user-agent: OsmAnd~
+
+
+osm-raster-terrain:
+    type: Vector
+    title: OSM Raster + Mapzen Normals
+    url: raster-terrain.yaml
+
+
+ridewithgps-heatmap:
+    type: Raster
+    title: RideWithGPS Heatmap
+    url: https://heatmap.ridewithgps.com/v1/map/default/normalized/{z}/{x}/{y}.png?start_color=%23A1E6E6&mid_color=%23E64560&end_color=%23E60026&midpoint=0.2&start_opacity=60&mid_opacity=120&end_opacity=200
+
+
+osm-gps-tracks:
+    type: Raster
+    title: OSM GPS Tracks
+    url: http://gps-{s}.tile.openstreetmap.org/lines/{z}/{x}/{y}.png
+    url_subdomains: [a, b, c]
+
+
+# Bing uses quadkey tile index - supported in networkDataSource.cpp, but not documented
+bing-earth:
+    type: Raster
+    title: Bing Satellite
+    url: http://a{s}.ortho.tiles.virtual%65arth.net/tiles/a{q}.JPG?g=45&mkt=en
+    url_subdomains: [0, 1, 2, 3]
+
+
+usgs-imagery:
+    type: Raster
+    title: USGS Imagery
+    url: http://basemap.nationalmap.gov/ArcGIS/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}
+
+
+enable-contours:
+    type: Update
+    title: Contours
+    updates:
+        styles.hillshade.shaders.defines.SHOW_CONTOURS: 1
+
+
+hillshade-vector:
+    type: Vector
+    title: Hillshading (for Vector)
+    url: raster-contour.yaml
+    updates:
+        styles.hillshade.shaders.defines.ELEVATION_INDEX: 0
+        sources.osm.rasters: [elevation]
+        layers.earth.terrain.draw.hillshade: { color: white, order: 0 }
+        layers.landuse.draw.polygons.style: hillshade
+
+
+hillshade-raster:
+    type: Vector
+    title: Hillshading (for Raster)
+    url: raster-contour.yaml
+    updates:
+        styles.hillshade.shaders.defines.ELEVATION_INDEX: 1
+        sources.raster-0.rasters: [elevation]
+        layers.raster-0.draw.group-0.style: hillshade
+
+
+## Multi-maps
+
+custom-1:
+    type: Multi
+    title: RideWith GPS + Mapzen OSM
+    layers:
+        - source: mapzen-osm
+        - source: ridewithgps-heatmap
+    updates:
+        layers.pois.enabled: false
+        #- {key: +layers.pois.enabled, value: false}

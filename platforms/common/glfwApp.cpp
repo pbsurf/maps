@@ -336,8 +336,8 @@ void run()
     // Loop until the user closes the window
     while (!glfwWindowShouldClose(main_window)) {
 
-        ImGui_ImplGlfw_NewFrame();
         ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
 
         const bool wireframe = app->wireframe_mode;
         if(wireframe) {
