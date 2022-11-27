@@ -26,6 +26,7 @@ static jfieldID edgePaddingBottomFID = nullptr;
 
 void JniHelpers::jniOnLoad(JavaVM* jvm, JNIEnv* jniEnv) {
     s_jvm = jvm;
+    if(!jniEnv) return;
 
     jclass cameraPositionClass = jniEnv->FindClass("com/mapzen/tangram/CameraPosition");
     cameraPositionLongitudeFID = jniEnv->GetFieldID(cameraPositionClass, "longitude", "D");

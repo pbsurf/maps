@@ -13,7 +13,7 @@ import javax.net.SocketFactory;
 
 import androidx.annotation.NonNull;
 
-import com.mapzen.tangram.BuildConfig;
+//import com.mapzen.tangram.BuildConfig;
 
 import okhttp3.Call;
 import okhttp3.HttpUrl;
@@ -89,7 +89,7 @@ public class DefaultHttpHandler implements HttpHandler {
                         data = body.bytes();
                         cb.onResponse(response.code(), data);
                     } catch (final IOException e) {
-                        Log.e(BuildConfig.TAG, "Error reading bytes from response body:" + e.getMessage());
+                        Log.e("Tangram", "Error reading bytes from response body:" + e.getMessage());
                         onFailure(call, e);
                     } finally {
                         response.close();
