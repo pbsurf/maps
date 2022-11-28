@@ -40,9 +40,9 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
   double time = glfwGetTime();
   ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
   if (!ImGui::GetIO().WantCaptureMouse)
-      app->onMouseButton(time, x, y, button, action, mods);
+    app->onMouseButton(time, x, y, button, action, mods);
   else
-      app->map->getPlatform().requestRender();  // necessary for proper update of combo boxes, etc
+    app->map->getPlatform().requestRender();  // necessary for proper update of combo boxes, etc
 }
 
 void cursorMoveCallback(GLFWwindow* window, double x, double y)
@@ -50,7 +50,7 @@ void cursorMoveCallback(GLFWwindow* window, double x, double y)
   int action = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_1);
   double time = glfwGetTime();
   if (!ImGui::GetIO().WantCaptureMouse)
-      app->onMouseMove(time, x, y, action == GLFW_PRESS);
+    app->onMouseMove(time, x, y, action == GLFW_PRESS);
 }
 
 void scrollCallback(GLFWwindow* window, double scrollx, double scrolly)
@@ -61,7 +61,7 @@ void scrollCallback(GLFWwindow* window, double scrollx, double scrolly)
   ImGui_ImplGlfw_ScrollCallback(window, scrollx, scrolly);
   glfwGetCursorPos(window, &mouse_x, &mouse_y);
   if (!ImGui::GetIO().WantCaptureMouse)
-      app->onMouseWheel(mouse_x, mouse_y, scrollx, scrolly, rotating, shoving);
+    app->onMouseWheel(mouse_x, mouse_y, scrollx, scrolly, rotating, shoving);
 }
 
 
@@ -331,6 +331,7 @@ void create(std::unique_ptr<Platform> p, int argc, char* argv[])
 
 void run()
 {
+    app->map->setupGL();
     app->loadSceneFile(false);
     //double lastTime = glfwGetTime();
     // Loop until the user closes the window
