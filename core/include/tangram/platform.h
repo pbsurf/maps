@@ -69,6 +69,9 @@ public:
     // Request that a new frame be rendered by the windowing system
     virtual void requestRender() const = 0;
 
+    // called when rendering frame, so impl can clear flag used to avoid duplicate render requests
+    virtual void notifyRender() const {}
+
     // If called with 'true', the windowing system will re-draw frames continuously;
     // otherwise new frames will only be drawn when 'requestRender' is called.
     virtual void setContinuousRendering(bool _isContinuous);
@@ -92,7 +95,7 @@ public:
 
     size_t activeUrlRequests() const { return m_urlCallbacks.size(); }
 
-    std::atomic<bool> isOffline{false};
+    std::atomic_bool isOffline{false};
     size_t urlRequestsThreshold = 0;
     std::function<void(void)> onUrlRequestsThreshold;
 
@@ -113,7 +116,7 @@ protected:
 
     static bool bytesFromFileSystem(const char* _path, std::function<char*(size_t)> _allocator);
 
-    std::atomic<bool> m_shutdown{false};
+    std::atomic_bool m_shutdown{false};
 
     bool m_continuousRendering;
 

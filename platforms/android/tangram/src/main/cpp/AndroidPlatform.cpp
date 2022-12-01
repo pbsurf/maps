@@ -106,9 +106,14 @@ std::string AndroidPlatform::fontPath(const std::string& family, const std::stri
 }
 
 void AndroidPlatform::requestRender() const {
+  if (m_renderRequested) { return; }
     m_jniWorker.enqueue([&](JNIEnv *jniEnv) {
         jniEnv->CallVoidMethod(m_mapController, requestRenderMethodID);
     });
+}
+
+void LinuxPlatform::notifyRender() const {
+    m_renderRequested = false;
 }
 
 std::vector<FontSourceHandle> AndroidPlatform::systemFontFallbacksHandle() const {

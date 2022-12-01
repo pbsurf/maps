@@ -50,6 +50,8 @@ private:
 
     mutable JniWorker m_jniWorker;
     AsyncWorker m_fileWorker;
+
+    mutable std::atomic_bool m_renderRequested{false};
 };
 
 } // namespace Tangram

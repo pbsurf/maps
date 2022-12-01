@@ -45,8 +45,13 @@ void LinuxPlatform::shutdown() {
 }
 
 void LinuxPlatform::requestRender() const {
-    if (m_shutdown) { return; }
+    if (m_renderRequested || m_shutdown) { return; }
     glfwPostEmptyEvent();
+    m_renderRequested = true;
+}
+
+void LinuxPlatform::notifyRender() const {
+    m_renderRequested = false;
 }
 
 std::vector<FontSourceHandle> LinuxPlatform::systemFontFallbacksHandle() const {
