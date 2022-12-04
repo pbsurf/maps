@@ -1,5 +1,6 @@
 #include "data/propertyItem.h"
 #include "data/properties.h"
+#include "rapidjson/writer.h"
 #include <algorithm>
 
 namespace Tangram {
@@ -154,17 +155,22 @@ void Properties::set(std::string key, double value) {
 }
 
 std::string Properties::toJson() const {
-
-    std::string json = "{ ";
-
+    // use rapidjson to handle escaping " and \ in strings
+    rapidjson::StringBuffer sb;
+    rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+    writer.StartObject();
     for (const auto& item : props) {
-        bool last = (&item == &props.back());
-        json += "\"" + item.key + "\": \"" + asString(item.value) + (last ? "\"" : "\",");
+        writer.String(item.key.c_str());
+        if (item.value.is<std::string>()) {
+            writer.String(item.value.get<std::string>().c_str());
+        } else if (item.value.is<double>()) {
+            writer.Double(item.value.get<double>());
+        } else {
+            writer.String("");
+        }
     }
-
-    json += " }";
-
-    return json;
+    writer.EndObject();
+    return sb.GetString();
 }
 
 }

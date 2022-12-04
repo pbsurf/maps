@@ -275,8 +275,11 @@ bool MarkerManager::update(const View& _view, float _dt) {
         if (m_zoom != builtZoom || !marker->mesh()) {
             if (builtZoom < 0) { buildStyling(*marker); }
 
-            buildMesh(*marker, m_zoom);
-            rebuilt = true;
+            // prevent continuous rendering if marker styling fails
+            if (buildMesh(*marker, m_zoom))
+                rebuilt = true;
+            else
+                LOGE("Error building marker mesh.");
         }
 
         marker->update(_dt, _view);
