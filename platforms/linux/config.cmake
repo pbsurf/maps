@@ -15,6 +15,9 @@ if (CMAKE_COMPILER_IS_GNUCC)
   endif()
 endif()
 
+# -Wshadow ... too many in Tangram to deal with right now
+add_compile_options(-Werror=return-type)
+
 check_unsupported_compiler_version()
 
 add_definitions(-DTANGRAM_LINUX)
