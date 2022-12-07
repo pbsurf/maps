@@ -18,10 +18,11 @@ public interface HttpHandler {
     /**
      * Begin an HTTP request
      * @param url URL for the requested resource
+     * @param headers HTTP headers, separated by \r\n
      * @param cb Callback for handling request result
      * @return identifier associated with this network request, used to canceling the request
      */
-    Object startRequest(@NonNull final String url, @NonNull final Callback cb);
+    Object startRequest(@NonNull final String url, final String headers, @NonNull final Callback cb);
 
     /**
      * Cancel an HTTP request

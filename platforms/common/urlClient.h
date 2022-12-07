@@ -35,7 +35,7 @@ public:
 
     using RequestId = uint64_t;
 
-    RequestId addRequest(const std::string& url, UrlCallback cb);
+    RequestId addRequest(const std::string& url, const HttpHeaders& _headers, UrlCallback cb);
 
     void cancelRequest(RequestId request);
 
@@ -43,6 +43,7 @@ private:
 
     struct Request {
         std::string url;
+        HttpHeaders headers;
         UrlCallback callback;
         RequestId id;
     };

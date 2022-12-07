@@ -29,10 +29,11 @@ public:
     AndroidPlatform(JNIEnv* jniEnv, jobject mapController, jobject assetManager);
     void shutdown() override;
     void requestRender() const override;
+    void notifyRender() const override;
     void setContinuousRendering(bool isContinuous) override;
     FontSourceHandle systemFont(const std::string& name, const std::string& weight, const std::string& face) const override;
     std::vector<FontSourceHandle> systemFontFallbacksHandle() const override;
-    bool startUrlRequestImpl(const Url& url, const UrlRequestHandle request, UrlRequestId& id) override;
+    bool startUrlRequestImpl(const Url& url, const HttpHeaders& headers, const UrlRequestHandle request, UrlRequestId& id) override;
     void cancelUrlRequestImpl(const UrlRequestId id) override;
 
     void onUrlComplete(JNIEnv* jniEnv, jlong jRequestHandle, jbyteArray jBytes, jstring jError);

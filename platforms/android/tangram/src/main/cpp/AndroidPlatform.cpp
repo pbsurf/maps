@@ -52,7 +52,7 @@ void AndroidPlatform::jniOnLoad(JavaVM* javaVM, JNIEnv* jniEnv, const char* ctrl
     // JNI OnLoad is invoked once when the native library is loaded so this is a good place to cache
     // any method or class IDs that we'll need.
     jclass tangramClass = jniEnv->FindClass(ctrlClass);
-    startUrlRequestMID = jniEnv->GetMethodID(tangramClass, "startUrlRequest", "(Ljava/lang/String;J)V");
+    startUrlRequestMID = jniEnv->GetMethodID(tangramClass, "startUrlRequest", "(Ljava/lang/String;Ljava/lang/String;J)V");
     cancelUrlRequestMID = jniEnv->GetMethodID(tangramClass, "cancelUrlRequest", "(J)V");
     getFontFilePath = jniEnv->GetMethodID(tangramClass, "getFontFilePath", "(Ljava/lang/String;)Ljava/lang/String;");
     getFontFallbackFilePath = jniEnv->GetMethodID(tangramClass, "getFontFallbackFilePath", "(II)Ljava/lang/String;");
@@ -106,13 +106,14 @@ std::string AndroidPlatform::fontPath(const std::string& family, const std::stri
 }
 
 void AndroidPlatform::requestRender() const {
-  if (m_renderRequested) { return; }
+    if (m_renderRequested) { return; }
     m_jniWorker.enqueue([&](JNIEnv *jniEnv) {
         jniEnv->CallVoidMethod(m_mapController, requestRenderMethodID);
     });
+    m_renderRequested = true;
 }
 
-void LinuxPlatform::notifyRender() const {
+void AndroidPlatform::notifyRender() const {
     m_renderRequested = false;
 }
 
@@ -209,7 +210,7 @@ std::vector<char> AndroidPlatform::bytesFromFile(const Url& url) const {
     return data;
 }
 
-bool AndroidPlatform::startUrlRequestImpl(const Url& url, const UrlRequestHandle request, UrlRequestId& id) {
+bool AndroidPlatform::startUrlRequestImpl(const Url& url, const HttpHeaders& headers, const UrlRequestHandle request, UrlRequestId& id) {
 
     // If the requested URL does not use HTTP or HTTPS, retrieve it asynchronously.
     if (!url.hasHttpScheme()) {
@@ -236,10 +237,12 @@ bool AndroidPlatform::startUrlRequestImpl(const Url& url, const UrlRequestHandle
                       "Cannot convert jlong to UrlRequestHandle!");
 
         jstring jUrl = JniHelpers::javaStringFromString(jniEnv, url.string());
+        jstring jHeaders = JniHelpers::javaStringFromString(jniEnv, headers);
 
         // Call the MapController method to start the URL request.
-        jniEnv->CallVoidMethod(m_mapController, startUrlRequestMID, jUrl, jRequestHandle);
+        jniEnv->CallVoidMethod(m_mapController, startUrlRequestMID, jUrl, jHeaders, jRequestHandle);
         jniEnv->DeleteLocalRef(jUrl);
+        jniEnv->DeleteLocalRef(jHeaders);
     });
 
     return true;

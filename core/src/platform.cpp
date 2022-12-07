@@ -79,6 +79,10 @@ void Platform::shutdown() {
 }
 
 UrlRequestHandle Platform::startUrlRequest(Url _url, UrlCallback&& _callback) {
+    return startUrlRequest(_url, "", std::move(_callback));
+}
+
+UrlRequestHandle Platform::startUrlRequest(Url _url, const HttpHeaders& _headers, UrlCallback&& _callback) {
 
     assert(_callback);
 
@@ -89,7 +93,7 @@ UrlRequestHandle Platform::startUrlRequest(Url _url, UrlCallback&& _callback) {
         return 0;
     }
 
-    UrlRequestHandle handle= ++m_urlRequestCount;
+    UrlRequestHandle handle = ++m_urlRequestCount;
 
     // Need to do this in advance in case startUrlRequest calls back synchronously.
     UrlRequestEntry* entry = nullptr;
@@ -100,7 +104,7 @@ UrlRequestHandle Platform::startUrlRequest(Url _url, UrlCallback&& _callback) {
     }
 
     // Start Platform specific url request
-    if (startUrlRequestImpl(_url, handle, entry->id)) {
+    if (startUrlRequestImpl(_url, _headers, handle, entry->id)) {
         entry->cancelable = true;
     }
 

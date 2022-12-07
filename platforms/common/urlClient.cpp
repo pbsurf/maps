@@ -118,6 +118,7 @@ struct UrlClient::Task {
     Request request;
     std::vector<char> content;
     CURL *handle = nullptr;
+    curl_slist* slist = nullptr;
     char curlErrorString[CURL_ERROR_SIZE] = {0};
     bool active = false;
     bool canceled = false;
@@ -174,6 +175,7 @@ struct UrlClient::Task {
     }
 
     ~Task() {
+        curl_slist_free_all(slist);
         curl_easy_cleanup(handle);
     }
 
@@ -251,10 +253,10 @@ void UrlClient::curlWakeUp() {
     }
 }
 
-UrlClient::RequestId UrlClient::addRequest(const std::string& _url, UrlCallback _onComplete) {
+UrlClient::RequestId UrlClient::addRequest(const std::string& _url, const HttpHeaders& _headers, UrlCallback _onComplete) {
 
     auto id = ++m_requestCount;
-    Request request = {_url, _onComplete, id};
+    Request request = {_url, _headers, _onComplete, id};
 
     // Add the request to our list.
     {
@@ -330,6 +332,22 @@ void UrlClient::startPendingRequests() {
         // Configure the easy handle.
         const char* url = task.request.url.c_str();
         curl_easy_setopt(task.handle, CURLOPT_URL, url);
+
+        curl_slist_free_all(task.slist);
+        task.slist = NULL;
+        if (!task.request.headers.empty()) {
+            // split string
+            const std::string& hdrs = task.request.headers;
+            size_t start = 0, end = 0;
+            while ((end = hdrs.find_first_of("\r\n", start)) != std::string::npos) {
+                if (end > start)  // note that curl_slist_append() copies the string
+                    task.slist = curl_slist_append(task.slist, hdrs.substr(start, end-start).c_str());
+                start = end + 1;
+            }
+            if (start < hdrs.size())
+                task.slist = curl_slist_append(task.slist, hdrs.substr(start).c_str());
+        }
+        curl_easy_setopt(task.handle, CURLOPT_HTTPHEADER, task.slist);
 
         LOGD("Tasks %d - starting request for url: %s", int(m_activeTasks), url);
 

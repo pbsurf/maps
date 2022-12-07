@@ -63,7 +63,7 @@ public class DefaultHttpHandler implements HttpHandler {
     }
 
     @Override
-    public Object startRequest(@NonNull final String url, @NonNull final HttpHandler.Callback cb) {
+    public Object startRequest(@NonNull final String url, final String headers, @NonNull final HttpHandler.Callback cb) {
         final HttpUrl httpUrl = HttpUrl.parse(url);
         if (httpUrl == null) {
             cb.onFailure(new IOException("Failed to parse URL: " + url));
@@ -102,6 +102,12 @@ public class DefaultHttpHandler implements HttpHandler {
         // so add a default value to every request. Users can override this in configureRequest().
         builder.addHeader("User-Agent", "tangram");
         configureRequest(httpUrl, builder);
+        headers.lines().forEach(l -> {
+            String[] kv = l.split(':', 2);
+            if (kv.length == 2) {
+                builder.addHeader(kv[0], kv[1]);
+            }
+        });
         final Request request = builder.build();
         Call call = okClient.newCall(request);
         call.enqueue(callback);

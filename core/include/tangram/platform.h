@@ -28,6 +28,9 @@ struct UrlResponse {
 // Function type for receiving data from a URL request.
 using UrlCallback = std::function<void(UrlResponse&&)>;
 
+// put all headers in single string separated by newlines for now
+using HttpHeaders = std::string;
+
 using FontSourceLoader = std::function<std::vector<char>()>;
 
 struct FontSourceHandle {
@@ -70,7 +73,7 @@ public:
     virtual void requestRender() const = 0;
 
     // called when rendering frame, so impl can clear flag used to avoid duplicate render requests
-    virtual void notifyRender() const {}
+    virtual void notifyRender() const = 0;
 
     // If called with 'true', the windowing system will re-draw frames continuously;
     // otherwise new frames will only be drawn when 'requestRender' is called.
@@ -83,6 +86,8 @@ public:
     // was retrieved from the URL _url. The callback may run on a different
     // thread than the original call to startUrlRequest.
     UrlRequestHandle startUrlRequest(Url _url, UrlCallback&& _callback);
+
+    UrlRequestHandle startUrlRequest(Url _url, const HttpHeaders& _headers, UrlCallback&& _callback);
 
     // Stop retrieving data from a URL that was previously requested. When a
     // request is canceled its callback will still be run, but the response
@@ -112,7 +117,7 @@ protected:
     virtual void cancelUrlRequestImpl(UrlRequestId _id) = 0;
 
     // Return true when UrlRequestId has been set (i.e. when request is async and can be canceled)
-    virtual bool startUrlRequestImpl(const Url& _url, UrlRequestHandle _request, UrlRequestId& _id) = 0;
+    virtual bool startUrlRequestImpl(const Url& _url, const HttpHeaders& _headers, UrlRequestHandle _request, UrlRequestId& _id) = 0;
 
     static bool bytesFromFileSystem(const char* _path, std::function<char*(size_t)> _allocator);
 
