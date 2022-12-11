@@ -77,6 +77,7 @@ private:
 
     // Curl multi handle
     void *m_curlHandle = nullptr;
+    void* m_curlShare = nullptr;
 
     bool m_curlRunning = false;
     bool m_curlNotified = false;

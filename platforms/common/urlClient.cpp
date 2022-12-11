@@ -136,7 +136,7 @@ struct UrlClient::Task {
         return addedSize;
     }
 
-    Task(const Options& _options) {
+    Task(const UrlClient& _parent, const Options& _options) {
         // Set up an easy handle for reuse.
         handle = curl_easy_init();
         curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, &curlWriteCallback);
@@ -153,6 +153,8 @@ struct UrlClient::Task {
         curl_easy_setopt(handle, CURLOPT_MAXREDIRS, 20);
         curl_easy_setopt(handle, CURLOPT_TCP_NODELAY, 1);
         curl_easy_setopt(handle, CURLOPT_USERAGENT, _options.userAgentString);
+        curl_easy_setopt(handle, CURLOPT_COOKIEFILE, "");  // in-memory cookie store only
+        curl_easy_setopt(handle, CURLOPT_SHARE, _parent.m_curlShare);
     }
 
     void setup() {
@@ -194,12 +196,16 @@ UrlClient::UrlClient(Options options) : m_options(options) {
 
     // Start the curl thread
     m_curlHandle = curl_multi_init();
+    m_curlShare = curl_share_init();
+    curl_share_setopt(m_curlShare, CURLSHOPT_SHARE, CURL_LOCK_DATA_COOKIE);
+    curl_share_setopt(m_curlShare, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
+    curl_share_setopt(m_curlShare, CURLSHOPT_SHARE, CURL_LOCK_DATA_SSL_SESSION);
     m_curlRunning = true;
     m_curlWorker = std::make_unique<std::thread>(&UrlClient::curlLoop, this);
 
     // Init at least one task to avoid checking whether m_tasks is empty in
     // startPendingRequests()
-    m_tasks.emplace_back(m_options);
+    m_tasks.emplace_back(*this, m_options);
 }
 
 UrlClient::~UrlClient() {
@@ -239,6 +245,7 @@ UrlClient::~UrlClient() {
         }
     }
     curl_multi_cleanup(m_curlHandle);
+    curl_share_cleanup(m_curlShare);
 }
 
 void UrlClient::curlWakeUp() {
@@ -314,7 +321,7 @@ void UrlClient::startPendingRequests() {
         if (m_requests.empty()) { break; }
 
         if (m_tasks.front().active) {
-            m_tasks.emplace_front(m_options);
+            m_tasks.emplace_front(*this, m_options);
         }
 
         m_activeTasks++;
@@ -333,6 +340,7 @@ void UrlClient::startPendingRequests() {
         const char* url = task.request.url.c_str();
         curl_easy_setopt(task.handle, CURLOPT_URL, url);
 
+        // set custom request headers
         curl_slist_free_all(task.slist);
         task.slist = NULL;
         if (!task.request.headers.empty()) {

@@ -31,6 +31,12 @@ using UrlCallback = std::function<void(UrlResponse&&)>;
 // put all headers in single string separated by newlines for now
 using HttpHeaders = std::string;
 
+struct UrlOptions {
+    std::vector<std::string> subdomains;
+    HttpHeaders headers;
+    bool isTms = false;
+};
+
 using FontSourceLoader = std::function<std::vector<char>()>;
 
 struct FontSourceHandle {

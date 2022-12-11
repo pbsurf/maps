@@ -11,11 +11,6 @@ class Platform;
 class NetworkDataSource : public TileSource::DataSource {
 public:
 
-    struct UrlOptions {
-        std::vector<std::string> subdomains;
-        bool isTms = false;
-    };
-
     NetworkDataSource(Platform& _platform, std::string url, UrlOptions options);
 
     bool loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb _cb) override;

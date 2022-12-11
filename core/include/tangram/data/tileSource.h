@@ -80,8 +80,7 @@ public:
     struct OfflineInfo {
       std::string cacheFile;
       std::string url;
-      std::vector<std::string> urlSubdomains;
-      bool urlIsTms;
+      UrlOptions urlOptions;
     };
 
     /* Tile data sources must have a name and a URL template that defines where to find

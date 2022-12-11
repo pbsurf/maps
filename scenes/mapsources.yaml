@@ -2,6 +2,7 @@
 # - To cache tiles, cache file names must be specified for vector sources as with mapzen-osm below; source
 #  name used for raster cache file name unless overridden (cache: false to disable)
 
+# not updated after 2017?
 mapzen-osm:
     type: Vector
     title: Mapzen OSM
@@ -23,11 +24,13 @@ opentopomap:
     url_subdomains: [a, b, c]
 
 
+# usable for testing headers since http (does not upgrade to https)
 opencyclemap:
     type: Raster
     title: OpenCycleMap
     url: http://{s}.tile.thunderforest.com/cycle/{z}/{x}/{y}.png?apikey=a5dd6a2f1c934394bce6b0fb077203eb
     url_subdomains: [a, b, c]
+    headers: "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:102.0) Gecko/20100101 Firefox/102.0"
 
 
 osm-raster:
@@ -42,7 +45,7 @@ osmand-raster2x:
     type: Raster
     title: OsmAnd OSM 2x
     url: https://tile.osmand.net/hd/{z}/{x}/{y}.png
-    #user-agent: OsmAnd~
+    #headers: "User-Agent: OsmAnd~"
 
 
 osm-raster-terrain:

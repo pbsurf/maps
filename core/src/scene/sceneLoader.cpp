@@ -699,7 +699,7 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
     std::string url;
     std::string mbtiles;
 
-    NetworkDataSource::UrlOptions urlOptions{};
+    UrlOptions urlOptions{};
 
     TileSource::ZoomOptions zoomOptions{};
 
@@ -783,6 +783,17 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
              " include the subdomain placeholder '{s}'.", _name.c_str());
     }
 
+    // custom headers
+    if (auto headersNode = _source["headers"]) {
+        if (headersNode.IsMap()) {
+            for (const auto& hdr : headersNode) {
+                urlOptions.headers += hdr.first.Scalar() + ": " + hdr.second.Scalar() + "\r\n";
+            }
+            urlOptions.headers.resize(std::max(2UL, urlOptions.headers.size()) - 2);  // remove trailing \r\n
+        } else if (headersNode.IsScalar()) {
+          urlOptions.headers = headersNode.Scalar();
+        }
+    }
 
     bool isTiled = NetworkDataSource::urlHasTilePattern(url);
 
@@ -818,7 +829,7 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
             std::string cachename = _source["cache"].as<std::string>("");
             if (cachename.empty()) {
                 LOGW("no cache file specified for source %s", _name.c_str());
-            } else {
+            } else if (cachename != "false") {
                 cachefile = _options.diskCacheDir + cachename + ".mbtiles";
                 auto s = std::make_unique<MBTilesDataSource>(_platform, _name, cachefile, "", true);
                 s->next = std::move(rawSources);
@@ -869,7 +880,7 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
         }
     }
 
-    sourcePtr->setOfflineInfo({cachefile, url, urlOptions.subdomains, urlOptions.isTms});
+    sourcePtr->setOfflineInfo({cachefile, url, urlOptions});
 
     return sourcePtr;
 }

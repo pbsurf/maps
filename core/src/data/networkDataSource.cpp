@@ -110,7 +110,7 @@ bool NetworkDataSource::loadTileData(std::shared_ptr<TileTask> task, TileTaskCb 
     };
 
     auto& dlTask = static_cast<BinaryTileTask&>(*task);
-    dlTask.urlRequestHandle = m_platform.startUrlRequest(url, std::move(onRequestFinish));
+    dlTask.urlRequestHandle = m_platform.startUrlRequest(url, m_options.headers, std::move(onRequestFinish));
     dlTask.urlRequestStarted = true;
 
     return true;
