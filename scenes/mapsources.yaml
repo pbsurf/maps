@@ -1,5 +1,8 @@
-# List w/ many tile sources: https://leaflet-extras.github.io/leaflet-providers/preview/
-# - To cache tiles, cache file names must be specified for vector sources as with mapzen-osm below; source
+# More tile sources:
+# - https://leaflet-extras.github.io/leaflet-providers/preview/
+# - https://github.com/nnngrach/AnyGIS_maps
+# - Aviation maps: http://wms.chartbundle.com/charts/tms.html
+# To cache tiles, cache file names must be specified for vector sources as with mapzen-osm below; source
 #  name used for raster cache file name unless overridden (cache: false to disable)
 
 # not updated after 2017?

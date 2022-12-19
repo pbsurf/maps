@@ -287,8 +287,9 @@ void FontContext::addFont(const FontDescription& _ft, std::vector<char>&& _data)
 
     for (size_t i = 0; i < s_fontRasterSizes.size(); i++) {
         if (auto font = m_alfons.getFont(_ft.alias, s_fontRasterSizes[i])) {
-
-            font->addFace(m_alfons.addFontFace(alfons::InputSource(std::move(_data)), s_fontRasterSizes[i]));
+            // original code used std::move(_data) inside loop ... so only first pass actually got _data
+            // note that this approach results in TTF data being parsed multiple times
+            font->addFace(m_alfons.addFontFace(alfons::InputSource(_data), s_fontRasterSizes[i]));
 
             // add fallbacks from default font
             if (m_font[i]) { font->addFaces(*m_font[i]); }
