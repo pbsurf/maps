@@ -3,6 +3,7 @@
 # - no one uses mapbox schema except mapbox?
 # - sufficiently different from mapzen schema that trying to create schema that works for both (w/ some globals)
 #  isn't practical
+# - mapzen walkabout style is nice, but way too big - nearly 10K lines
 
 global:
     #feature_order: function () { return feature.sort_rank; }
@@ -14,6 +15,7 @@ global:
     color_parks: '#bddec5'
     color_park_detail: '#9dbea5'
     color_industry: '#C0CDCD'
+    color_retail: '#FEF0D0'
     color_civic: '#D9CFC3'
     color_urban_7: lightgrey
     color_urban_9: [.88, .88, .88]
@@ -26,11 +28,14 @@ global:
     color_road: '#fff'
     color_casing_16: '#999'
     color_casing_18: '#aaa'
-    color_motorway_5: '#F89595'
-    color_motorway_7: '#D16768'
-    color_motorway_link: '#aaa'
+    color_motorway: '#FDE293'
+    #color_motorway_5: '#F89595'
+    #color_motorway_7: '#D16768'
+    color_motorway_link: '#FDE293'  #'#aaa'
+    color_motorway_muted: '#eee'
     color_path: '#fff'
     color_transit: '#EB322F'
+    color_rail: [0.588,0.671,0.698]
     color_ferry: '#8db3ce'
     color_runway_13: '#FFE4B5'
     color_runway_16: '#fff'
@@ -50,6 +55,7 @@ global:
     show_bike: true
     show_transit: true
     show_trails: true
+    mute_motorways: false
 
     gui_variables:
         - name: show_bike
@@ -58,6 +64,8 @@ global:
           label: Transit
         - name: show_trails
           label: Hike
+        - name: mute_motorways
+          label: Mute motorways  # in app, this would be set automatically when bike/hike/transit shown
 
 
 fonts:
@@ -73,7 +81,7 @@ fonts:
 
 scene:
     background:
-        color: '#f0ebeb'
+        color: [.97, .955, .94] #'#f0ebeb'
 
 
 cameras:
@@ -137,7 +145,11 @@ styles:
         dash: [3.0, 0.5]
     dashed-tunnel:
         base: lines
+        lighting: false
         dash: [3, 2]
+    unlit-lines:
+        base: lines
+        lighting: false
     transit-lines:
         base: lines
         blend: overlay
@@ -164,7 +176,7 @@ styles:
         shaders:
             blocks:
                 color: |
-                    color = vec4(0.941, 0.922, 0.922, 1.0);
+                    color = vec4(.97, .955, .94, 1.0);
                 normal: |
                     normal = normalize(sampleRaster(0).xyz * 2. - 1.);
 
@@ -177,10 +189,11 @@ sources:
         cache: normals
     osm:
         type: MVT
-        url: file:///home/mwhite/maps/sf.mbtiles
+        #url: file:///home/mwhite/maps/sf.mbtiles
+        #url: http://tiles.basemaps.cartocdn.com/vectortiles/carto.streets/v1/{z}/{x}/{y}.mvt
+        url: https://6ug7hetxl9.execute-api.us-east-2.amazonaws.com/data/v3/{z}/{x}/{y}.pbf
         max_zoom: 14
         rasters: [normals]
-
 
 layers:
     earth:
@@ -245,7 +258,7 @@ layers:
                 draw: { polygons: { visible: true, color: global.color_park_detail } }
             industry:
                 filter: { class: [retail] }  #industrial, commercial
-                draw: { polygons: { visible: true, color: global.color_industry } }
+                draw: { polygons: { visible: true, color: global.color_retail } }
             civic:
                 filter: { class: [university, college] }
                 draw: { polygons: { visible: true, color: global.color_civic } }
@@ -323,6 +336,7 @@ layers:
         filter: { not: { class: transit } }
         draw:
             lines:
+                style: unlit-lines
                 color: global.color_road
                 width: 12
                 order: 40
@@ -341,12 +355,13 @@ layers:
             filter: { brunnel: tunnel }
             priority: 1
             draw: { lines: { style: dashed-tunnel, outline: { width: 0 } } }
-        highway:
+        motorway:
             filter: { class: motorway }
             draw:
                 lines:
                     order: 80
-                    color: [[5, global.color_motorway_5], [7, global.color_motorway_7]]
+                    color: 'function() { return global.mute_motorways ? global.color_motorway_muted : global.color_motorway; }'
+                    #[[5, global.color_motorway_5], [7, global.color_motorway_7]]
                     width: [[5, 1px], [8, 1.5px], [14, 2px], [15, 12]]
                     outline:
                         width: [[14, 0], [15, 2]]
@@ -354,7 +369,7 @@ layers:
                 filter: { ramp: 1 }
                 draw:
                     lines:
-                        color: global.color_motorway_link
+                        #color: global.color_motorway_link
                         width: [[13, 0], [14, 12]]
         major_road:
             filter: { class: [trunk, primary, secondary], $zoom: { min: 10 } }
@@ -394,6 +409,13 @@ layers:
                     outline:
                         width: 0
             #draw: { lines: { width: [[15, 1px], [18, 3px]] } }
+        rail:
+            filter: { class: rail, $zoom: { min: 10 } }
+            draw:
+                lines:
+                    order: 40
+                    color: global.color_rail
+                    width: [[12, 1px], [14, 1px], [16, 2px]]
         ferry:
             filter: { class: ferry }
             draw:
@@ -450,7 +472,10 @@ layers:
         draw:
             text:
                 interactive: true
-                text_source: name
+                text_source: |
+                    function() {
+                       return feature.name.replace(" Avenue", " Ave.").replace(" Street", " St.").replace(" Boulevard", " Blvd.");
+                    }
                 transition: { show: { time: 0s }, hide: { time: 1s } }
                 font:
                     family: Open Sans
@@ -463,6 +488,7 @@ layers:
             filter: { class: motorway, $zoom: {min: 13} }
             draw:
                 text:
+                    visible: function() { return !global.mute_motorways; }
                     repeat_distance: 200px
                     repeat_group: road_labels
                     priority: 2.5
@@ -560,7 +586,7 @@ layers:
 
     bicycle:
         data: { source: osm, layer: transportation }
-        filter: { bicycle: yes }
+        filter: { bicycle: designated }
         enabled: global.show_bike
         draw:
             lines:
@@ -568,8 +594,8 @@ layers:
                 width: 3px
                 order: 120
         dedicated:
-            filter: { class: path }
-            draw: { lines: { color: '#00ff00' } }
+            filter: { bicycle: designated }
+            draw: { lines: { color: '#008000' } }
         unpaved:
             filter: { surface: unpaved }
             draw: { lines: { color: brown } }
@@ -613,7 +639,8 @@ layers:
     peaks:
         data: { source: osm, layer: mountain_peak }
         filter:
-            rank: 1.0  # only the highest peak in each tile
+            #rank: 1.0  # only the highest peak in each tile
+            rank: 2.0  # OSM vector tiles seem to have multiplied rank by 2
             #$zoom: { max: 13 }
             #class: [peak, volcano]  -- not present in carto DB
         draw:

@@ -227,7 +227,7 @@ sources:
         #url: http://tiles.basemaps.cartocdn.com/vectortiles/carto.streets/v1/{z}/{x}/{y}.mvt
         url: file:///home/mwhite/maps/sf.mbtiles
         max_zoom: 14
-        tile_size: 256
+        #tile_size: 256
 
 styles:
     adminlines:

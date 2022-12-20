@@ -161,3 +161,7 @@ core/generated/*.h
 # CLion build directories
 /cmake-build-debug/
 /cmake-build-release/
+
+# fonts
+*.ttf
+*.woff
