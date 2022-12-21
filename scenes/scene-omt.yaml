@@ -140,9 +140,14 @@ styles:
         base: lines
         blend_order: -1
         mix: heightglow
+    # dash only supported for styles, not draw block!
     dashed:
         base: lines
         dash: [3.0, 0.5]
+    dashed-bike:
+        base: lines
+        lighting: false
+        dash: [1.0, 1.0]
     dashed-tunnel:
         base: lines
         lighting: false
@@ -189,9 +194,11 @@ sources:
         cache: normals
     osm:
         type: MVT
-        #url: file:///home/mwhite/maps/sf.mbtiles
+        url: file:///home/mwhite/maps/tilemaker/sf.mbtiles
+        #url: file:///home/mwhite/maps/sf.mbtiles  # maptiler 2017 extract
+        #url: file:///home/mwhite/maps/SanFrancisco-bbbike.mbtiles   # from bbbike.org, but no bike info!
         #url: http://tiles.basemaps.cartocdn.com/vectortiles/carto.streets/v1/{z}/{x}/{y}.mvt
-        url: https://6ug7hetxl9.execute-api.us-east-2.amazonaws.com/data/v3/{z}/{x}/{y}.pbf
+        #url: https://6ug7hetxl9.execute-api.us-east-2.amazonaws.com/data/v3/{z}/{x}/{y}.pbf
         max_zoom: 14
         rasters: [normals]
 
@@ -333,7 +340,7 @@ layers:
 
     transportation:
         data: { source: osm, layer: transportation }
-        filter: { not: { class: transit } }
+        filter: { not: { class: [transit, route] } }
         draw:
             lines:
                 style: unlit-lines
@@ -586,30 +593,72 @@ layers:
 
     bicycle:
         data: { source: osm, layer: transportation }
-        filter: { bicycle: designated }
+        filter:
+            any:
+                - { class: [track, path], bicycle: [designated, yes] }
+                - { class: track, subclass: cycleway }
+                - cycleway: true
+                - cycleway_right: true
+                - cycleway_left: true
         enabled: global.show_bike
         draw:
             lines:
-                color: '#008000'  #global.color_road
-                width: 3px
+                style: unlit-lines
+                color: '#008800'  #global.color_road
+                width: [[13, 2px], [14, 3px]]
                 order: 120
-        dedicated:
-            filter: { bicycle: designated }
-            draw: { lines: { color: '#008000' } }
-        unpaved:
-            filter: { surface: unpaved }
-            draw: { lines: { color: brown } }
+        track:
+            exclusive: true
+            priority: 1
+            filter:
+                any:
+                    - { class: [track, path], bicycle: [designated, yes] }
+                    - { class: track, subclass: cycleway }
+                    - cycleway: [track, opposite_track]
+                    - cycleway_left: [track, opposite_track]
+                    - cycleway_right: [track, opposite_track]
+            draw: { lines: { color: '#004C00' } }
+        lane:
+            exclusive: true
+            priority: 2
+            filter:
+                any:
+                    - cycleway: [lane, opposite_lane]
+                    - cycleway_left: [lane, opposite_lane]
+                    - cycleway_right: [lane, opposite_lane]
+            draw: { lines: { color: '#008800' } }
+        shared:
+            exclusive: true
+            priority: 3
+            filter:
+                any:
+                    - cycleway: [shared_lane, shoulder]
+                    - cycleway_left: [shared_lane, shoulder]
+                    - cycleway_right: [shared_lane, shoulder]
+            draw: { lines: { style: dashed-bike, color: '#008800' } }
+        #unpaved:
+        #    filter: { surface: unpaved }
+        #    draw: { lines: { color: brown } }
 
     transit:
         data: { source: osm, layer: transportation }
-        filter: { class: transit, $zoom: {min: 12} }
+        filter:
+            $zoom: {min: 12}
+            any:
+                - class: transit
+                - { class: route, route: [train, light_rail, subway, tram, monorail] }
         enabled: global.show_transit
         draw:
             lines:
-                width: 12
-                order: 100
-                style: transit-lines
-                color: global.color_transit
+                width: [[13, 3px], [14, 4px]]
+                order: 150
+                #style: transit-lines
+                color: function() { return feature.color || global.color_transit; }
+        secondary:
+            filter: { class: route, route: [light_rail, tram, monorail] }
+            draw:
+                lines:
+                    width: [[13, 2px], [14, 3px]]
 
     buildings:
         data: { source: osm, layer: building }
@@ -771,7 +820,10 @@ layers:
                     draw: { points: { sprite: museum } }
                 station:
                     exclusive: true
-                    filter: { class: [station] }
+                    filter:
+                        any:
+                            - { class: railway, subclass: station }
+                            - class: station
                     draw: { points: { sprite: train, priority: 2.5 } }
                 hospital:
                     exclusive: true
@@ -783,7 +835,11 @@ layers:
                     draw: { points: { sprite: hotel } }
                 bus_stop:
                     exclusive: true
-                    filter: { class: [bus_stop] }
+                    filter:
+                        $zoom: { min: 16 }
+                        any:
+                            - { class: bus, subclass: bus_stop }
+                            - class: bus_stop
                     draw: { points: { sprite: bus } }
                 bookstore:
                     exclusive: true
