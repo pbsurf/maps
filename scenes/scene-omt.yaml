@@ -104,6 +104,7 @@ textures:
             plane: [0, 0, 32, 32]
             tree: [0, 185, 32, 32]
             sunburst: [0, 629, 32, 32]
+            toilet: [0, 740, 32, 32]
             restaurant: [0, 777, 32, 32]
             cafe: [0, 814, 32, 32]
             museum: [0, 518, 32, 32]
@@ -140,10 +141,15 @@ styles:
         base: lines
         blend_order: -1
         mix: heightglow
-    # dash only supported for styles, not draw block!
-    dashed:
+    # dash only supported for styles, not draw block because each dash pattern requires separate shader
+    dashed-path:
         base: lines
+        lighting: false
         dash: [3.0, 0.5]
+    dashed-steps:
+        base: lines
+        lighting: false
+        dash: [0.5, 0.5]
     dashed-bike:
         base: lines
         lighting: false
@@ -399,23 +405,26 @@ layers:
             draw:
                 lines:
                     order: 50
-                    style: dashed
+                    style: dashed-path
                     color: global.color_path
                     width: [[14, 0px], [15, 1px], [18, 3px]]
                     outline:
                         width: 0
-        hiking:
-            enabled: global.show_trails
-            filter: { class: path }
-            draw:
-                lines:
-                    order: 50
-                    style: dashed
-                    color: global.color_path
-                    width: [[15, 1px], [18, 3px]]
-                    outline:
-                        width: 0
-            #draw: { lines: { width: [[15, 1px], [18, 3px]] } }
+            steps:
+                filter: { subclass: steps }
+                draw: { lines: { style: dashed-steps, width: [[14, 0px], [15, 3px], [18, 6px]] } }
+        #hiking:
+        #    enabled: global.show_trails
+        #    filter: { class: path }
+        #    draw:
+        #        lines:
+        #            order: 50
+        #            style: dashed-path
+        #            color: global.color_path
+        #            width: [[15, 1px], [18, 3px]]
+        #            outline:
+        #                width: 0
+        #    #draw: { lines: { width: [[15, 1px], [18, 3px]] } }
         rail:
             filter: { class: rail, $zoom: { min: 10 } }
             draw:
@@ -427,35 +436,11 @@ layers:
             filter: { class: ferry }
             draw:
                 lines:
-                    style: dashed
+                    style: dashed-path
                     color: global.color_ferry
                     width: [[14, 1px], [18, 2px]]
                     outline:
                         width: 0
-        airports:
-            filter: { class: aeroway }
-            draw:
-                lines:
-                    color: global.color_airport
-                    outline:
-                        width: 0
-
-            taxiways:
-                filter: { kind_detail: taxiway }
-                draw:
-                    lines:
-                        width: [[13, 0px], [14, 2px], [17, 10px]]
-
-            runways:
-                filter: { kind_detail: runway }
-                draw:
-                    lines:
-                        color: [[13, global.color_runway_13], [16, global.color_runway_16]]
-                        width: [[11, 3px], [12, 5px], [13, 10px], [15, 75]]
-                        cap: square
-                        outline:
-                            color: global.color_runway_casing
-                            width: [[11, 0px], [12, 1px], [13, 2px], [15, 12.5]]
         road-icons:
             arrows:
                 # oneway arrows and shields are distinct groups!
@@ -481,7 +466,7 @@ layers:
                 interactive: true
                 text_source: |
                     function() {
-                       return feature.name.replace(" Avenue", " Ave.").replace(" Street", " St.").replace(" Boulevard", " Blvd.");
+                       return feature.name.replace(" Avenue", " Ave.").replace(" Street", " St.").replace(" Boulevard", " Blvd.").replace(" Drive", " Dr.");
                     }
                 transition: { show: { time: 0s }, hide: { time: 1s } }
                 font:
@@ -591,6 +576,31 @@ layers:
                         stroke: { color: white, width: 4px }
                         style: italic
 
+    airports:
+        data: { source: osm, layer: aeroway }
+        draw:
+            lines:
+                color: global.color_airport
+                outline:
+                    width: 0
+
+        taxiways:
+            filter: { class: taxiway }
+            draw:
+                lines:
+                    width: [[13, 0px], [14, 2px], [17, 10px]]
+
+        runways:
+            filter: { class: runway }
+            draw:
+                lines:
+                    color: [[13, global.color_runway_13], [16, global.color_runway_16]]
+                    width: [[11, 3px], [12, 5px], [13, 10px], [15, 75]]
+                    cap: square
+                    outline:
+                        color: global.color_runway_casing
+                        width: [[11, 0px], [12, 1px], [13, 2px], [15, 12.5]]
+
     bicycle:
         data: { source: osm, layer: transportation }
         filter:
@@ -647,6 +657,7 @@ layers:
             any:
                 - class: transit
                 - { class: route, route: [train, light_rail, subway, tram, monorail] }
+                - { class: route, route: [bus, trolleybus], $zoom: {min: 14} }
         enabled: global.show_transit
         draw:
             lines:
@@ -654,11 +665,32 @@ layers:
                 order: 150
                 #style: transit-lines
                 color: function() { return feature.color || global.color_transit; }
+            text:
+                interactive: true
+                priority: 10
+                text_source: ref  #'function() { return feature.ref.length < 6 ? feature.ref : ''; }'
+                # non-zero offset bypasses addCurvedTextLabels, which generates massive number of label
+                #  objects, resulting in label collider pegging CPU
+                offset: [0px, -0.5px]
+                repeat_distance: 400px
+                font:
+                    family: Open Sans
+                    fill: white  #'function() { return feature.color == "yellow" ? "#555": "white"; }'
+                    stroke:
+                        color: function() { return feature.color || global.color_transit; }
+                        width: 3
+                    size: 14px
         secondary:
             filter: { class: route, route: [light_rail, tram, monorail] }
             draw:
-                lines:
-                    width: [[13, 2px], [14, 3px]]
+                lines: { width: [[13, 2px], [14, 3px]] }
+                text: { priority: 20 }
+        bus:
+            filter: { class: route, route: [bus, trolleybus] }
+            draw:
+                lines: { width: [[14, 1px], [16, 2px]] }
+                text: { priority: 30 }
+
 
     buildings:
         data: { source: osm, layer: building }
@@ -688,8 +720,8 @@ layers:
     peaks:
         data: { source: osm, layer: mountain_peak }
         filter:
-            #rank: 1.0  # only the highest peak in each tile
-            rank: 2.0  # OSM vector tiles seem to have multiplied rank by 2
+            rank: 1.0  # only the highest peak in each tile
+            ele_ft: true
             #$zoom: { max: 13 }
             #class: [peak, volcano]  -- not present in carto DB
         draw:
@@ -845,6 +877,14 @@ layers:
                     exclusive: true
                     filter: { class: [bookstore] }
                     draw: { points: { sprite: bookstore } }
+                toilet:
+                    exclusive: true
+                    filter: { class: toilets }
+                    draw: { points: { sprite: toilet } }
+                drinking_water:
+                    exclusive: true
+                    filter: { class: [drinking_water, water_point] }
+                    draw: { points: { sprite: info } }
 
     boundaries:
         data: { source: osm, layer: boundary }

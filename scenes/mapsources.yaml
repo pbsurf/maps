@@ -5,10 +5,16 @@
 # To cache tiles, cache file names must be specified for vector sources as with mapzen-osm below; source
 #  name used for raster cache file name unless overridden (cache: false to disable)
 
+omt-osm:
+    type: Vector
+    title: OMT OSM
+    url: scene-omt.yaml
+
+
 # not updated after 2017?
 mapzen-osm:
     type: Vector
-    title: Mapzen OSM
+    title: Mapzen OSM (2017)
     url: scene.yaml
     updates: { sources.osm.cache: mapzen-osm }
 
