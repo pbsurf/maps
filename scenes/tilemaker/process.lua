@@ -138,6 +138,11 @@ pathValues      = Set { "footway", "path", "steps", "pedestrian" }
 linkValues      = Set { "motorway_link", "trunk_link", "primary_link", "secondary_link", "tertiary_link" }
 constructionValues = Set { "primary", "secondary", "tertiary", "motorway", "service", "trunk", "track" }
 
+pavedValues = Set { "paved", "asphalt", "cobblestone", "concrete", "concrete:lanes", "concrete:plates", "metal", "paving_stones", "sett", "unhewn_cobblestone", "wood" }
+unpavedValues = Set { "unpaved", "compacted", "dirt", "earth", "fine_gravel", "grass", "grass_paver", "gravel", "gravel_turf", "ground", "ice", "mud", "pebblestone", "salt", "sand", "snow", "woodchips" }
+
+parkValues = Set { "protected_area", "national_park" }
+
 aerowayBuildings= Set { "terminal", "gate", "tower" }
 landuseKeys     = Set { "school", "university", "kindergarten", "college", "library", "hospital",
                         "railway", "cemetery", "military", "residential", "commercial", "industrial",
@@ -315,8 +320,8 @@ function way_function(way)
     if mainRoadValues[highway]  then              minzoom = 9 end
     if midRoadValues[highway]   then              minzoom = 11 end
     if minorRoadValues[highway] then h = "minor"; minzoom = 12 end
-    if trackValues[highway]     then h = "track"; minzoom = 14 end
-    if pathValues[highway]      then h = "path" ; minzoom = 14 end
+    if trackValues[highway]     then h = "track"; minzoom = 10 end  -- was 14 ... include paths at lower zoom for hiking map
+    if pathValues[highway]      then h = "path" ; minzoom = 10 end  -- was 14
     if h=="service"             then              minzoom = 12 end
 
     -- Links (ramp)
@@ -364,6 +369,7 @@ function way_function(way)
         -- **** TODO
       end
 
+      -- cycling
       local cycleway = way:Find("cycleway")
       if cycleway == "" then
         cycleway = way:Find("cycleway:both")
@@ -385,6 +391,18 @@ function way_function(way)
       local bicycle = way:Find("bicycle")
       if bicycle ~= "" and bicycle ~= "no" then
         way:Attribute("bicycle", bicycle)
+      end
+
+      -- surface
+      local surface = way:Find("surface")
+      if pavedValues[surface] then
+        way:Attribute("surface", "paved")
+      elseif unpavedValues[surface] then
+        way:Attribute("surface", "unpaved")
+      end
+
+      if highway == "path" and way:Find("golf") ~= "" then
+        way:Attribute("subclass", "golf")
       end
 
       -- Write names
@@ -416,7 +434,8 @@ function way_function(way)
   -- Railways ('transportation' and 'transportation_name', plus 'transportation_name_detail')
   if railway~="" then
     way:Layer("transportation", false)
-    way:Attribute("class", railway)
+    way:Attribute("class", "rail")
+    way:Attribute("subclass", railway)
     SetZOrder(way)
     SetBrunnelAttributes(way)
     if service~="" then
@@ -430,6 +449,7 @@ function way_function(way)
     SetNameAttributes(way)
     way:MinZoom(14)
     way:Attribute("class", "rail")
+    way:Attribute("subclass", railway)
   end
 
   -- Pier
@@ -538,6 +558,7 @@ function way_function(way)
       SetNameAttributes(way)
       SetMinZoomByArea(way)
       way:Attribute("class", class)
+      way:AttributeNumeric("area", way:Area())
     end
 
     return -- in case we get any landuse processing
@@ -571,19 +592,42 @@ function way_function(way)
   end
 
   -- Parks
-  -- **** name?
-  if     boundary=="national_park" then way:Layer("park",true); way:Attribute("class",boundary); SetNameAttributes(way)
-  elseif leisure=="nature_reserve" then way:Layer("park",true); way:Attribute("class",leisure ); SetNameAttributes(way) end
+  local write_area = false;
+  if parkValues[boundary] then
+    way:Layer("park",true);
+    way:Attribute("class",boundary);
+    SetNameAttributes(way)
+    write_area = true
+  elseif leisure=="nature_reserve" then
+    way:Layer("park",true);
+    way:Attribute("class",leisure );
+    SetNameAttributes(way)
+    write_area = true
+  end
 
   -- POIs ('poi' and 'poi_detail')
   local rank, class, subclass = GetPOIRank(way)
-  if rank then WritePOI(way,class,subclass,rank); return end
+  if rank then
+    if write_name or write_area then
+      -- if writing area, put in poi instead of poi_detail
+      WritePOI(way,class,subclass, math.min(rank,4));
+      way:AttributeNumeric("area", way:Area())
+    else
+      WritePOI(way,class,subclass,rank);
+    end
+    return
+  end
 
   -- Catch-all
   if (building~="" or write_name) and way:Holds("name") then
     way:LayerAsCentroid("poi_detail")
     SetNameAttributes(way)
-    if write_name then rank=6 else rank=25 end
+    if write_name then
+      rank=6
+      way:AttributeNumeric("area", way:Area())
+    else
+      rank=25
+    end
     way:AttributeNumeric("rank", rank)
   end
 end
@@ -613,7 +657,6 @@ function WritePOI(obj,class,subclass,rank)
   obj:AttributeNumeric("rank", rank)
   obj:Attribute("class", class)
   obj:Attribute("subclass", subclass)
-  obj:Attribute("osm_id", obj:Id())
 end
 
 -- Set name attributes on any object
@@ -636,6 +679,8 @@ function SetNameAttributes(obj)
     if iname=="" then iname=name end
     if iname~=main_written then obj:Attribute("name:"..lang, iname) end
   end
+  -- add OSM id
+  obj:Attribute("osm_id", obj:Id())
 end
 
 -- Set ele and ele_ft on any object

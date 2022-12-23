@@ -14,6 +14,7 @@ global:
     color_landuse: honeydew
     color_parks: '#bddec5'
     color_park_detail: '#9dbea5'
+    color_golf: hsl(124, 83%, 88%)  #'#C8FACC'
     color_industry: '#C0CDCD'
     color_retail: '#FEF0D0'
     color_civic: '#D9CFC3'
@@ -22,12 +23,14 @@ global:
     color_water: '#9dc3de'
     color_water_name: "#51909c"
     color_water_halo: "#e2eef0"
-    color_beach: [1.000,0.953,0.900]
+    color_beach: '#FEEFC3'  #[1.000,0.953,0.900]
     color_ice: white
     color_rock: grey
     color_road: '#fff'
     color_casing_16: '#999'
     color_casing_18: '#aaa'
+    color_tunnel: '#E3E3E3'
+    color_tunnel_casing: '#A0A0A0'
     color_motorway: '#FDE293'
     #color_motorway_5: '#F89595'
     #color_motorway_7: '#D16768'
@@ -52,9 +55,9 @@ global:
     color_bldg_3d: [.83, .83, .83, 0.5]
     color_bldg_3d_line: [.75, .75, .73, 0.5]
 
-    show_bike: true
-    show_transit: true
-    show_trails: true
+    show_bike: false
+    show_transit: false
+    show_trails: false
     mute_motorways: false
 
     gui_variables:
@@ -146,6 +149,10 @@ styles:
         base: lines
         lighting: false
         dash: [3.0, 0.5]
+    dashed-track:
+        base: lines
+        lighting: false
+        dash: [2.5, 1.0]
     dashed-steps:
         base: lines
         lighting: false
@@ -154,10 +161,10 @@ styles:
         base: lines
         lighting: false
         dash: [1.0, 1.0]
-    dashed-tunnel:
-        base: lines
-        lighting: false
-        dash: [3, 2]
+    #dashed-tunnel:
+    #    base: lines
+    #    lighting: false
+    #    dash: [3, 2]
     unlit-lines:
         base: lines
         lighting: false
@@ -239,11 +246,18 @@ layers:
             draw:
                 polygons:
                     style: terrain
-                    order: 1
+                    order: 3
                     color: global.color_landuse
             green:
                 filter: { class: [wood, grass, farmland, wetland] }
                 draw: { polygons: { color: global.color_parks } }
+                # golf course can be inside park, so make sure it is drawn on top
+                golf:
+                    filter: { subclass: golf_course }
+                    draw: { polygons: { order: 2, color: global.color_golf } }
+                park:
+                    filter: { subclass: park }
+                    draw: { polygons: { order: 1, color: global.color_parks } }
             beach:
                 filter: { class: sand }
                 draw: { polygons: { color: global.color_beach } }
@@ -303,7 +317,10 @@ layers:
 
     water_name:
         data: { source: osm, layer: water_name }
-        #filter: { name: true }
+        filter:
+            #name: true
+            - $zoom: { min: 17 }
+            - area: { min: 500px2 }
         draw:
             text:
                 #interactive: true
@@ -365,9 +382,9 @@ layers:
             priority: 1
             draw: { lines: { order: 100 } }
         tunnel:
-            filter: { brunnel: tunnel }
+            filter: { brunnel: tunnel, $zoom: { min: 14 } }
             priority: 1
-            draw: { lines: { style: dashed-tunnel, outline: { width: 0 } } }
+            draw: { lines: { color: global.color_tunnel, outline: { color: global.color_tunnel_casing } } }
         motorway:
             filter: { class: motorway }
             draw:
@@ -400,6 +417,12 @@ layers:
                     width: [[13, 0px], [14, 1px], [15, 8]]
                     outline:
                         width: [[17, 0], [18, 1]]
+            service:
+                filter: { class: service }
+                draw: { lines: { width: [[15, 0px], [16, 4px], [17, 8]] } }
+            parking:
+                filter: { service: parking_aisle }
+                draw: { lines: { width: [[15, 0px], [16, 2px], [17, 4]] } }
         paths:
             filter: { class: path }
             draw:
@@ -413,18 +436,25 @@ layers:
             steps:
                 filter: { subclass: steps }
                 draw: { lines: { style: dashed-steps, width: [[14, 0px], [15, 3px], [18, 6px]] } }
-        #hiking:
-        #    enabled: global.show_trails
-        #    filter: { class: path }
-        #    draw:
-        #        lines:
-        #            order: 50
-        #            style: dashed-path
-        #            color: global.color_path
-        #            width: [[15, 1px], [18, 3px]]
-        #            outline:
-        #                width: 0
-        #    #draw: { lines: { width: [[15, 1px], [18, 3px]] } }
+            unpaved:
+                enabled: global.show_trails
+                filter:
+                    - subclass: false  # highway=path in OSM
+                    - { subclass: footway, surface: unpaved }
+                draw: { lines: { color: '#B06000', width: [[10, 1px], [18, 3px]] } }
+
+        tracks:
+            filter: { class: track }
+            draw:
+                lines:
+                    order: 50
+                    style: dashed-track
+                    color: global.color_path
+                    width: [[14, 1px], [15, 2px], [18, 4px]]
+                    outline:
+                        width: 0
+
+        # unpaved road: dashed w/ outline?  track: same as unpaved road if motor_vehicle: yes, otherwise like path
         rail:
             filter: { class: rail, $zoom: { min: 10 } }
             draw:
@@ -432,6 +462,12 @@ layers:
                     order: 40
                     color: global.color_rail
                     width: [[12, 1px], [14, 1px], [16, 2px]]
+            tunnel:
+                filter: { brunnel: tunnel }
+                draw: { lines: { width: [[16, 0px], [17, 2px]] } }
+            hidden:
+                filter: { not: { subclass: [rail, light_rail, narrow_gauge, tram, funicular] } }
+                draw: { lines: { visible: false } }
         ferry:
             filter: { class: ferry }
             draw:
@@ -466,7 +502,7 @@ layers:
                 interactive: true
                 text_source: |
                     function() {
-                       return feature.name.replace(" Avenue", " Ave.").replace(" Street", " St.").replace(" Boulevard", " Blvd.").replace(" Drive", " Dr.");
+                       return feature.name.replace(" Avenue", " Ave.").replace(" Street", " St.").replace(" Boulevard", " Blvd.").replace(" Drive", " Dr.").replace(" Lane", " Ln.").replace(" Road", " Rd.");
                     }
                 transition: { show: { time: 0s }, hide: { time: 1s } }
                 font:
@@ -628,6 +664,9 @@ layers:
                     - cycleway_left: [track, opposite_track]
                     - cycleway_right: [track, opposite_track]
             draw: { lines: { color: '#004C00' } }
+            unpaved:
+                filter: { surface: unpaved }
+                draw: { lines: { style: dashed-bike, color: '#B06000' } }
         lane:
             exclusive: true
             priority: 2
@@ -646,9 +685,6 @@ layers:
                     - cycleway_left: [shared_lane, shoulder]
                     - cycleway_right: [shared_lane, shoulder]
             draw: { lines: { style: dashed-bike, color: '#008800' } }
-        #unpaved:
-        #    filter: { surface: unpaved }
-        #    draw: { lines: { color: brown } }
 
     transit:
         data: { source: osm, layer: transportation }
@@ -719,6 +755,7 @@ layers:
 
     peaks:
         data: { source: osm, layer: mountain_peak }
+        enabled: global.show_trails
         filter:
             rank: 1.0  # only the highest peak in each tile
             ele_ft: true
@@ -762,10 +799,11 @@ layers:
             exclusive: true
             priority: 1
             filter:
-                class: [park, cemetery, graveyard]
+                class: [park, cemetery, graveyard, golf]
+                name: true
                 any:
-                    - { $zoom: { min: 16 } }
-                    #- { area: { min: 500px2 } }
+                    - { $zoom: { min: 17 } }
+                    - { area: { min: 2000px2 } }
             draw:
                 points:
                     sprite: tree
@@ -817,7 +855,8 @@ layers:
             labels:
                 filter:
                     - { $zoom: { min: 17 } }
-                    - { $zoom: { min: 16 }, class: station }
+                    - { $zoom: { min: 16 }, class: [station, college] }
+                    - { area: { min: 2000px2 }, class: [college] }
                 draw:
                     points:
                         text:
@@ -834,6 +873,10 @@ layers:
 
             # examples of different points mapped to feature properties
             points:
+                university:
+                    exclusive: true
+                    filter: { class: [college] }
+                    draw: { points: { sprite: museum } }
                 restaurant:
                     exclusive: true
                     filter: { class: [restaurant] }
@@ -866,6 +909,7 @@ layers:
                     filter: { class: [hotel, hostel] }
                     draw: { points: { sprite: hotel } }
                 bus_stop:
+                    enabled: global.show_transit
                     exclusive: true
                     filter:
                         $zoom: { min: 16 }
