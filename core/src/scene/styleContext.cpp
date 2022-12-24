@@ -230,12 +230,15 @@ bool StyleContext::evalStyle(FunctionID _id, StyleParamKey _key, StyleParam::Val
             case StyleParamKey::interactive:
             case StyleParamKey::text_interactive:
             case StyleParamKey::visible:
+            case StyleParamKey::text_visible:
+            case StyleParamKey::text_optional:
                 _val = value;
                 break;
             case StyleParamKey::extrude:
                 _val = value ? glm::vec2(NAN, NAN) : glm::vec2(0.0f, 0.0f);
                 break;
             default:
+                LOGW("Unused bool return type from Javascript style function for %d.", _key);
                 break;
         }
 
@@ -274,6 +277,7 @@ bool StyleContext::evalStyle(FunctionID _id, StyleParamKey _key, StyleParam::Val
                 break;
             }
             default:
+                LOGW("Unused array return type from Javascript style function for %d.", _key);
                 break;
         }
     } else if (jsValue.isNumber()) {
@@ -329,6 +333,7 @@ bool StyleContext::evalStyle(FunctionID _id, StyleParamKey _key, StyleParam::Val
                 break;
             }
             default:
+                LOGW("Unused numeric return type from Javascript style function for %d.", _key);
                 break;
         }
     } else if (jsValue.isUndefined()) {

@@ -30,6 +30,13 @@ DuktapeContext::DuktapeContext() {
     duk_push_number(_ctx, GeometryType::polygons);
     duk_put_global_string(_ctx, "polygon");
 
+    // console.log
+    duk_idx_t consoleObj = duk_push_object(_ctx);
+    // Add 'get' property to handler
+    duk_push_c_function(_ctx, jsConsoleLog, 1 /*nargs*/);
+    duk_put_prop_string(_ctx, consoleObj, "log");
+    duk_put_global_string(_ctx, "console");
+
     //// Create global 'feature' object
     // Get Proxy constructor
     // -> [cons]
@@ -177,6 +184,12 @@ JSScopeMarker DuktapeContext::getScopeMarker() {
 
 void DuktapeContext::resetToScopeMarker(JSScopeMarker marker) {
     duk_set_top(_ctx, marker);
+}
+
+int DuktapeContext::jsConsoleLog(duk_context *_ctx) {
+  const char* msg = duk_require_string(_ctx, 0);
+  logMsg("JS LOG %s\n", msg);
+  return 0;
 }
 
 // Implements Proxy handler.has(target_object, key)

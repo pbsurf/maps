@@ -11,6 +11,7 @@ global:
 
     camera_settings: { type: isometric, axis: [-.2, .2] }
 
+    # TODO: globals can be nested, so replace global.color_ with global.color.
     color_landuse: honeydew
     color_parks: '#bddec5'
     color_park_detail: '#9dbea5'
@@ -54,6 +55,30 @@ global:
     color_bldg: [.83, .83, .83]
     color_bldg_3d: [.83, .83, .83, 0.5]
     color_bldg_3d_line: [.75, .75, .73, 0.5]
+
+    # priorities for colliding objects (points and text)
+    priority_boundary: 0
+    priority_continent: 10
+    priority_place: 10
+    priority_neighborhood: 10
+    priority_park: 25
+    priority_forest: 25
+    priority_poi: 60
+    # road labels
+    priority_motorway_name: 25
+    priority_motorway_ref: 25
+    priority_road_primary: 30
+    priority_road_secondary: 40
+    priority_road_tertiary: 50
+    priority_road_minor: 60
+    # transit line labels
+    priority_transit_ref: 100
+    priority_transit_ref_tram: 200
+    priority_transit_ref_bus: 300
+    # transit stops
+    priority_bus_stop: 20  # bus stops only shown when show_transit = true
+    priority_station_transit: 5 # transit station priority when show_transit = true
+    priority_station_default: 55  # transit station priority when show_transit = false
 
     show_bike: false
     show_transit: false
@@ -229,7 +254,7 @@ layers:
             filter: { class: continent, $geometry: point }
             draw:
                 text:
-                    priority: 1
+                    priority: global.priority_continent
                     font:
                         family: Open Sans
                         size: 12px
@@ -519,7 +544,7 @@ layers:
                     visible: function() { return !global.mute_motorways; }
                     repeat_distance: 200px
                     repeat_group: road_labels
-                    priority: 2.5
+                    priority: global.priority_motorway_name
                     font:
                         stroke: { color: white, width: 4 }
                         transform: capitalize
@@ -533,7 +558,7 @@ layers:
                     texture: pois
                     sprite: shield
                     # sprite: function() { return feature.network }
-                    priority: 2.5
+                    priority: global.priority_motorway_ref
                     color: white
                     size: 24px
                     placement: midpoint
@@ -564,7 +589,7 @@ layers:
                 text:
                     repeat_distance: 100px
                     repeat_group: roads
-                    priority: 3
+                    priority: global.priority_road_primary
                     font:
                         size: 14px
                         stroke: { color: white, width: 4 }
@@ -576,7 +601,7 @@ layers:
                 text:
                     repeat_distance: 100px
                     repeat_group: roads
-                    priority: 4
+                    priority: global.priority_road_secondary
                     font:
                         size: 14px
                         stroke: { color: white, width: 4 }
@@ -586,7 +611,7 @@ layers:
             filter: { class: tertiary, $zoom: { min: 15 } }
             draw:
                 text:
-                    priority: 5
+                    priority: global.priority_road_tertiary
                     font:
                         size: 12px
                         stroke: { color: white, width: 4 }
@@ -596,7 +621,7 @@ layers:
             filter: { class: minor, $zoom: { min: 16 } }
             draw:
                 text:
-                    priority: 6
+                    priority: global.priority_road_minor
                     font:
                         size: 10px
                         stroke: { color: white, width: 4 }
@@ -703,7 +728,7 @@ layers:
                 color: function() { return feature.color || global.color_transit; }
             text:
                 interactive: true
-                priority: 10
+                priority: global.priority_transit_ref
                 text_source: ref  #'function() { return feature.ref.length < 6 ? feature.ref : ''; }'
                 # non-zero offset bypasses addCurvedTextLabels, which generates massive number of label
                 #  objects, resulting in label collider pegging CPU
@@ -720,12 +745,12 @@ layers:
             filter: { class: route, route: [light_rail, tram, monorail] }
             draw:
                 lines: { width: [[13, 2px], [14, 3px]] }
-                text: { priority: 20 }
+                text: { priority: global.priority_transit_ref_tram }
         bus:
             filter: { class: route, route: [bus, trolleybus] }
             draw:
                 lines: { width: [[14, 1px], [16, 2px]] }
-                text: { priority: 30 }
+                text: { priority: global.priority_transit_ref_bus }
 
 
     buildings:
@@ -807,7 +832,7 @@ layers:
             draw:
                 points:
                     sprite: tree
-                    priority: 2.5
+                    priority: global.priority_park
                     size: 16px
                     text:
                         font:
@@ -828,25 +853,64 @@ layers:
                 points:
                     visible: false
                 text:
-                    priority: 2.5
+                    priority: global.priority_forest
                     font:
                         size: 9pt
                         style: italic
                         fill: darkgreen
                         stroke: { color: white, width: 3 }
 
+        transit:
+            exclusive: true
+            priority: 3
+            filter:
+                class: [railway, bus, bus_stop, station]
+                $zoom: { min: 13 }
+            draw:
+                points:
+                    size: [[13, 12px], [15, 18px]]
+                    interactive: true
+                    text:
+                        visible: false
+            # show_transit: stations at 13, station labels at 14; default: stations at 15, station labels at 16
+            # - trying to implement this logic w/o using JS functions was a horrible disaster
+            station:
+                filter:
+                    - { class: railway, subclass: station }
+                    - class: station
+                draw:
+                    points:
+                        visible: 'function() { return $zoom >= (global.show_transit ? 13 : 15); }'
+                        priority: 'function() { return global.show_transit ? global.priority_station_transit : global.priority_station_default; }'
+                        sprite: train
+                        text:
+                            visible: 'function() { return $zoom >= (global.show_transit ? 14 : 16); }'
+                            optional: 'function() { return !global.show_transit; }'
+                            font:
+                                size: 12px
+                                fill: black
+                                stroke: { color: white, width: 3 }
+            bus_stop:
+                enabled: global.show_transit
+                filter:
+                    $zoom: { min: 16 }
+                    any:
+                        - { class: bus, subclass: bus_stop }
+                        - class: bus_stop
+                draw: { points: { sprite: bus, priority: global.priority_bus_stop } }
+
         not_landuse:
             exclusive: true
             filter:
-                name: true
+                #name: true
                 not:
-                    class: [viewpoint, bicycle_rental, car_sharing]
+                    class: [bicycle_rental, car_sharing]
                 $zoom: { min: 15 }
             draw:
                 points:
                     size: [[13, 12px], [15, 18px]]
                     interactive: true
-                    priority: 6
+                    priority: global.priority_poi
                     text:
                         optional: true
                         visible: false
@@ -855,7 +919,6 @@ layers:
             labels:
                 filter:
                     - { $zoom: { min: 17 } }
-                    - { $zoom: { min: 16 }, class: [station, college] }
                     - { area: { min: 2000px2 }, class: [college] }
                 draw:
                     points:
@@ -868,11 +931,19 @@ layers:
 
             # add generic icon at high zoom
             generic:
-                filter: { $zoom: { min: 18 } }
+                filter: { $zoom: { min: 18 }, name: true }
                 draw: { points: { sprite: info } }
 
             # examples of different points mapped to feature properties
             points:
+                viewpoint:
+                    exclusive: true
+                    filter: { $zoom: { min: 15 }, class: attraction, subclass: viewpoint }
+                    draw: { points: { sprite: info, visible: global.show_trails } }
+                parking:
+                    exclusive: true
+                    filter: { class: amenity, subclass: parking }
+                    draw: { points: { sprite: parking, visible: global.show_trails } }   # parking == trailhead!
                 university:
                     exclusive: true
                     filter: { class: [college] }
@@ -893,13 +964,6 @@ layers:
                     exclusive: true
                     filter: { class: [museum, library, church, place_of_worship, bank] }
                     draw: { points: { sprite: museum } }
-                station:
-                    exclusive: true
-                    filter:
-                        any:
-                            - { class: railway, subclass: station }
-                            - class: station
-                    draw: { points: { sprite: train, priority: 2.5 } }
                 hospital:
                     exclusive: true
                     filter: { class: [hospital, pharmacy] }
@@ -908,26 +972,17 @@ layers:
                     exclusive: true
                     filter: { class: [hotel, hostel] }
                     draw: { points: { sprite: hotel } }
-                bus_stop:
-                    enabled: global.show_transit
-                    exclusive: true
-                    filter:
-                        $zoom: { min: 16 }
-                        any:
-                            - { class: bus, subclass: bus_stop }
-                            - class: bus_stop
-                    draw: { points: { sprite: bus } }
                 bookstore:
                     exclusive: true
                     filter: { class: [bookstore] }
                     draw: { points: { sprite: bookstore } }
                 toilet:
                     exclusive: true
-                    filter: { class: toilets }
+                    filter: { class: amenity, subclass: toilets, $zoom: { min: 18 } }
                     draw: { points: { sprite: toilet } }
                 drinking_water:
                     exclusive: true
-                    filter: { class: [drinking_water, water_point] }
+                    filter: { class: amenity, subclass: [drinking_water, water_point], $zoom: { min: 18 } }
                     draw: { points: { sprite: info } }
 
     boundaries:
@@ -940,7 +995,7 @@ layers:
                 color: global.color_border
 
             text:
-                priority: 0
+                priority: global.priority_boundary
                 text_source:
                     left: 'adm0_l'
                     right: 'adm0_r'
@@ -979,7 +1034,7 @@ layers:
                     size: 8px
                     color: global.color_city_point
                     text:
-                        priority: 1
+                        priority: global.priority_place
                         font:
                             family: Open Sans
                             fill: global.color_place_name
@@ -993,7 +1048,7 @@ layers:
             draw:
                 text:
                     visible: false
-                    priority: 1
+                    priority: global.priority_place
                     font:
                         family: Open Sans
                         size: 12px
@@ -1054,6 +1109,7 @@ layers:
                     #- { class: microhood, $zoom: { min: 15 } }
                 draw:
                     text:
+                        priority: global.priority_neighborhood
                         visible: true
                         font:
                             size: [[13, 11px], [14, 11px], [15, 13px]]

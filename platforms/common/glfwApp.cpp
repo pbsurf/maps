@@ -126,21 +126,21 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
             case GLFW_KEY_M:
                 map->loadSceneYamlAsync("{ scene: { background: { color: red } } }", std::string(""));
                 break;
-            case GLFW_KEY_G:
-                {
-                    static bool geoJSON = false;
-                    if (!geoJSON) {
-                        app->loadSceneFile(false,
-                                      { SceneUpdate{"sources.osm.type", "GeoJSON"},
-                                        SceneUpdate{"sources.osm.url", "https://tile.mapzen.com/mapzen/vector/v1/all/{z}/{x}/{y}.json"}});
-                    } else {
-                        app->loadSceneFile(false,
-                                      { SceneUpdate{"sources.osm.type", "MVT"},
-                                        SceneUpdate{"sources.osm.url", "https://tile.mapzen.com/mapzen/vector/v1/all/{z}/{x}/{y}.mvt"}});
-                    }
-                    geoJSON = !geoJSON;
-                }
-                break;
+            //case GLFW_KEY_G:
+            //    {
+            //        static bool geoJSON = false;
+            //        if (!geoJSON) {
+            //            app->loadSceneFile(false,
+            //                          { SceneUpdate{"sources.osm.type", "GeoJSON"},
+            //                            SceneUpdate{"sources.osm.url", "https://tile.mapzen.com/mapzen/vector/v1/all/{z}/{x}/{y}.json"}});
+            //        } else {
+            //            app->loadSceneFile(false,
+            //                          { SceneUpdate{"sources.osm.type", "MVT"},
+            //                            SceneUpdate{"sources.osm.url", "https://tile.mapzen.com/mapzen/vector/v1/all/{z}/{x}/{y}.mvt"}});
+            //        }
+            //        geoJSON = !geoJSON;
+            //    }
+            //    break;
             case GLFW_KEY_ESCAPE:
                 glfwSetWindowShouldClose(window, true);
                 break;

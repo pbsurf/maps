@@ -310,6 +310,9 @@ function way_function(way)
   if highway~="" then
     local access = way:Find("access")
     if access=="private" or access=="no" then return end
+    -- most footways are sidewalks or crossings, which are mapped inconsistently so just add clutter and
+    --  confusion the map; we could consider keeping footway=="alley"
+    if highway == "footway" and way:Find("footway") ~= "" then return end
 
     local h = highway
     local minzoom = 99
