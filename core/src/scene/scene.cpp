@@ -445,8 +445,20 @@ void Scene::runTextureTasks() {
                 /// Decode texture on download thread.
                 auto data = reinterpret_cast<const uint8_t*>(response.content.data());
                 auto& texture = task.texture;
-                if (!texture->loadImageFromMemory(data, response.content.size())) {
-                    LOGE("Invalid texture data from URL '%s'", task.url.string().c_str());
+                if (Url::getPathExtension(task.url.string()) == "svg") {
+#ifdef TANGRAM_SVG_LOADER
+                    int w, h;
+                    auto imgdata = tangramLoadSvg((char*)data, 1.0f, w, h);
+                    if (imgdata.empty() || !texture->setPixelData(w, h, 4, imgdata.data(), imgdata.size())) {
+                        LOGE("Error loading texture data from URL '%s'", task.url.string().c_str());
+                    }
+#else
+                    LOGE("SVG support not enabled - cannot load '%s'", task.url.string().c_str());
+#endif
+                } else {
+                    if (!texture->loadImageFromMemory(data, response.content.size())) {
+                        LOGE("Invalid texture data from URL '%s'", task.url.string().c_str());
+                    }
                 }
                 if (auto& sprites = texture->spriteAtlas()) {
                     sprites->updateSpriteNodes({texture->width(), texture->height()});

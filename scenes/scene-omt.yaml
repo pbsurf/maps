@@ -127,6 +127,30 @@ lights:
 
 textures:
     pois:
+        url: img/pois.svg
+        sprites:
+            restaurant: [0, 0, 64, 64]
+            cafe: [64, 0, 64, 64]
+            bar: [128, 0, 64, 64]
+            grocery: [0, 64, 64, 64]
+            convenience: [64, 64, 64, 64]
+            shop: [128, 64, 64, 64]
+            bookstore: [196, 64, 64, 64]
+            hotel: [0, 128, 64, 64]
+            generic: [64, 128, 64, 64]
+            university: [0, 196, 64, 64]
+            museum: [64, 196, 64, 64]
+            tree: [0, 256, 64, 64]
+            golf: [64, 256, 64, 64]
+            drinking_water: [0, 320, 64, 64]
+            viewpoint: [64, 320, 64, 64]
+            toilet: [128, 320, 64, 64]
+            parking: [196, 320, 64, 64]
+            bus: [256, 320, 64, 64]
+            train: [320, 320, 64, 64]
+            hospital: [0, 384, 64, 64]
+
+    old-pois:
         url: img/poi_icons_32.png
         sprites:
             plane: [0, 0, 32, 32]
@@ -152,11 +176,11 @@ textures:
 
 
 styles:
-    icons:
-        base: points
-        texture: pois
-        draw:
-            interactive: true
+    #icons:
+    #    base: points
+    #    texture: pois
+    #    draw:
+    #        interactive: true
     heightglow:
         base: polygons
         blend: translucent
@@ -509,7 +533,7 @@ layers:
                 filter: { oneway: 1, $zoom: { min: 17 } }
                 draw:
                     points:
-                        texture: pois
+                        texture: old-pois
                         flat: true
                         sprite: arrow
                         size: [[17, 18px], [18, 20px], [20, 32px]]
@@ -555,7 +579,7 @@ layers:
                 network: us-interstate
             draw:
                 points:
-                    texture: pois
+                    texture: old-pois
                     sprite: shield
                     # sprite: function() { return feature.network }
                     priority: global.priority_motorway_ref
@@ -932,14 +956,14 @@ layers:
             # add generic icon at high zoom
             generic:
                 filter: { $zoom: { min: 18 }, name: true }
-                draw: { points: { sprite: info } }
+                draw: { points: { sprite: generic } }
 
             # examples of different points mapped to feature properties
             points:
                 viewpoint:
                     exclusive: true
-                    filter: { $zoom: { min: 15 }, class: attraction, subclass: viewpoint }
-                    draw: { points: { sprite: info, visible: global.show_trails } }
+                    filter: { class: attraction, subclass: viewpoint }
+                    draw: { points: { sprite: viewpoint, visible: global.show_trails } }
                 parking:
                     exclusive: true
                     filter: { class: amenity, subclass: parking }
@@ -950,7 +974,9 @@ layers:
                     draw: { points: { sprite: museum } }
                 restaurant:
                     exclusive: true
-                    filter: { class: [restaurant] }
+                    filter:
+                        - class: restaurant
+                        - { class: amenity, subclass: resturant }
                     draw: { points: { sprite: restaurant } }
                 cafe:
                     exclusive: true
@@ -983,7 +1009,7 @@ layers:
                 drinking_water:
                     exclusive: true
                     filter: { class: amenity, subclass: [drinking_water, water_point], $zoom: { min: 18 } }
-                    draw: { points: { sprite: info } }
+                    draw: { points: { sprite: drinking_water } }
 
     boundaries:
         data: { source: osm, layer: boundary }
