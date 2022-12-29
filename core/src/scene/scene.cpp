@@ -447,9 +447,7 @@ void Scene::runTextureTasks() {
                 auto& texture = task.texture;
                 if (Url::getPathExtension(task.url.string()) == "svg") {
 #ifdef TANGRAM_SVG_LOADER
-                    int w, h;
-                    auto imgdata = userLoadSvg((char*)data, 1.0f, w, h);
-                    if (imgdata.empty() || !texture->setPixelData(w, h, 4, imgdata.data(), imgdata.size())) {
+                    if (!userLoadSvg((char*)data, texture.get())) {
                         LOGE("Error loading texture data from URL '%s'", task.url.string().c_str());
                     }
 #else

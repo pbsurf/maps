@@ -129,49 +129,8 @@ textures:
     pois:
         url: img/pois.svg
         density: 2
-        sprites:
-            restaurant: [0, 0, 64, 64]
-            cafe: [64, 0, 64, 64]
-            bar: [128, 0, 64, 64]
-            grocery: [0, 64, 64, 64]
-            convenience: [64, 64, 64, 64]
-            shop: [128, 64, 64, 64]
-            bookstore: [196, 64, 64, 64]
-            hotel: [0, 128, 64, 64]
-            generic: [64, 128, 64, 64]
-            peak: [128, 128, 64, 64]
-            university: [0, 196, 64, 64]
-            museum: [64, 196, 64, 64]
-            tree: [0, 256, 64, 64]
-            golf: [64, 256, 64, 64]
-            drinking_water: [0, 320, 64, 64]
-            viewpoint: [64, 320, 64, 64]
-            toilet: [128, 320, 64, 64]
-            parking: [196, 320, 64, 64]
-            bus: [256, 320, 64, 64]
-            train: [320, 320, 64, 64]
-            hospital: [0, 384, 64, 64]
+        # sprites set from svg ids
 
-    old-pois:
-        url: img/poi_icons_32.png
-        sprites:
-            plane: [0, 0, 32, 32]
-            tree: [0, 185, 32, 32]
-            sunburst: [0, 629, 32, 32]
-            toilet: [0, 740, 32, 32]
-            restaurant: [0, 777, 32, 32]
-            cafe: [0, 814, 32, 32]
-            museum: [0, 518, 32, 32]
-            bar: [0, 887, 32, 32]
-            train: [0, 74, 32, 32]
-            bus: [0, 148, 32, 32]
-            hospital: [0, 444, 32, 32]
-            parking: [0, 1073, 32, 32]
-            info: [0, 1110, 32, 32]
-            hotel: [0, 259, 32, 32]
-            bookstore: [0, 333, 32, 32]
-            shield: [0, 1142, 32, 32]
-            arrow: [1, 1175, 22, 22]
     marker-stroked:
         url: img/marker-stroked.png
         density: 2
@@ -535,7 +494,7 @@ layers:
                 filter: { oneway: 1, $zoom: { min: 17 } }
                 draw:
                     points:
-                        texture: old-pois
+                        texture: pois
                         flat: true
                         sprite: arrow
                         size: [[17, 18px], [18, 20px], [20, 32px]]
@@ -581,7 +540,7 @@ layers:
                 network: us-interstate
             draw:
                 points:
-                    texture: old-pois
+                    texture: pois
                     sprite: shield
                     # sprite: function() { return feature.network }
                     priority: global.priority_motorway_ref
@@ -836,6 +795,7 @@ layers:
         draw:
             points:
                 texture: pois
+                size: [[13, 16px], [15, 20px]]
                 interactive: true
                 collide: true
                 transition: { show: { time: 0s }, hide: { time: 1s } }
@@ -859,13 +819,15 @@ layers:
                 points:
                     sprite: tree
                     priority: global.priority_park
-                    size: 16px
                     text:
                         font:
                             size: 10pt
                             style: italic
                             fill: darkgreen
                             stroke: { color: white, width: 3 }
+            golf:
+                filter: { class: golf }
+                draw: { points: { sprite: golf } }
 
         forest:
             exclusive: true
@@ -934,7 +896,6 @@ layers:
                 $zoom: { min: 15 }
             draw:
                 points:
-                    size: [[13, 12px], [15, 18px]]
                     interactive: true
                     priority: global.priority_poi
                     text:
@@ -973,37 +934,125 @@ layers:
                 university:
                     exclusive: true
                     filter: { class: [college] }
-                    draw: { points: { sprite: museum } }
+                    draw: { points: { sprite: university } }
                 restaurant:
                     exclusive: true
                     filter:
-                        - class: restaurant
-                        - { class: amenity, subclass: restaurant }
+                        - class: [restaurant, fast_food, ice_cream]
+                        - { class: amenity, subclass: [restaurant, ice_cream] }
                     draw: { points: { sprite: restaurant } }
+                grocery:
+                    exclusive: true
+                    filter:
+                        - class: [grocery]
+                        - { class: shop, subclass: [seafood, butcher] }
+                    draw: { points: { sprite: grocery } }
+                convenience:
+                    exclusive: true
+                    filter:
+                        - class: [grocery]
+                        - { class: shop, subclass: convenience }
+                    draw: { points: { sprite: convenience } }
+                liquor:
+                    exclusive: true
+                    filter: { class: [alcohol_shop] }
+                    draw: { points: { sprite: liquor } }
+                clothes:
+                    exclusive: true
+                    filter: { class: [clothing_store] }
+                    draw: { points: { sprite: clothes } }
+                hardware:
+                    exclusive: true
+                    filter: { class: shop, subclass: [hardware, doityourself] }
+                    draw: { points: { sprite: hardware } }
+                bike-shop:
+                    exclusive: true
+                    filter: { class: shop, subclass: [bicycle] }
+                    draw: { points: { sprite: bike_shop } }
+                pharmacy:
+                    exclusive: true
+                    filter: { class: amenity, subclass: [pharmacy] }
+                    draw: { points: { sprite: pharmacy } }
+                shop:  # generic shops
+                    exclusive: true
+                    filter: { class: shop, subclass: [boutique, yes, jewelry, hobby, video, stationary, shoes, florist, optician, interior_decoration, mobile_phone, video_games, cosmetics, variety_store, electronics, sports, craft, pet, houseware, furniture, tattoo, paint, fashion, household, stationery, gift, other, books, cannabis, erotic, frame, tea, trade, camera, music, photo, bed, watches, fashion_accessories, outdoor, computer, car_parts, electrical, charity, tobacco, tailor, toys, collector, hifi] }
+                    draw: { points: { sprite: shop } }
                 cafe:
                     exclusive: true
                     filter: { class: [cafe, convenience] }
                     draw: { points: { sprite: cafe } }
+                bakery:
+                    exclusive: true
+                    filter: { class: shop, subclass: bakery }
+                    draw: { points: { sprite: bakery } }
                 bar:
                     exclusive: true
-                    filter: { class: [bar, pub] }
+                    filter: { class: [bar, pub, beer] }
                     draw: { points: { sprite: bar } }
                 culture:
                     exclusive: true
-                    filter: { class: [museum, library, church, place_of_worship, bank] }
+                    filter:
+                        - class: [museum]
+                        - { class: tourism, subclass: museum }
                     draw: { points: { sprite: museum } }
+                library:
+                    exclusive: true
+                    filter: { class: library }
+                    draw: { points: { sprite: library } }
+                theatre:
+                    exclusive: true
+                    filter: { class: amenity, subclass: theatre }
+                    draw: { points: { sprite: theatre } }
+                church:
+                    exclusive: true
+                    filter:
+                        - class: [church, place_of_worship]
+                        - { class: amenity, subclass: place_of_worship }
+                    draw: { points: { sprite: church } }
+                bank:
+                    exclusive: true
+                    filter:
+                        - class: [bank]
+                        - { class: amenity, subclass: bank }
+                    draw: { points: { sprite: bank } }
+                gym:
+                    exclusive: true
+                    filter:
+                        - class: [gym]
+                        - { class: leisure, subclass: [fitness_centre, sports_centre] }
+                    draw: { points: { sprite: gym } }
                 hospital:
                     exclusive: true
                     filter: { class: [hospital, pharmacy] }
                     draw: { points: { sprite: hospital } }
                 hotel:
                     exclusive: true
-                    filter: { class: [hotel, hostel] }
+                    filter: { class: [hotel, hostel, lodging] }
                     draw: { points: { sprite: hotel } }
-                bookstore:
+                auto_repair:
                     exclusive: true
-                    filter: { class: [bookstore] }
-                    draw: { points: { sprite: bookstore } }
+                    filter:
+                        - { class: car, subclass: car_repair }
+                        - { class: shop, subclass: car_service }
+                    draw: { points: { sprite: auto_repair } }
+                fuel:
+                    exclusive: true
+                    filter: { class: amenity, subclass: fuel }
+                    draw: { points: { sprite: fuel } }
+                laundry:
+                    exclusive: true
+                    filter: { class: laundry }
+                    draw: { points: { sprite: laundry } }
+                hair:
+                    exclusive: true
+                    filter:
+                        - subclass: hairdresser
+                        - { class: shop, subclass: beauty }
+                    draw: { points: { sprite: scissor } }
+                dentist:
+                    exclusive: true
+                    filter: { class: amenity, subclass: dentist }
+                    draw: { points: { sprite: dentist } }
                 toilet:
                     exclusive: true
                     filter: { class: amenity, subclass: toilets, $zoom: { min: 18 } }
