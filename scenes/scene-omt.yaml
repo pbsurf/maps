@@ -79,6 +79,8 @@ global:
     priority_bus_stop: 20  # bus stops only shown when show_transit = true
     priority_station_transit: 5 # transit station priority when show_transit = true
     priority_station_default: 55  # transit station priority when show_transit = false
+    # we want to show every traffic light if showing any
+    priority_traffic_light: 4
 
     show_bike: false
     show_transit: false
@@ -887,34 +889,41 @@ layers:
                         - class: bus_stop
                 draw: { points: { sprite: bus, priority: global.priority_bus_stop } }
 
+        traffic_signals:
+            exclusive: true
+            priority: 4
+            filter: { $zoom: { min: 19 }, class: highway, subclass: traffic_signals }
+            draw:
+                points:
+                    interactive: false
+                    sprite: traffic_light
+                    priority: global.priority_traffic_light
+                    text: { visible: false }
+
         not_landuse:
             exclusive: true
             filter:
-                #name: true
-                not:
-                    class: [bicycle_rental, car_sharing]
-                $zoom: { min: 15 }
+                name: true
+                not: { class: [car_sharing, highway] }
+                $zoom: { min: 14 }
             draw:
                 points:
                     interactive: true
                     priority: global.priority_poi
                     text:
-                        optional: true
-                        visible: false
+                        #optional: true
+                        #visible: false
+                        font:
+                            size: 12px
+                            fill: black
+                            stroke: { color: white, width: 3 }
 
-            # add text label at higher zoom
+            # make label optional at higher zoom to show more POI icons
             labels:
                 filter:
                     - { $zoom: { min: 17 } }
-                    - { area: { min: 2000px2 }, class: [college] }
-                draw:
-                    points:
-                        text:
-                            visible: true
-                            font:
-                                size: 12px
-                                fill: black
-                                stroke: { color: white, width: 3 }
+                    #- { area: { min: 2000px2 }, class: [college] }
+                draw: { points: { text: { optional: true } } }
 
             # add generic icon at high zoom
             generic:
@@ -931,6 +940,10 @@ layers:
                     exclusive: true
                     filter: { class: amenity, subclass: parking }
                     draw: { points: { sprite: parking, visible: global.show_trails } }   # parking == trailhead!
+                bike_rental:
+                    exclusive: true
+                    filter: { class: amenity, subclass: bicycle_rental }
+                    draw: { points: { sprite: bike_shop, visible: global.show_bike } }
                 university:
                     exclusive: true
                     filter: { class: [college] }
