@@ -54,7 +54,7 @@ function node_function(node)
   local aeroway = node:Find("aeroway")
   if aeroway == "aerodrome" then
     node:Layer("aerodrome_label", false)
-    SetNameAttributes(node)
+    SetNameAttributesEx(node, "node")
     node:Attribute("iata", node:Find("iata"))
     SetEleAttributes(node)
     node:Attribute("icao", node:Find("icao"))
@@ -102,14 +102,14 @@ function node_function(node)
     node:MinZoom(mz)
     if rank then node:AttributeNumeric("rank", rank) end
     if place=="country" then node:Attribute("iso_a2", node:Find("ISO3166-1:alpha2")) end
-    SetNameAttributes(node)
+    SetNameAttributesEx(node, "node")
     return
   end
 
   -- Write 'poi'
   --local rank, class, subclass = GetPOIRank(node)
   --if rank then WritePOI(node,class,subclass,rank) end
-  NewWritePOI(node, 0)
+  NewWritePOI(node, "node", 0)
 
   -- Write 'mountain_peak' and 'water_name'
   local natural = node:Find("natural")
@@ -118,12 +118,12 @@ function node_function(node)
     SetEleAttributes(node)
     node:AttributeNumeric("rank", 1)
     node:Attribute("class", natural)
-    SetNameAttributes(node)
+    SetNameAttributesEx(node, "node")
     return
   end
   if natural == "bay" then
     node:Layer("water_name", false)
-    SetNameAttributes(node)
+    SetNameAttributesEx(node, "node")
     return
   end
 end
@@ -158,16 +158,16 @@ landcoverKeys   = { wood="wood", forest="wood",
 -- POI key/value pairs: based on https://github.com/openmaptiles/openmaptiles/blob/master/layers/poi/mapping.yaml
 poiMinZoom = 14
 poiTags         = { aerialway = Set { "station" },
-          amenity = { [12] = Set { "bus_station" }, [poiMinZoom] = Set { "arts_centre", "bank", "bar", "bbq", "bicycle_parking", "bicycle_rental", "biergarten", "bus_station", "cafe", "cinema", "clinic", "college", "community_centre", "courthouse", "dentist", "doctors", "drinking_water", "embassy", "fast_food", "ferry_terminal", "fire_station", "food_court", "fuel", "grave_yard", "hospital", "ice_cream", "kindergarten", "library", "marketplace", "motorcycle_parking", "nightclub", "nursing_home", "parking", "pharmacy", "place_of_worship", "police", "post_box", "post_office", "prison", "pub", "public_building", "recycling", "restaurant", "school", "shelter", "swimming_pool", "taxi", "telephone", "theatre", "toilets", "townhall", "university", "veterinary", "waste_basket", "water_point" } },
+          amenity = { [12] = Set { "bus_station" }, [poiMinZoom] = Set { "arts_centre", "bank", "bar", "bbq", "bicycle_parking", "bicycle_rental", "biergarten", "bus_station", "cafe", "cinema", "clinic", "college", "community_centre", "concert_hall", "courthouse", "dentist", "doctors", "drinking_water", "embassy", "fast_food", "ferry_terminal", "fire_station", "food_court", "fuel", "grave_yard", "hospital", "ice_cream", "kindergarten", "library", "marketplace", "motorcycle_parking", "nightclub", "nursing_home", "parking", "pharmacy", "place_of_worship", "police", "post_box", "post_office", "prison", "pub", "public_building", "recycling", "restaurant", "school", "shelter", "swimming_pool", "taxi", "telephone", "theatre", "toilets", "townhall", "university", "veterinary", "waste_basket", "water_point" } },
           barrier = Set { "bollard", "border_control", "cycle_barrier", "gate", "lift_gate", "sally_port", "stile", "toll_booth" },
           building = Set { "dormitory" },
           highway = { [12] = Set { "bus_stop" }, [poiMinZoom] = Set { "traffic_signals" } },
           historic = Set { "monument", "castle", "ruins" },
           landuse = Set { "basin", "brownfield", "cemetery", "reservoir", "winter_sports" },
           leisure = Set { "dog_park", "escape_game", "fitness_centre", "garden", "golf_course", "ice_rink", "hackerspace", "marina", "miniature_golf", "park", "pitch", "playground", "sports_centre", "stadium", "swimming_area", "swimming_pool", "water_park" },
-          railway = { [12] = Set { "halt", "station", "tram_stop" }, [poiMinZoom] = Set { "subway_entrance", "train_station_entrance", },
+          railway = { [12] = Set { "halt", "station", "tram_stop" }, [poiMinZoom] = Set { "subway_entrance", "train_station_entrance" } },
           shop = {},  --Set { "accessories", "alcohol", "antiques", "art", "bag", "bakery", "beauty", "bed", "beverages", "bicycle", "books", "boutique", "butcher", "camera", "car", "car_repair", "carpet", "charity", "chemist", "chocolate", "clothes", "coffee", "computer", "confectionery", "convenience", "copyshop", "cosmetics", "deli", "delicatessen", "department_store", "doityourself", "dry_cleaning", "electronics", "erotic", "fabric", "florist", "frozen_food", "furniture", "garden_centre", "general", "gift", "greengrocer", "hairdresser", "hardware", "hearing_aids", "hifi", "ice_cream", "interior_decoration", "jewelry", "kiosk", "lamps", "laundry", "mall", "massage", "mobile_phone", "motorcycle", "music", "musical_instrument", "newsagent", "optician", "outdoor", "perfume", "perfumery", "pet", "photo", "second_hand", "shoes", "sports", "stationery", "supermarket", "tailor", "tattoo", "ticket", "tobacco", "toys", "travel_agency", "video", "video_games", "watches", "weapons", "wholesale", "wine" },
-          sport = Set { "american_football", "archery", "athletics", "australian_football", "badminton", "baseball", "basketball", "beachvolleyball", "billiards", "bmx", "boules", "bowls", "boxing", "canadian_football", "canoe", "chess", "climbing", "climbing_adventure", "cricket", "cricket_nets", "croquet", "curling", "cycling", "disc_golf", "diving", "dog_racing", "equestrian", "fatsal", "field_hockey", "free_flying", "gaelic_games", "golf", "gymnastics", "handball", "hockey", "horse_racing", "horseshoes", "ice_hockey", "ice_stock", "judo", "karting", "korfball", "long_jump", "model_aerodrome", "motocross", "motor", "multi", "netball", "orienteering", "paddle_tennis", "paintball", "paragliding", "pelota", "racquet", "rc_car", "rowing", "rugby", "rugby_league", "rugby_union", "running", "sailing", "scuba_diving", "shooting", "shooting_range", "skateboard", "skating", "skiing", "soccer", "surfing", "swimming", "table_soccer", "table_tennis", "team_handball", "tennis", "toboggan", "volleyball", "water_ski", "yoga" },
+          sport = {},  --Set { "american_football", "archery", "athletics", "australian_football", "badminton", "baseball", "basketball", "beachvolleyball", "billiards", "bmx", "boules", "bowls", "boxing", "canadian_football", "canoe", "chess", "climbing", "climbing_adventure", "cricket", "cricket_nets", "croquet", "curling", "cycling", "disc_golf", "diving", "dog_racing", "equestrian", "fatsal", "field_hockey", "free_flying", "gaelic_games", "golf", "gymnastics", "handball", "hockey", "horse_racing", "horseshoes", "ice_hockey", "ice_stock", "judo", "karting", "korfball", "long_jump", "model_aerodrome", "motocross", "motor", "multi", "netball", "orienteering", "paddle_tennis", "paintball", "paragliding", "pelota", "racquet", "rc_car", "rowing", "rugby", "rugby_league", "rugby_union", "running", "sailing", "scuba_diving", "shooting", "shooting_range", "skateboard", "skating", "skiing", "soccer", "surfing", "swimming", "table_soccer", "table_tennis", "team_handball", "tennis", "toboggan", "volleyball", "water_ski", "yoga" },
           tourism = { [12] = Set { "attraction", "viewpoint" }, [poiMinZoom] = Set { "alpine_hut", "aquarium", "artwork", "bed_and_breakfast", "camp_site", "caravan_site", "chalet", "gallery", "guest_house", "hostel", "hotel", "information", "motel", "museum", "picnic_site", "theme_park", "zoo" } },
           waterway = Set { "dock" } }
 
@@ -233,6 +233,7 @@ function relation_function(relation)
     relation:Attribute("network", relation:Find("network"))
     relation:Attribute("color", relation:Find("colour"))
     relation:Attribute("osm_id", relation:Id())
+    relation:Attribute("osm_type", "relation")
   end
 end
 
@@ -611,20 +612,9 @@ function way_function(way)
   end
 
   -- POIs ('poi' and 'poi_detail')
-  if NewWritePOI(way, (write_name or write_area) and way:Area() or 0) then
+  if NewWritePOI(way, "way", (write_name or write_area) and way:Area() or 0) then
     return
   end
-  --local rank, class, subclass = GetPOIRank(way)
-  --if rank then
-  --  if write_name or write_area then
-  --    -- if writing area, put in poi instead of poi_detail
-  --    WritePOI(way,class,subclass, math.min(rank,4));
-  --    way:AttributeNumeric("area", way:Area())
-  --  else
-  --    WritePOI(way,class,subclass,rank);
-  --  end
-  --  return
-  --end
 
   -- Catch-all
   if (building~="" or write_name) and way:Holds("name") then
@@ -656,42 +646,37 @@ end
 -- ==========================================================
 -- Common functions
 
---local reqTags = Set { "amenity", "shop", "tourism", "leisure", "sport" }  -- "cuisine" ?
-function NewWritePOI(obj, area)
+extraPoiTags = Set { "cuisine", "station" }
+function NewWritePOI(obj, osm_type, area)
   for k,lists in pairs(poiTags) do
     local val = obj:Find(k)
-    if type(next(lists)) ~= "number" then lists = { [poiMinZoom] = lists } end
-    for minzoom, list in pairs(lists) do
-      if next(list) == nil or list[val] then
-        obj:LayerAsCentroid("poi")
-        obj:MinZoom(area > 0 and 12 or minzoom)
-        SetNameAttributes(obj)
-        if area > 0 then way:AttributeNumeric("area", area) end
-        -- write value for all tags in poiTags (if present)
-        for tag, _ in pairs(poiTags) do
-          local v = obj:Find(tag)
-          if v ~= "" then obj:Attribute(tag, v) end
+    if val ~= "" then
+      if type(next(lists)) ~= "number" then lists = { [poiMinZoom] = lists } end
+      for minzoom, list in pairs(lists) do
+        if next(list) == nil or list[val] then
+          obj:LayerAsCentroid("poi")
+          obj:MinZoom(area > 0 and 12 or minzoom)
+          SetNameAttributesEx(obj, osm_type)
+          if area > 0 then obj:AttributeNumeric("area", area) end
+          -- write value for all tags in poiTags (if present)
+          for tag, _ in pairs(poiTags) do
+            local v = obj:Find(tag)
+            if v ~= "" then obj:Attribute(tag, v) end
+          end
+          for tag, _ in pairs(extraPoiTags) do
+            local v = obj:Find(tag)
+            if v ~= "" then obj:Attribute(tag, v) end
+          end
+          return true
         end
-        return true
       end
     end
   end
   return false
 end
 
--- Write a way centroid to POI layer
-function WritePOI(obj,class,subclass,rank)
-  local layer = "poi"
-  if rank>4 then layer="poi_detail" end
-  obj:LayerAsCentroid(layer)
-  SetNameAttributes(obj)
-  obj:AttributeNumeric("rank", rank)
-  obj:Attribute("class", class)
-  obj:Attribute("subclass", subclass)
-end
-
 -- Set name attributes on any object
-function SetNameAttributes(obj)
+function SetNameAttributesEx(obj, osm_type)
   local name = obj:Find("name"), iname
   local main_written = name
   -- if we have a preferred language, then write that (if available), and additionally write the base name tag
@@ -712,6 +697,11 @@ function SetNameAttributes(obj)
   end
   -- add OSM id
   obj:Attribute("osm_id", obj:Id())
+  obj:Attribute("osm_type", osm_type)
+end
+
+function SetNameAttributes(obj)
+  SetNameAttributesEx(obj, "way")
 end
 
 -- Set ele and ele_ft on any object
@@ -748,6 +738,17 @@ end
 
 -- Calculate POIs (typically rank 1-4 go to 'poi' z12-14, rank 5+ to 'poi_detail' z14)
 -- returns rank, class, subclass
+-- Write a way centroid to POI layer
+--[[ function WritePOI(obj,class,subclass,rank)
+  local layer = "poi"
+  if rank>4 then layer="poi_detail" end
+  obj:LayerAsCentroid(layer)
+  SetNameAttributes(obj)
+  obj:AttributeNumeric("rank", rank)
+  obj:Attribute("class", class)
+  obj:Attribute("subclass", subclass)
+end
+
 function GetPOIRank(obj)
   local k,list,v,class,rank
 
@@ -767,7 +768,7 @@ function GetPOIRank(obj)
 
   -- Nothing found
   return nil,nil,nil
-end
+end]]
 
 function SetBuildingHeightAttributes(way)
   local height = tonumber(way:Find("height"), 10)

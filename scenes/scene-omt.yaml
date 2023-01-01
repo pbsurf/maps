@@ -55,6 +55,7 @@ global:
     color_bldg: [.83, .83, .83]
     color_bldg_3d: [.83, .83, .83, 0.5]
     color_bldg_3d_line: [.75, .75, .73, 0.5]
+    color_park_name: darkgreen
 
     # priorities for colliding objects (points and text) - float in tangram (docs incorrectly say integer)
     priority_boundary: 0
@@ -78,6 +79,7 @@ global:
     priority_bus_stop: 20  # bus stops only shown when show_transit = true
     priority_station_transit: 5 # transit station priority when show_transit = true
     priority_station_default: 29  # transit station priority when show_transit = false
+    priority_station_tram: 6  # only shown when show_transit = true
     # we want to show every traffic light if showing any
     priority_traffic_light: 4
     # POIs - use osm_id to provide well-defined ordering so POIs don't get replaced by nearby ones when zooming in
@@ -87,10 +89,10 @@ global:
     priority_poi_university: function() { return Number('33.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
     priority_poi_grocery: function() { return Number('34.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
     priority_poi_culture: function() { return Number('41.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
-    priority_poi_college: function() { return Number('42.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
     priority_poi_restaurant: function() { return Number('43.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
     priority_poi_cafe: function() { return Number('44.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
     priority_poi_convenience: function() { return Number('51.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
+    priority_poi_school: function() { return Number('52.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
     priority_poi_religion: function() { return Number('101.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
     priority_poi_parking: function() { return Number('102.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
 
@@ -816,20 +818,25 @@ layers:
                 text:
                     interactive: true
                     anchor: [right, left, bottom, top]
+                    max_lines: 2
                     font:
                         family: Open Sans
-                        style: normal
                         size: 1.2em
-                        fill: white
+                        fill: black
+                        stroke: { color: white, width: 3 }
         parks:
             exclusive: true
             priority: 1
             filter:
-                class: [park, cemetery, graveyard, golf]
                 name: true
-                any:
-                    - { $zoom: { min: 17 } }
-                    - { area: { min: 2000px2 } }
+                all:
+                    - any:
+                        - { leisure: [park, golf_course] }
+                        - { amenity: [grave_yard] }
+                        - { landuse: [cemetery] }
+                    - any:
+                        - { $zoom: { min: 17 } }
+                        - { area: { min: 2000px2 } }
             draw:
                 points:
                     sprite: tree
@@ -838,11 +845,16 @@ layers:
                         font:
                             size: 10pt
                             style: italic
-                            fill: darkgreen
+                            fill: global.color_park_name
                             stroke: { color: white, width: 3 }
             golf:
-                filter: { class: golf }
+                filter: { leisure: golf_course }
                 draw: { points: { sprite: golf } }
+            cemetery:
+                filter:
+                    - { amenity: [grave_yard] }
+                    - { landuse: [cemetery] }
+                draw: { points: { sprite: cemetery } }
 
         forest:
             exclusive: true
@@ -860,52 +872,55 @@ layers:
                     font:
                         size: 9pt
                         style: italic
-                        fill: darkgreen
+                        fill: global.color_park_name
                         stroke: { color: white, width: 3 }
 
-        transit:
+        station:
             exclusive: true
             priority: 3
             filter:
-                class: [railway, bus, bus_stop, station]
+                railway: [station, tram_stop]
                 $zoom: { min: 13 }
-            draw:
-                points:
-                    size: [[13, 12px], [15, 18px]]
-                    interactive: true
-                    text:
-                        visible: false
             # show_transit: stations at 13, station labels at 14; default: stations at 15, station labels at 16
             # - trying to implement this logic w/o using JS functions was a horrible disaster
-            station:
+            draw:
+                points:
+                    visible: 'function() { return $zoom >= (global.show_transit ? 13 : 15); }'
+                    priority: 'function() { return global.show_transit ? global.priority_station_transit : global.priority_station_default; }'
+                    sprite: train
+                    size: [[13, 12px], [15, 18px]]
+                    text:
+                        visible: 'function() { return $zoom >= (global.show_transit ? 14 : 16); }'
+                        optional: 'function() { return !global.show_transit; }'
+                        font:
+                            size: 12px
+            tram:
                 filter:
-                    - { class: railway, subclass: station }
-                    - class: station
+                    - railway: tram_stop
+                    - station: light_rail
                 draw:
                     points:
-                        visible: 'function() { return $zoom >= (global.show_transit ? 13 : 15); }'
-                        priority: 'function() { return global.show_transit ? global.priority_station_transit : global.priority_station_default; }'
-                        sprite: train
-                        text:
-                            visible: 'function() { return $zoom >= (global.show_transit ? 14 : 16); }'
-                            optional: 'function() { return !global.show_transit; }'
-                            font:
-                                size: 12px
-                                fill: black
-                                stroke: { color: white, width: 3 }
-            bus_stop:
-                enabled: global.show_transit
-                filter:
-                    $zoom: { min: 16 }
-                    any:
-                        - { class: bus, subclass: bus_stop }
-                        - class: bus_stop
-                draw: { points: { sprite: bus, priority: global.priority_bus_stop } }
+                        sprite: tram
+                        priority: global.priority_station_tram
+                        size: [[13, 10px], [15, 16px]]
+                        visible: global.show_transit
+
+        bus_stop:
+            exclusive: true
+            priority: 4
+            filter: { highway: bus_stop,  $zoom: { min: 16 } }  # [{ class: bus, subclass: bus_stop }, { class: bus_stop } ]
+            draw:
+                points:
+                    sprite: bus
+                    size: [[16, 12px], [18, 16px]]
+                    visible: global.show_transit
+                    priority: global.priority_bus_stop
+                    text: { visible: false }
 
         traffic_signals:
             exclusive: true
-            priority: 4
-            filter: { $zoom: { min: 19 }, class: highway, subclass: traffic_signals }
+            priority: 5
+            filter: { $zoom: { min: 19 }, highway: traffic_signals }
             draw:
                 points:
                     interactive: false
@@ -917,8 +932,9 @@ layers:
             exclusive: true
             filter:
                 name: true
-                not: { class: [car_sharing, highway] }
                 $zoom: { min: 14 }
+                not:
+                    - { railway: subway_entrance }
             draw:
                 points:
                     interactive: true
@@ -933,9 +949,7 @@ layers:
 
             # make label optional at higher zoom to show more POI icons
             labels:
-                filter:
-                    - { $zoom: { min: 17 } }
-                    #- { area: { min: 2000px2 }, class: [college] }
+                filter: { $zoom: { min: 17 } }
                 draw: { points: { text: { optional: true } } }
 
             # add generic icon at high zoom
@@ -947,12 +961,42 @@ layers:
             points:
                 viewpoint:
                     exclusive: true
-                    filter: { tourism: viewpoint}  #{ class: attraction, subclass: viewpoint }
-                    draw: { points: { sprite: viewpoint, visible: global.show_trails, priority: global.priority_poi_viewpoint } }
+                    filter: { tourism: viewpoint }
+                    draw:
+                        points:
+                            sprite: viewpoint
+                            visible: global.show_trails
+                            priority: global.priority_poi_viewpoint
+                    default:
+                        filter: { $zoom: { min: 17 } }
+                        draw: { points: { visible: true } }
+
+                campground:
+                    exclusive: true
+                    filter: { tourism: camp_site }
+                    draw:
+                        points:
+                            sprite: campground
+                            visible: global.show_trails
+                            priority: global.priority_poi_viewpoint
+                    default:
+                        filter: { $zoom: { min: 17 } }
+                        draw: { points: { visible: true } }
                 parking:
                     exclusive: true
-                    filter: { amenity: parking}  #{ class: amenity, subclass: parking }
-                    draw: { points: { sprite: parking, visible: global.show_trails, priority: global.priority_poi_parking } }   # parking == trailhead!
+                    filter: { amenity: parking }
+                    draw:
+                        points:
+                            sprite: parking
+                            visible: global.show_trails    # parking == trailhead!
+                            priority: global.priority_poi_parking
+                    default:
+                        filter: { $zoom: { min: 18 } }
+                        draw: { points: { visible: true } }
+                information:
+                    exclusive: true
+                    filter: { tourism: information, $zoom: { min: 17 } }
+                    draw: { points: { sprite: information } }
                 bike_rental:
                     exclusive: true
                     filter: { amenity: bicycle_rental }  #{ class: amenity, subclass: bicycle_rental }
@@ -961,10 +1005,10 @@ layers:
                     exclusive: true
                     filter: { amenity: university }  #{ class: [college] }
                     draw: { points: { sprite: university, priority: global.priority_poi_university } }
-                college:
+                school:
                     exclusive: true
-                    filter: { amenity: college }  #{ class: [college] }
-                    draw: { points: { sprite: university, priority: global.priority_poi_college } }
+                    filter: { amenity: [school, college, kindergarten], $zoom: { min: 16 } }
+                    draw: { points: { sprite: university, priority: global.priority_poi_school } }
                 restaurant:
                     exclusive: true
                     filter: { amenity: [restaurant, fast_food, ice_cream] }
@@ -973,7 +1017,9 @@ layers:
                     draw: { points: { sprite: restaurant, priority: global.priority_poi_restaurant } }
                 cafe:
                     exclusive: true
-                    filter: { amenity: cafe }  #{ class: [cafe, convenience] }
+                    filter:
+                        - amenity: cafe
+                        - shop: [beverages, confectionery]
                     draw: { points: { sprite: cafe, priority: global.priority_poi_cafe } }
                 bakery:
                     exclusive: true
@@ -987,7 +1033,7 @@ layers:
                     draw: { points: { sprite: grocery, priority: global.priority_poi_grocery } }
                 convenience:
                     exclusive: true
-                    filter: { shop: [convenience, greengrocer, deli, delicatessen] }
+                    filter: { shop: [convenience, greengrocer, deli, delicatessen, butcher, farm] }
                     #- class: [grocery]
                     #- { class: shop, subclass: convenience }
                     draw: { points: { sprite: convenience, priority: global.priority_poi_convenience } }
@@ -1009,15 +1055,17 @@ layers:
                     draw: { points: { sprite: bike_shop } }
                 pharmacy:
                     exclusive: true
-                    filter: { amenity: pharmacy }  #{ class: amenity, subclass: [pharmacy] }
+                    filter:
+                        - { amenity: pharmacy }  #{ class: amenity, subclass: [pharmacy] }
+                        - { shop: chemist }
                     draw: { points: { sprite: pharmacy } }
                 shop:  # generic shops
                     exclusive: true
-                    filter: { shop: [boutique, yes, jewelry, hobby, video, stationary, florist, optician, interior_decoration, mobile_phone, video_games, cosmetics, variety_store, electronics, sports, craft, pet, houseware, furniture, tattoo, paint, household, stationery, gift, other, books, cannabis, erotic, frame, tea, trade, camera, music, photo, bed, watches, outdoor, computer, car_parts, electrical, charity, tobacco, toys, collector, hifi] }
+                    filter: { shop: [department_store, boutique, yes, jewelry, hobby, video, stationary, florist, optician, interior_decoration, mobile_phone, video_games, cosmetics, variety_store, electronics, sports, craft, pet, houseware, furniture, tattoo, paint, household, stationery, gift, other, books, cannabis, erotic, frame, framing, tea, trade, camera, music, photo, bed, watches, outdoor, computer, car_parts, electrical, charity, tobacco, toys, collector, hifi, car, second_hand, copyshop, medical_supply, art, thrift_store, games, home_goods, chocolate, pottery, antiques, kitchen] }
                     draw: { points: { sprite: shop } }
                 bar:
                     exclusive: true
-                    filter: { amenity: [bar, pub] }  #{ class: [bar, pub, beer] }
+                    filter: { amenity: [bar, pub, nightclub] }  #{ class: [bar, pub, beer] }
                     draw: { points: { sprite: bar } }
                 culture:
                     exclusive: true
@@ -1031,11 +1079,11 @@ layers:
                     draw: { points: { sprite: library, , priority: global.priority_poi_culture } }
                 theatre:
                     exclusive: true
-                    filter: { amenity: theatre }  #{ class: amenity, subclass: theatre }
+                    filter: { amenity: [cinema, theatre, concert_hall, arts_centre] }  #{ class: amenity, subclass: theatre }
                     draw: { points: { sprite: theatre, , priority: global.priority_poi_culture } }
                 church:
                     exclusive: true
-                    filter:  { amenity: place_of_worship }
+                    filter:  { amenity: place_of_worship, $zoom: { min: 16 } }
                     #- class: [church, place_of_worship]
                     #- { class: amenity, subclass: place_of_worship }
                     draw: { points: { sprite: church, , priority: global.priority_poi_religion } }
@@ -1053,8 +1101,12 @@ layers:
                     draw: { points: { sprite: gym } }
                 hospital:
                     exclusive: true
-                    filter: { amenity: [hospital, clinic] }  #{ class: [hospital, pharmacy] }
+                    filter: { amenity: [hospital] }  #{ class: [hospital, pharmacy] }
                     draw: { points: { sprite: hospital } }
+                doctor:
+                    exclusive: true
+                    filter: { amenity: [clinic, doctors] }
+                    draw: { points: { sprite: doctor } }
                 hotel:
                     exclusive: true
                     filter: { tourism: [hotel, motel, hostel, guest_house, bed_and_breakfast, chalet, alpine_hut] }  #{ class: [hotel, hostel, lodging] }
@@ -1083,6 +1135,16 @@ layers:
                     exclusive: true
                     filter: { amenity: dentist }  #{ class: amenity, subclass: dentist }
                     draw: { points: { sprite: dentist } }
+                attraction:
+                    exclusive: true
+                    filter: { tourism: attraction }
+                    draw: { points: { sprite: attraction } }
+                artwork:
+                    exclusive: true
+                    filter:
+                        - { tourism: artwork }
+                        - { historic: monument }
+                    draw: { points: { sprite: artwork } }
                 toilet:
                     exclusive: true
                     filter: { amenity: toilets, $zoom: { min: 18 } }
