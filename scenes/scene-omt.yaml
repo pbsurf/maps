@@ -111,6 +111,13 @@ global:
         - name: mute_motorways
           label: Mute motorways  # in app, this would be set automatically when bike/hike/transit shown
 
+    # specify fields indexed for search
+    search_data:
+        - layer: poi
+          fields: name, amenity, leisure, shop, sport, tourism
+        - layer: place
+          fields: name
+
 
 fonts:
     Montserrat:
@@ -121,6 +128,8 @@ fonts:
         - weight: 400
           style: italic
           url: fonts/OpenSans-Italic.woff
+        - weight: 600
+          url: fonts/OpenSans-Semibold.woff
 
 
 scene:
@@ -935,6 +944,7 @@ layers:
                 $zoom: { min: 14 }
                 not:
                     - { railway: subway_entrance }
+                    - 'function() { return global.search_active; }'
             draw:
                 points:
                     interactive: true
@@ -1023,7 +1033,7 @@ layers:
                     draw: { points: { sprite: cafe, priority: global.priority_poi_cafe } }
                 bakery:
                     exclusive: true
-                    filter: { shop: bakery }  #{ class: shop, subclass: bakery }
+                    filter: { shop: [bakery, pastry] }  #{ class: shop, subclass: bakery }
                     draw: { points: { sprite: bakery, priority: global.priority_poi_cafe } }
                 grocery:
                     exclusive: true
