@@ -52,8 +52,7 @@ public:
 
     void addPolylineFeature(Properties&& properties, PolylineBuilder&& polyline);
 
-    void addPolygonFeature(Properties&& properties, PolygonBuilder
-        && polygon);
+    void addPolygonFeature(Properties&& properties, PolygonBuilder&& polygon);
 
     // Remove all feature data.
     void clearFeatures();

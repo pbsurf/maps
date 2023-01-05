@@ -96,6 +96,38 @@ global:
     priority_poi_religion: function() { return Number('101.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
     priority_poi_parking: function() { return Number('102.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
 
+    poi_sprite_fn: |
+        function()
+        {
+          const tourism = { "viewpoint": "viewpoint", "camp_site": "campground", "information": "information",
+            "museum": "museum", "hotel": "hotel", "motel": "hotel", "hostel": "hotel", "guest_house": "hotel",
+            "bed_and_breakfast": "hotel", "chalet": "hotel", "alpine_hut": "hotel", "attraction": "attraction",
+            "artwork": "artwork"
+          };
+          const historic = { "monument": "artwork" };
+          const leisure = { "fitness_centre": "gym", "sports_centre": "gym" };
+          const amenity = { "parking": "parking", "bicycle_rental": "bike_shop", "university": "university",
+            "school": "university", "college": "university", "kindergarten": "university",
+            "restaurant": "restaurant", "fast_food": "restaurant", "ice_cream": "restaurant", "cafe": "cafe",
+            "pharmacy": "pharmacy", "bar": "bar", "pub": "bar", "nightclub": "bar", "library": "library",
+            "cinema": "theatre", "theatre": "theatre", "concert_hall": "theatre", "arts_centre": "theatre",
+            "place_of_worship": "church", "bank": "bank", "hospital": "hospital", "clinic": "doctor", "doctors": "doctor",
+            "fuel": "fuel", "dentist": "dentist", "toilets": "toilet", "drinking_water": "drinking_water",
+            "water_point": "drinking_water"
+          };
+          const shop = { "beverages": "cafe", "confectionery": "cafe", "bakery": "bakery", "pastry": "bakery",
+            "supermarket": "grocery", "convenience": "convenience", "greengrocer": "convenience", "deli": "convenience",
+             "delicatessen": "convenience", "butcher": "convenience", "farm": "convenience", "alcohol": "liquor",
+             "wine": "liquor", "clothes": "clothes", "tailor": "clothes", "fashion_accessories": "clothes",
+             "shoes": "clothes", "fashion": "clothes", "hardware": "hardware", "doityourself": "hardware",
+             "bicycle": "bike_shop", "chemist": "pharmacy", "car_repair": "auto_repair", "laundry": "laundry",
+             "dry_cleaning": "laundry", "hairdresser": "scissor", "beauty": "scissor"
+          };
+
+          return tourism[feature.tourism] || leisure[feature.leisure] || amenity[feature.amenity] ||
+              historic[feature.historic] || shop[feature.shop] || (feature.shop ? "shop" : "generic");
+        }
+
     show_bike: false
     show_transit: false
     show_trails: false
@@ -1086,17 +1118,17 @@ layers:
                 library:
                     exclusive: true
                     filter: { amenity: library }  #{ class: library }
-                    draw: { points: { sprite: library, , priority: global.priority_poi_culture } }
+                    draw: { points: { sprite: library, priority: global.priority_poi_culture } }
                 theatre:
                     exclusive: true
                     filter: { amenity: [cinema, theatre, concert_hall, arts_centre] }  #{ class: amenity, subclass: theatre }
-                    draw: { points: { sprite: theatre, , priority: global.priority_poi_culture } }
+                    draw: { points: { sprite: theatre, priority: global.priority_poi_culture } }
                 church:
                     exclusive: true
                     filter:  { amenity: place_of_worship, $zoom: { min: 16 } }
                     #- class: [church, place_of_worship]
                     #- { class: amenity, subclass: place_of_worship }
-                    draw: { points: { sprite: church, , priority: global.priority_poi_religion } }
+                    draw: { points: { sprite: church, priority: global.priority_poi_religion } }
                 bank:
                     exclusive: true
                     filter: { amenity: bank }

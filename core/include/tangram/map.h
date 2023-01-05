@@ -396,6 +396,9 @@ public:
     // successfully updated, otherwise returns false.
     bool markerSetPolygon(MarkerID _marker, LngLat* _coordinates, int* _counts, int _rings);
 
+    // Set the feature properties of a marker, e.g., for use in JS functions
+    bool markerSetProperties(MarkerID _marker, Properties&& _properties);
+
     // Set the visibility of a marker object; returns true if the marker ID was found and successfully
     // updated, otherwise returns false.
     bool markerSetVisible(MarkerID _marker, bool _visible);

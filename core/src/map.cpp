@@ -810,6 +810,12 @@ bool Map::markerSetPolygon(MarkerID _marker, LngLat* _coordinates, int* _counts,
     return success;
 }
 
+bool Map::markerSetProperties(MarkerID _marker, Properties&& _properties) {
+    bool success = impl->scene->markerManager()->setProperties(_marker, std::move(_properties));
+    platform->requestRender();
+    return success;
+}
+
 bool Map::markerSetStylingFromString(MarkerID _marker, const char* _styling) {
     bool success = impl->scene->markerManager()->setStylingFromString(_marker, _styling);
     platform->requestRender();

@@ -48,6 +48,9 @@ public:
     // Set the ordering of this marker relative to other markers. Higher values are drawn 'above' others.
     bool setDrawOrder(MarkerID markerID, int drawOrder);
 
+    // Set the feature properties of specified marker, e.g., for use in JS functions
+    bool setProperties(MarkerID markerID, Properties&& properties);
+
     // Set a marker to a point feature at the given position; returns true if the marker was found and updated.
     bool setPoint(MarkerID markerID, LngLat lngLat);
 

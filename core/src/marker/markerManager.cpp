@@ -101,6 +101,13 @@ bool MarkerManager::setDrawOrder(MarkerID markerID, int drawOrder) {
     return true;
 }
 
+bool MarkerManager::setProperties(MarkerID markerID, Properties&& properties) {
+    Marker* marker = getMarkerOrNull(markerID);
+    if (!marker || !marker->feature()) { return false; }
+    marker->feature()->props = std::move(properties);
+    return true;
+}
+
 bool MarkerManager::setPoint(MarkerID markerID, LngLat lngLat) {
     Marker* marker = getMarkerOrNull(markerID);
     if (!marker) { return false; }

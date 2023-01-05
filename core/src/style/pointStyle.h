@@ -64,7 +64,7 @@ public:
 
 protected:
 
-    void drawMesh(RenderState& rs, ShaderProgram& shaderProgram, UniformLocation& uSpriteMode);
+    //void drawMesh(RenderState& rs, ShaderProgram& shaderProgram, UniformLocation& uSpriteMode);
 
     std::shared_ptr<Texture> m_defaultTexture;
     const std::unordered_map<std::string, std::shared_ptr<Texture>>* m_textures = nullptr;
