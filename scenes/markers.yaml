@@ -1,0 +1,118 @@
+textures:
+    pick-marker:
+        density: 2
+        url: |
+            data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24">
+              <g fill="#CF513D" stroke="#000" stroke-opacity="0.2" stroke-width="1" stroke-alignment="inner">
+                <path d="M5 8c0-3.517 3.271-6.602 7-6.602s7 3.085 7 6.602c0 3.455-2.563 7.543-7 14.527-4.489-7.073-7-11.072-7-14.527"/>
+              </g>
+            </svg>
+
+    bookmark-marker:
+        density: 2
+        url: |
+            data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24">
+              <g fill="#12B5CB" stroke="#000" stroke-opacity="0.2" stroke-width="1" stroke-alignment="inner">
+                <path d="M5 8c0-3.517 3.271-6.602 7-6.602s7 3.085 7 6.602c0 3.455-2.563 7.543-7 14.527-4.489-7.073-7-11.072-7-14.527"/>
+              </g>
+            </svg>
+
+
+#styles:
+#    dot-marker: { base: points, lighting: false, blend_order: 2000 }
+#    pin-marker: { base: points, lighting: false, blend_order: 2001 }
+
+layers:
+    pick-marker:
+        draw:
+            marker:
+                style: points
+                texture: pick-marker
+                size: 32px
+                interactive: true
+                collide: false
+                priority: 'function() { return feature.priority; }'
+                offset: [0px, -11px]
+                text:
+                    text_source: name
+                    anchor: [right, left, bottom, top]
+                    collide: true
+                    optional: true
+                    max_lines: 2
+                    offset: [0px, -11px]
+                    font:
+                        family: Open Sans
+                        weight: 600
+                        size: 12px
+                        fill: black
+                        stroke: { color: white, width: 2px }
+
+    bookmark-marker:
+        draw:
+            marker:
+                style: points
+                texture: bookmark-marker
+                size: [[13, 16px], [15, 20px]]
+                interactive: true
+                collide: false
+                priority: 'function() { return feature.priority; }'
+                offset: [0px, -11px]
+                text:
+                    text_source: name
+                    anchor: [right, left, bottom, top]
+                    collide: true
+                    optional: true
+                    max_lines: 2
+                    offset: [0px, -11px]
+                    font:
+                        family: Open Sans
+                        weight: 600
+                        size: 12px
+                        fill: black
+                        stroke: { color: white, width: 2px }
+
+    search-marker:
+        draw:
+            marker:
+                style: points
+                texture: pois-search
+                sprite: global.poi_sprite_fn
+                sprite_default: generic
+                size: [[13, 16px], [15, 20px]]
+                interactive: true
+                collide: false
+                priority: 'function() { return feature.priority; }'
+                text:
+                    text_source: name
+                    anchor: [right, left, bottom, top]
+                    collide: true
+                    optional: true
+                    max_lines: 2
+                    font:
+                        family: Open Sans
+                        weight: 600
+                        size: 12px
+                        fill: black
+                        stroke: { color: white, width: 2px }
+
+    search-dot:
+        draw:
+            marker:
+                style: points
+                collide: false
+                size: 6px
+                color: "#CF513D"
+                outline:
+                    width: 1px
+                    color: "#9A291D"
+
+    loc-marker:
+        draw:
+            marker:
+                style: points
+                collide: false
+                size: 24px
+                color: "#0000FF"
+                outline:
+                    width: 3px
+                    color: "#FFFFFF"

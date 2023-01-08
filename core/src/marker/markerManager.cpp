@@ -426,7 +426,7 @@ bool MarkerManager::buildMesh(Marker& marker, int zoom) {
     styler->style().applyDefaultDrawRules(*rule);
 
     m_styleContext->setZoom(zoom);
-
+    m_styleContext->setFeature(*feature);
     bool valid = marker.evaluateRuleForContext(*m_styleContext);
 
     if (!valid) { return false; }

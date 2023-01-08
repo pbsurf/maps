@@ -329,17 +329,6 @@ void Url::parse() {
     // Ensure that the buffer is not too large to describe in 16-bit part indicies.
     assert(end == (uint16_t)end);
 
-    // Parse the fragment.
-    {
-        // If there's a '#' in the string, the substring after it to the end is the fragment.
-        auto pound = std::min(buffer.find('#', start), end);
-        parts.fragment.start = std::min(pound + 1, end);
-        parts.fragment.count = end - parts.fragment.start;
-
-        // Remove the '#' and fragment from parsing.
-        end = pound;
-    }
-
     // Parse the scheme.
     {
         size_t i = start;
@@ -389,6 +378,17 @@ void Url::parse() {
 
         // We're done!
         return;
+    }
+
+    // Parse the fragment.
+    {
+        // If there's a '#' in the string, the substring after it to the end is the fragment.
+        auto pound = std::min(buffer.find('#', start), end);
+        parts.fragment.start = std::min(pound + 1, end);
+        parts.fragment.count = end - parts.fragment.start;
+
+        // Remove the '#' and fragment from parsing.
+        end = pound;
     }
 
     // Check whether the scheme is 'http', 'https', or 'file' and set appropriate flags.
@@ -602,7 +602,7 @@ std::string Url::unEscapeReservedCharacters(const std::string& in) {
 Url Url::fromWindowsFilePath(const std::string& windowsPath) {
     // https://docs.microsoft.com/en-us/archive/blogs/ie/file-uris-in-windows
     // Strictly speaking this should also %-escape any reserved characters in the Windows path segments,
-    // but in practice this doesn't seem to change file access behavior. 
+    // but in practice this doesn't seem to change file access behavior.
     std::string urlString;
     urlString.reserve(8 + windowsPath.size());
     urlString += "file:///";

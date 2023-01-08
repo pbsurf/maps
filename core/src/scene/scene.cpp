@@ -401,6 +401,15 @@ std::shared_ptr<Texture> SceneTextures::add(const std::string& _name, const Url&
             LOGE("Invalid Base64 texture");
         }
         return texture;
+    } else if (_url.hasData() && _url.mediaType().substr(0,13) == "image/svg+xml") {
+#ifdef TANGRAM_SVG_LOADER
+        if (!userLoadSvg(const_cast<char*>(_url.data().c_str()), texture.get())) {
+            LOGE("Error parsing svg for texture '%s'", _name.c_str());
+        }
+#else
+        LOGE("SVG support not enabled - cannot load texture '%s'", _name.c_str());
+#endif
+        return texture;
     }
 
     tasks.emplace_front(_url, texture);

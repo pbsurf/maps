@@ -4,6 +4,8 @@
 # - sufficiently different from mapzen schema that trying to create schema that works for both (w/ some globals)
 #  isn't practical
 # - mapzen walkabout style is nice, but way too big - nearly 10K lines
+import:
+    - markers.yaml
 
 global:
     #feature_order: function () { return feature.sort_rank; }
@@ -123,9 +125,8 @@ global:
              "bicycle": "bike_shop", "chemist": "pharmacy", "car_repair": "auto_repair", "laundry": "laundry",
              "dry_cleaning": "laundry", "hairdresser": "scissor", "beauty": "scissor"
           };
-
           return tourism[feature.tourism] || leisure[feature.leisure] || amenity[feature.amenity] ||
-              historic[feature.historic] || shop[feature.shop] || (feature.shop ? "shop" : "generic");
+              historic[feature.historic] || shop[feature.shop] || (feature.shop ? "shop" : "");
         }
 
     show_bike: false
@@ -187,6 +188,10 @@ textures:
         url: img/pois.svg
         density: 2
         # sprites set from svg ids
+
+    pois-search:
+        url: img/pois-search.svg
+        density: 2
 
     marker-stroked:
         url: img/marker-stroked.png
@@ -972,53 +977,38 @@ layers:
         not_landuse:
             exclusive: true
             filter:
-                name: true
                 $zoom: { min: 14 }
+                any:
+                    - name: true
+                    - tourism: [viewpoint, camp_site, information]
+                    - amenity: [parking, bicycle_rental, drinking_water, water_point, toilets]
                 not:
                     - { railway: subway_entrance }
                     - 'function() { return global.search_active; }'
             draw:
                 points:
                     interactive: true
+                    sprite: global.poi_sprite_fn
                     priority: global.priority_poi_default
                     text:
-                        #optional: true
-                        #visible: false
                         font:
                             size: 12px
                             fill: black
                             stroke: { color: white, width: 3 }
-
             # make label optional at higher zoom to show more POI icons
             labels:
                 filter: { $zoom: { min: 17 } }
                 draw: { points: { text: { optional: true } } }
-
             # add generic icon at high zoom
             generic:
                 filter: { $zoom: { min: 18 }, name: true }
                 draw: { points: { sprite: generic } }
-
-            # examples of different points mapped to feature properties
             points:
                 viewpoint:
                     exclusive: true
-                    filter: { tourism: viewpoint }
+                    filter: { tourism: [viewpoint, camp_site] }
                     draw:
                         points:
-                            sprite: viewpoint
-                            visible: global.show_trails
-                            priority: global.priority_poi_viewpoint
-                    default:
-                        filter: { $zoom: { min: 17 } }
-                        draw: { points: { visible: true } }
-
-                campground:
-                    exclusive: true
-                    filter: { tourism: camp_site }
-                    draw:
-                        points:
-                            sprite: campground
                             visible: global.show_trails
                             priority: global.priority_poi_viewpoint
                     default:
@@ -1029,7 +1019,6 @@ layers:
                     filter: { amenity: parking }
                     draw:
                         points:
-                            sprite: parking
                             visible: global.show_trails    # parking == trailhead!
                             priority: global.priority_poi_parking
                     default:
@@ -1037,164 +1026,64 @@ layers:
                         draw: { points: { visible: true } }
                 information:
                     exclusive: true
-                    filter: { tourism: information, $zoom: { min: 17 } }
-                    draw: { points: { sprite: information } }
+                    filter: { tourism: information }
+                    draw: { points: { visible: false } }
+                    show:
+                        filter: { $zoom: { min: 17 } }
+                        draw: { points: { visible: true } }
                 bike_rental:
                     exclusive: true
                     filter: { amenity: bicycle_rental }  #{ class: amenity, subclass: bicycle_rental }
-                    draw: { points: { sprite: bike_shop, visible: global.show_bike } }
+                    draw: { points: { visible: global.show_bike } }
                 university:
                     exclusive: true
-                    filter: { amenity: university }  #{ class: [college] }
-                    draw: { points: { sprite: university, priority: global.priority_poi_university } }
+                    filter: { amenity: university }
+                    draw: { points: { priority: global.priority_poi_university } }
                 school:
                     exclusive: true
-                    filter: { amenity: [school, college, kindergarten], $zoom: { min: 16 } }
-                    draw: { points: { sprite: university, priority: global.priority_poi_school } }
+                    filter: { amenity: [school, college, kindergarten] }
+                    draw: { points: { visible: false, priority: global.priority_poi_school } }
+                    show:
+                        filter: { $zoom: { min: 16 } }
+                        draw: { points: { visible: true } }
                 restaurant:
                     exclusive: true
-                    filter: { amenity: [restaurant, fast_food, ice_cream] }
-                    #- class: [restaurant, fast_food, ice_cream]
-                    #- { class: amenity, subclass: [restaurant, ice_cream] }
-                    draw: { points: { sprite: restaurant, priority: global.priority_poi_restaurant } }
+                    filter: { amenity: [restaurant, fast_food] }
+                    draw: { points: { priority: global.priority_poi_restaurant } }
                 cafe:
                     exclusive: true
                     filter:
-                        - amenity: cafe
-                        - shop: [beverages, confectionery]
-                    draw: { points: { sprite: cafe, priority: global.priority_poi_cafe } }
-                bakery:
-                    exclusive: true
-                    filter: { shop: [bakery, pastry] }  #{ class: shop, subclass: bakery }
-                    draw: { points: { sprite: bakery, priority: global.priority_poi_cafe } }
+                        - amenity: [cafe, ice_cream]
+                        - shop: [beverages, confectionery, bakery, pastry]
+                    draw: { points: { priority: global.priority_poi_cafe } }
                 grocery:
                     exclusive: true
                     filter: { shop: supermarket }
-                    #- class: [grocery]
-                    #- { class: shop, subclass: [seafood, butcher] }
-                    draw: { points: { sprite: grocery, priority: global.priority_poi_grocery } }
+                    draw: { points: { priority: global.priority_poi_grocery } }
                 convenience:
                     exclusive: true
                     filter: { shop: [convenience, greengrocer, deli, delicatessen, butcher, farm] }
-                    #- class: [grocery]
-                    #- { class: shop, subclass: convenience }
-                    draw: { points: { sprite: convenience, priority: global.priority_poi_convenience } }
-                liquor:
-                    exclusive: true
-                    filter: { shop: [alcohol, wine] }  #{ class: [alcohol_shop] }
-                    draw: { points: { sprite: liquor } }
-                clothes:
-                    exclusive: true
-                    filter: { shop: [clothes, tailor, fashion_accessories, shoes, fashion] }  #{ class: [clothing_store] }
-                    draw: { points: { sprite: clothes } }
-                hardware:
-                    exclusive: true
-                    filter: { shop: [hardware, doityourself] }  #{ class: shop, subclass: [hardware, doityourself] }
-                    draw: { points: { sprite: hardware } }
-                bike-shop:
-                    exclusive: true
-                    filter: { shop: bicycle }  #{ class: shop, subclass: [bicycle] }
-                    draw: { points: { sprite: bike_shop } }
-                pharmacy:
-                    exclusive: true
-                    filter:
-                        - { amenity: pharmacy }  #{ class: amenity, subclass: [pharmacy] }
-                        - { shop: chemist }
-                    draw: { points: { sprite: pharmacy } }
-                shop:  # generic shops
-                    exclusive: true
-                    filter: { shop: [department_store, boutique, yes, jewelry, hobby, video, stationary, florist, optician, interior_decoration, mobile_phone, video_games, cosmetics, variety_store, electronics, sports, craft, pet, houseware, furniture, tattoo, paint, household, stationery, gift, other, books, cannabis, erotic, frame, framing, tea, trade, camera, music, photo, bed, watches, outdoor, computer, car_parts, electrical, charity, tobacco, toys, collector, hifi, car, second_hand, copyshop, medical_supply, art, thrift_store, games, home_goods, chocolate, pottery, antiques, kitchen] }
-                    draw: { points: { sprite: shop } }
-                bar:
-                    exclusive: true
-                    filter: { amenity: [bar, pub, nightclub] }  #{ class: [bar, pub, beer] }
-                    draw: { points: { sprite: bar } }
+                    draw: { points: { priority: global.priority_poi_convenience } }
                 culture:
                     exclusive: true
-                    filter: { tourism: museum }
-                    #- class: [museum]
-                    #- { class: tourism, subclass: museum }
-                    draw: { points: { sprite: museum, priority: global.priority_poi_culture } }
-                library:
-                    exclusive: true
-                    filter: { amenity: library }  #{ class: library }
-                    draw: { points: { sprite: library, priority: global.priority_poi_culture } }
-                theatre:
-                    exclusive: true
-                    filter: { amenity: [cinema, theatre, concert_hall, arts_centre] }  #{ class: amenity, subclass: theatre }
-                    draw: { points: { sprite: theatre, priority: global.priority_poi_culture } }
+                    filter:
+                        - amenity: [cinema, theatre, concert_hall, arts_centre, library]
+                        - tourism: museum
+                    draw: { points: { priority: global.priority_poi_culture } }
                 church:
                     exclusive: true
-                    filter:  { amenity: place_of_worship, $zoom: { min: 16 } }
-                    #- class: [church, place_of_worship]
-                    #- { class: amenity, subclass: place_of_worship }
-                    draw: { points: { sprite: church, priority: global.priority_poi_religion } }
-                bank:
-                    exclusive: true
-                    filter: { amenity: bank }
-                    #- class: [bank]
-                    #- { class: amenity, subclass: bank }
-                    draw: { points: { sprite: bank } }
-                gym:
-                    exclusive: true
-                    filter: { leisure: [fitness_centre, sports_centre] }
-                    #- class: [gym]
-                    #- { class: leisure, subclass: [fitness_centre, sports_centre] }
-                    draw: { points: { sprite: gym } }
-                hospital:
-                    exclusive: true
-                    filter: { amenity: [hospital] }  #{ class: [hospital, pharmacy] }
-                    draw: { points: { sprite: hospital } }
-                doctor:
-                    exclusive: true
-                    filter: { amenity: [clinic, doctors] }
-                    draw: { points: { sprite: doctor } }
-                hotel:
-                    exclusive: true
-                    filter: { tourism: [hotel, motel, hostel, guest_house, bed_and_breakfast, chalet, alpine_hut] }  #{ class: [hotel, hostel, lodging] }
-                    draw: { points: { sprite: hotel } }
-                auto_repair:
-                    exclusive: true
-                    filter: { shop: car_repair }
-                    #- { class: car, subclass: car_repair }
-                    #- { class: shop, subclass: car_service }
-                    draw: { points: { sprite: auto_repair } }
-                fuel:
-                    exclusive: true
-                    filter: { amenity: fuel }  #{ class: amenity, subclass: fuel }
-                    draw: { points: { sprite: fuel } }
-                laundry:
-                    exclusive: true
-                    filter: { shop: [laundry, dry_cleaning] }  #{ class: laundry }
-                    draw: { points: { sprite: laundry } }
-                hair:
-                    exclusive: true
-                    filter: { shop: [hairdresser, beauty] }
-                    #- subclass: hairdresser
-                    #- { class: shop, subclass: beauty }
-                    draw: { points: { sprite: scissor } }
-                dentist:
-                    exclusive: true
-                    filter: { amenity: dentist }  #{ class: amenity, subclass: dentist }
-                    draw: { points: { sprite: dentist } }
-                attraction:
-                    exclusive: true
-                    filter: { tourism: attraction }
-                    draw: { points: { sprite: attraction } }
-                artwork:
-                    exclusive: true
-                    filter:
-                        - { tourism: artwork }
-                        - { historic: monument }
-                    draw: { points: { sprite: artwork } }
+                    filter: { amenity: place_of_worship }
+                    draw: { points: { visible: false, priority: global.priority_poi_religion } }
+                    show:
+                        filter: { $zoom: { min: 16 } }
+                        draw: { points: { visible: true } }
                 toilet:
                     exclusive: true
-                    filter: { amenity: toilets, $zoom: { min: 18 } }
-                    draw: { points: { sprite: toilet, priority: global.priority_poi_toilet } }
-                drinking_water:
-                    exclusive: true
-                    filter: { amenity: [drinking_water, water_point], $zoom: { min: 18 } }
-                    draw: { points: { sprite: drinking_water, priority: global.priority_poi_toilet } }
+                    filter: { amenity: [drinking_water, water_point, toilets] }
+                    draw: { points: { visible: false, priority: global.priority_poi_toilet } }
+                    show:
+                        filter: { $zoom: { min: 18 } }
+                        draw: { points: { visible: true } }
 
     boundaries:
         data: { source: osm, layer: boundary }
