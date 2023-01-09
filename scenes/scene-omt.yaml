@@ -6,6 +6,7 @@
 # - mapzen walkabout style is nice, but way too big - nearly 10K lines
 import:
     - markers.yaml
+    - raster-contour.yaml
 
 global:
     #feature_order: function () { return feature.sort_rank; }
@@ -133,6 +134,7 @@ global:
     show_transit: false
     show_trails: false
     mute_motorways: false
+    show_contours: 1
 
     gui_variables:
         - name: show_bike
@@ -143,6 +145,9 @@ global:
           label: Hike
         - name: mute_motorways
           label: Mute motorways  # in app, this would be set automatically when bike/hike/transit shown
+        - name: u_exaggerate
+          style: terrain  # not hillshade!
+          label: Hillshade Exaggeration  # but in general, make gui_variables a map instead of an array so it can be merged!
 
     # specify fields indexed for search
     search_data:
@@ -175,7 +180,8 @@ cameras:
 
 
 lights:
-    light1:
+    light1: { visible: false }
+    light2:
         type: directional
         origin: world
         direction: [1, 1, -1]
@@ -254,29 +260,19 @@ styles:
                 width: 1px
             interactive: true
     terrain:
-        base: polygons
-        raster: custom
+        mix: hillshade
         shaders:
-            blocks:
-                normal: |
-                    normal = normalize(sampleRaster(0).xyz * 2. - 1.);
-    terrain-bg:
-        base: polygons
-        raster: custom
-        shaders:
-            blocks:
-                color: |
-                    color = vec4(.97, .955, .94, 1.0);
-                normal: |
-                    normal = normalize(sampleRaster(0).xyz * 2. - 1.);
-
+            defines:
+                CONTOUR_COLOR: vec4(0.7,0.7,0.7,1.)
+                SHOW_CONTOURS: global.show_trails
+                ELEVATION_INDEX: 0
 
 sources:
-    normals:
-        type: Raster
-        url: https://elevation-tiles-prod.s3.amazonaws.com/normal/{z}/{x}/{y}.png
-        max_zoom: 14
-        cache: normals
+    #normals:
+    #    type: Raster
+    #    url: https://elevation-tiles-prod.s3.amazonaws.com/normal/{z}/{x}/{y}.png
+    #    max_zoom: 14
+    #    cache: normals
     osm:
         type: MVT
         url: file:///home/mwhite/maps/tilemaker/sf.mbtiles
@@ -285,14 +281,14 @@ sources:
         #url: http://tiles.basemaps.cartocdn.com/vectortiles/carto.streets/v1/{z}/{x}/{y}.mvt
         #url: https://6ug7hetxl9.execute-api.us-east-2.amazonaws.com/data/v3/{z}/{x}/{y}.pbf
         max_zoom: 14
-        rasters: [normals]
+        rasters: [elevation]
 
 layers:
     earth:
-        data: { source: normals }
+        data: { source: elevation }
         draw:
             polygons:
-                style: terrain-bg
+                style: terrain
                 order: 0
 
     continents:
@@ -1002,7 +998,7 @@ layers:
             # add generic icon at high zoom
             generic:
                 filter: { $zoom: { min: 18 }, name: true }
-                draw: { points: { sprite: generic } }
+                draw: { points: { sprite_default: generic } }
             points:
                 viewpoint:
                     exclusive: true

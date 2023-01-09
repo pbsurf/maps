@@ -52,10 +52,10 @@ layers:
             marker:
                 style: points
                 texture: bookmark-marker
-                size: [[13, 16px], [15, 20px]]
+                size: 26px
                 interactive: true
                 collide: false
-                priority: 'function() { return feature.priority; }'
+                priority: 'function() { return (1+feature.priority)/1E6; }'
                 offset: [0px, -11px]
                 text:
                     text_source: name
@@ -81,7 +81,7 @@ layers:
                 size: [[13, 16px], [15, 20px]]
                 interactive: true
                 collide: false
-                priority: 'function() { return feature.priority; }'
+                priority: 'function() { return (1+feature.priority)/1E6; }'
                 text:
                     text_source: name
                     anchor: [right, left, bottom, top]

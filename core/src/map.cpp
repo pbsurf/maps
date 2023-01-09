@@ -192,14 +192,6 @@ SceneID Map::Impl::loadSceneAsync(SceneOptions&& _sceneOptions) {
     return scene->id;
 }
 
-std::string Map::readSceneValue(const std::string& yamlPath)
-{
-  YAML::Node node;
-  if(!impl->scene->isReady() || !YamlPath(yamlPath).get(impl->scene->config(), node))
-    return "";
-  return node.Scalar();
-}
-
 Scene* Map::getScene()
 {
   return impl->scene.get();

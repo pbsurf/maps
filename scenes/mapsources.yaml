@@ -94,7 +94,7 @@ enable-contours:
     type: Update
     title: Contours
     updates:
-        styles.hillshade.shaders.defines.SHOW_CONTOURS: 1
+        styles.hillshade.shaders.defines.SHOW_CONTOURS: true
 
 
 hillshade-vector:

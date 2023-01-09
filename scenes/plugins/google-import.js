@@ -10,12 +10,14 @@ function importGooglePlaces()
     const list = "Reviews";
     for(var ii = 0; ii < places.features.length; ii++) {
       const r = places.features[ii];
+      const loc = r.properties["Location"];
+      if(!loc) { continue; }  // some places are missing Location (and have lat,lng = 0,0)
       const lnglat = r.geometry.coordinates;
       const note = r.properties["Star Rating"] + "* " + r.properties["Review Comment"];
-      const props = { "name": r.properies["Location"]["Business Name"] };
+      const props = { "name": loc["Business Name"] };
       addBookmark(list, "none", props, note, lnglat[0], lnglat[1]);
     }
-  }
+  });
 }
 
 registerFunction("importGooglePlaces", "command", "Import Google Places");

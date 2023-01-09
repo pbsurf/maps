@@ -200,9 +200,6 @@ public:
         return loadScene(SceneOptions{_yaml, Url(_resourceRoot), _useScenePosition, _sceneUpdates}, true);
     }
 
-    // read a value from the current scene at location given by yamlPath
-    std::string readSceneValue(const std::string& yamlPath);
-
     // get the scene object
     Scene* getScene();
 

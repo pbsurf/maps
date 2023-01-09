@@ -67,7 +67,7 @@ styles:
                 # not sure if there is any way to figure this out in shader
                 ELEVATION_MAX_ZOOM: 14.0
                 ELEVATION_INDEX: 0
-                SHOW_CONTOURS: 0
+                SHOW_CONTOURS: false
             uniforms:
                 u_exaggerate: 1.5
                 # https://github.com/der-stefan/OpenTopoMap/blob/master/mapnik/relief_color_text_file.txt
@@ -127,7 +127,7 @@ styles:
                     #else
                     vec4 base_color = v_color;
                     #endif
-                    #if SHOW_CONTOURS
+                    #ifdef SHOW_CONTOURS
                     float z = u_map_position.z;
                     if(z < 10.) {
                         // terrain colormap (i.e., map height to color) for low zooms
