@@ -5,9 +5,9 @@
 # To cache tiles, cache file names must be specified for vector sources as with mapzen-osm below; source
 #  name used for raster cache file name unless overridden (cache: false to disable)
 
-omt-osm:
+stylus-osm:
     type: Vector
-    title: OMT OSM
+    title: Stylus Labs OSM
     url: scene-omt.yaml
 
 
@@ -129,3 +129,13 @@ custom-1:
     updates:
         layers.pois.enabled: false
         #- {key: +layers.pois.enabled, value: false}
+
+
+stylus-satellite:
+    type: Multi
+    title: Stylus Labs OSM Satellite
+    layers:
+        - source: bing-earth
+        - source: stylus-osm
+    updates:
+        global.show_polygons: false

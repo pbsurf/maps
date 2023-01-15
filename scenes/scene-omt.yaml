@@ -105,7 +105,7 @@ global:
           const tourism = { "viewpoint": "viewpoint", "camp_site": "campground", "information": "information",
             "museum": "museum", "hotel": "hotel", "motel": "hotel", "hostel": "hotel", "guest_house": "hotel",
             "bed_and_breakfast": "hotel", "chalet": "hotel", "alpine_hut": "hotel", "attraction": "attraction",
-            "artwork": "artwork"
+            "artwork": "artwork", "gallery": "shop"
           };
           const historic = { "monument": "artwork" };
           const leisure = { "fitness_centre": "gym", "sports_centre": "gym" };
@@ -130,6 +130,9 @@ global:
               historic[feature.historic] || shop[feature.shop] || (feature.shop ? "shop" : "");
         }
 
+    # if we want to easily add on top of various raster sources, have MapsSources set global._vector_order to
+    #  layer number for vector source
+    show_polygons: true  # function() { return !(global._vector_order > 0); }
     show_bike: false
     show_transit: false
     show_trails: false
@@ -137,6 +140,8 @@ global:
     show_contours: 1
 
     gui_variables:
+        - name: show_polygons
+          label: Polygons
         - name: show_bike
           label: Bike
         - name: show_transit
@@ -286,27 +291,15 @@ sources:
 layers:
     earth:
         data: { source: elevation }
+        enabled: global.show_polygons
         draw:
             polygons:
                 style: terrain
                 order: 0
 
-    continents:
-        data: { source: osm, layer: place }
-        continents:
-            filter: { class: continent, $geometry: point }
-            draw:
-                text:
-                    priority: global.priority_continent
-                    font:
-                        family: Open Sans
-                        size: 12px
-                        fill: [0, 0, 0, .8]
-                        stroke: { color: white, width: 4 }
-                        transform: uppercase
-
     landcover:
         data: { source: osm, layer: landcover }
+        enabled: global.show_polygons
         #filter:
         #    - { $zoom: { min: 16 } }
         #    #- { area: { min: 500px2 } }
@@ -338,6 +331,7 @@ layers:
 
     landuse:
         data: { source: osm, layer: landuse }
+        enabled: global.show_polygons
         #filter:
         #    - { $zoom: { min: 16 } }
         #    #- { area: { min: 500px2 } }
@@ -351,7 +345,7 @@ layers:
             green:
                 filter: { class: [zoo, playground, pitch, cemetery] }
                 draw: { polygons: { visible: true, color: global.color_park_detail } }
-            industry:
+            retail:
                 filter: { class: [retail] }  #industrial, commercial
                 draw: { polygons: { visible: true, color: global.color_retail } }
             civic:
@@ -363,6 +357,7 @@ layers:
 
     park:
         data: { source: osm, layer: park }
+        enabled: global.show_polygons
         #filter:
         #    - { $zoom: { min: 16 } }
         #    #- { area: { min: 500px2 } }
@@ -374,6 +369,7 @@ layers:
 
     water:
         data: { source: osm, layer: water }
+        enabled: global.show_polygons
         draw:
             polygons:
                 order: 5
@@ -799,7 +795,7 @@ layers:
     buildings:
         data: { source: osm, layer: building }
         filter: { $zoom: { min: 14 } }
-
+        enabled: global.show_polygons
         draw:
             polygons:
                 style: heightglow
@@ -1118,6 +1114,18 @@ layers:
 
     places:
         data: { source: osm, layer: place }
+
+        continents:
+            filter: { class: continent, $geometry: point }
+            draw:
+                text:
+                    priority: global.priority_continent
+                    font:
+                        family: Open Sans
+                        size: 12px
+                        fill: [0, 0, 0, .8]
+                        stroke: { color: white, width: 4 }
+                        transform: uppercase
 
         # city labels with points
         city-points:
