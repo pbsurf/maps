@@ -29,7 +29,7 @@ public:
     AndroidPlatform(JNIEnv* jniEnv, jobject mapController, jobject assetManager);
     void shutdown() override;
     void requestRender() const override;
-    void notifyRender() const override;
+    bool notifyRender() const override;
     void setContinuousRendering(bool isContinuous) override;
     FontSourceHandle systemFont(const std::string& name, const std::string& weight, const std::string& face) const override;
     std::vector<FontSourceHandle> systemFontFallbacksHandle() const override;

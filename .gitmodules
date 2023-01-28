@@ -34,3 +34,6 @@
 [submodule "external/SQLiteCpp"]
 	path = core/deps/SQLiteCpp
 	url = https://github.com/SRombauts/SQLiteCpp.git
+[submodule "core/deps/stb"]
+	path = core/deps/stb
+	url = https://github.com/nothings/stb.git

@@ -113,8 +113,10 @@ void AndroidPlatform::requestRender() const {
     m_renderRequested = true;
 }
 
-void AndroidPlatform::notifyRender() const {
-    m_renderRequested = false;
+bool AndroidPlatform::notifyRender() const {
+  if (!m_renderRequested) { return false; }
+  m_renderRequested = false;
+  return true;
 }
 
 std::vector<FontSourceHandle> AndroidPlatform::systemFontFallbacksHandle() const {

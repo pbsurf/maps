@@ -79,7 +79,7 @@ public:
     virtual void requestRender() const = 0;
 
     // called when rendering frame, so impl can clear flag used to avoid duplicate render requests
-    virtual void notifyRender() const = 0;
+    virtual bool notifyRender() const = 0;
 
     // If called with 'true', the windowing system will re-draw frames continuously;
     // otherwise new frames will only be drawn when 'requestRender' is called.

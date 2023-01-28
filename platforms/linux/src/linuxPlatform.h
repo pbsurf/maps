@@ -15,7 +15,7 @@ public:
     ~LinuxPlatform() override;
     void shutdown() override;
     void requestRender() const override;
-    void notifyRender() const override;
+    bool notifyRender() const override;
     std::vector<FontSourceHandle> systemFontFallbacksHandle() const override;
     FontSourceHandle systemFont(const std::string& _name, const std::string& _weight,
                                 const std::string& _face) const override;

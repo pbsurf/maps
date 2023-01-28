@@ -50,8 +50,10 @@ void LinuxPlatform::requestRender() const {
     m_renderRequested = true;
 }
 
-void LinuxPlatform::notifyRender() const {
+bool LinuxPlatform::notifyRender() const {
+    if (!m_renderRequested) { return false; }
     m_renderRequested = false;
+    return true;
 }
 
 std::vector<FontSourceHandle> LinuxPlatform::systemFontFallbacksHandle() const {

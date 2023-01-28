@@ -35,13 +35,13 @@ find_package(CURL REQUIRED)
 
 add_executable(tangram
   platforms/linux/src/linuxPlatform.cpp
-  platforms/linux/src/main.cpp
   platforms/common/platform_gl.cpp
   platforms/common/imgui_impl_glfw.cpp
   platforms/common/imgui_impl_opengl3.cpp
   platforms/common/urlClient.cpp
   platforms/common/linuxSystemFontHelper.cpp
-  platforms/common/glfwApp.cpp
+  #platforms/common/glfwApp.cpp
+  #platforms/linux/src/main.cpp
 )
 
 add_subdirectory(platforms/common/imgui)
@@ -53,10 +53,12 @@ target_include_directories(tangram
   ${FONTCONFIG_INCLUDE_DIRS}
 )
 
+# dependencies should come after modules that depend on them (remember to try start-group / end-group to
+#  investigate unexplained "undefined reference" errors)
 target_link_libraries(tangram
   PRIVATE
-  tangram-core
   maps-app
+  tangram-core
   glfw
   imgui
   ${GLFW_LIBRARIES}
