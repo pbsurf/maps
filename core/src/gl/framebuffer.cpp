@@ -47,15 +47,15 @@ bool FrameBuffer::applyAsRenderTarget(RenderState& _rs, ColorF _clearColor) {
         return false;
     }
 
-    FrameBuffer::apply(_rs, m_glFrameBufferHandle, {m_width, m_height}, _clearColor);
+    FrameBuffer::apply(_rs, m_glFrameBufferHandle, {0, 0, m_width, m_height}, _clearColor);
 
     return true;
 }
 
-void FrameBuffer::apply(RenderState& _rs, GLuint _handle, glm::vec2 _viewport, ColorF _clearColor) {
+void FrameBuffer::apply(RenderState& _rs, GLuint _handle, glm::vec4 _viewport, ColorF _clearColor) {
 
     _rs.framebuffer(_handle);
-    _rs.viewport(0, 0, _viewport.x, _viewport.y);
+    _rs.viewport(_viewport.x, _viewport.y, _viewport.z, _viewport.w);
 
     if (_clearColor == ColorF() && _rs.defaultOpaqueClearColor()) {
         _rs.clearDefaultOpaqueColor();

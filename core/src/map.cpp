@@ -218,11 +218,15 @@ Platform& Map::getPlatform() {
 }
 
 void Map::resize(int _newWidth, int _newHeight) {
+  setViewport(0, 0, _newWidth, _newHeight);
+}
+
+void Map::setViewport(int _newX, int _newY, int _newWidth, int _newHeight) {
 
     LOGS("resize: %d x %d", _newWidth, _newHeight);
     LOG("resize: %d x %d", _newWidth, _newHeight);
 
-    impl->view.setSize(_newWidth, _newHeight);
+    impl->view.setViewport(_newX, _newY, _newWidth, _newHeight);
 
     impl->selectionBuffer = std::make_unique<FrameBuffer>(_newWidth/2, _newHeight/2);
 }
@@ -277,7 +281,7 @@ void Map::render() {
     auto& view = impl->view;
     auto& renderState = impl->renderState;
 
-    glm::vec2 viewport(view.getWidth(), view.getHeight());
+    glm::vec4 viewport = view.getViewport();
 
     // Delete batch of gl resources
     renderState.flushResourceDeletion();
@@ -324,7 +328,7 @@ void Map::render() {
                        viewport, impl->background.toColorF());
 
     if (drawSelectionDebug) {
-        impl->selectionBuffer->drawDebug(renderState, viewport);
+        impl->selectionBuffer->drawDebug(renderState, {viewport.z, viewport.w});
         FrameInfo::draw(renderState, view, *scene.tileManager());
         return;
     }

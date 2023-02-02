@@ -28,7 +28,7 @@ View::View(int _width, int _height) :
     auto bounds = MapProjection::mapProjectedMetersBounds();
     m_constraint.setLimitsY(bounds.min.y, bounds.max.y);
 
-    setSize(_width, _height);
+    setViewport(0, 0, _width, _height);
     setZoom(m_zoom);
     setPosition(0.0, 0.0);
 }
@@ -89,8 +89,10 @@ ViewState View::state() const {
     };
 }
 
-void View::setSize(int _width, int _height) {
+void View::setViewport(int _x, int _y, int _width, int _height) {
 
+    m_vpX = _x;
+    m_vpY = _y;
     m_vpWidth = std::max(_width, 1);
     m_vpHeight = std::max(_height, 1);
     m_aspect = (float)m_vpWidth/ (float)m_vpHeight;

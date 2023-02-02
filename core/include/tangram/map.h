@@ -219,6 +219,9 @@ public:
     // Resize the map view to a new width and height (in pixels)
     void resize(int _newWidth, int _newHeight);
 
+    // set map view size and screen position (using OpenGL convention of origin at lower left)
+    void setViewport(int _newX, int _newY, int _newWidth, int _newHeight);
+
     // Update the map state with the time interval in seconds since the last update.
     // Return MapState with flags set to determine whether the view is complete or changing.
     MapState update(float _dt);

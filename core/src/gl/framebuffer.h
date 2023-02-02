@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "glm/vec2.hpp"
+#include "glm/vec4.hpp"
 #include "gl.h"
 #include "util/color.h"
 
@@ -22,7 +23,7 @@ public:
 
     bool applyAsRenderTarget(RenderState& _rs, ColorF _clearColor = ColorF());
 
-    static void apply(RenderState& _rs, GLuint _handle, glm::vec2 _viewport, ColorF _clearColor);
+    static void apply(RenderState& _rs, GLuint _handle, glm::vec4 _viewport, ColorF _clearColor);
 
     bool valid() const { return m_valid; }
 

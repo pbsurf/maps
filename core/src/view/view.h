@@ -117,8 +117,8 @@ public:
     // Set the ratio of hardware pixels to logical pixels. Default is 1.0.
     void setPixelScale(float _pixelsPerPoint);
 
-    // Set the size of the viewable area in pixel.
-    void setSize(int _width, int _height);
+    // Set the size and position (origin at lower left) of the viewable area in pixels.
+    void setViewport(int _x, int _y, int _width, int _height);
 
     // Set the position of the view within the world in projected meters.
     void setPosition(double _x, double _y);
@@ -198,6 +198,8 @@ public:
 
     float getHeight() const { return m_vpHeight; }
 
+    glm::vec4 getViewport() const { return {m_vpX, m_vpY, m_vpWidth, m_vpHeight}; }
+
     EdgePadding getPadding() const { return m_padding; }
 
     void setPadding(EdgePadding padding);
@@ -267,6 +269,8 @@ protected:
     float m_width;
     float m_height;
 
+    int m_vpX;
+    int m_vpY;
     int m_vpWidth;
     int m_vpHeight;
     float m_aspect;
