@@ -20,11 +20,16 @@ public:
     MBTilesDataSource(Platform& _platform, std::string _name, std::string _path, std::string _mime,
                       bool _cache = false, bool _offlineFallback = false);
 
-    ~MBTilesDataSource();
+    ~MBTilesDataSource() override;
 
     bool loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb _cb) override;
 
     void clear() override {}
+
+    void deleteOfflineMap(int offlineId);
+    void deleteOldTiles(int cutoff);
+    void getTileSizes(std::function<void(int, int)> cb);
+    int64_t getOfflineSize();
 
 private:
     bool getTileData(const TileID& _tileId, std::vector<char>& _data, int offlineId);

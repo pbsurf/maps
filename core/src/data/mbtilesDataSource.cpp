@@ -80,6 +80,14 @@ CREATE INDEX IF NOT EXISTS map_grid_id ON map (grid_id);
 CREATE UNIQUE INDEX IF NOT EXISTS offline_index ON offline_tiles (tile_id, offline_id);
 CREATE UNIQUE INDEX IF NOT EXISTS last_access_index ON tile_last_access (tile_id);
 
+-- or we could use foreign keys: "tile_id REFERENCES images.tile_id ON DELETE CASCADE"
+CREATE TRIGGER IF NOT EXISTS delete_tile AFTER DELETE ON images
+BEGIN
+    DELETE FROM map WHERE tile_id = OLD.tile_id;
+    DELETE FROM tiles_last_access WHERE tile_id = OLD.tile_id;
+    --DELETE FROM offline_tiles WHERE tile_id = OLD.tile_id;
+END;
+
 CREATE VIEW IF NOT EXISTS tiles AS
     SELECT
         map.zoom_level AS zoom_level,
@@ -124,7 +132,11 @@ struct MBTilesQueries {
     // caching and offline maps
     SQLite::Statement getOffline;
     SQLite::Statement putOffline;
-    SQLite::Statement putLastAccess;  // CURRENT_TIMESTAMP is a string - use CAST strftime('%s') AS INTEGER for int
+    SQLite::Statement delOffline;
+    SQLite::Statement delOldTiles;
+    SQLite::Statement getTileSizes;
+    SQLite::Statement getOfflineSize;
+    SQLite::Statement putLastAccess;
 
     MBTilesQueries(SQLite::Database& _db, bool _cache) :
         getTileData(_db, _cache ?
@@ -134,7 +146,14 @@ struct MBTilesQueries {
         putImage(_db, _cache ? "REPLACE INTO images (tile_id, tile_data) VALUES (?, ?);" : ";"),
         getOffline(_db, _cache ? "SELECT 1,tile_id FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;" : ";"),
         putOffline(_db, _cache ? "REPLACE INTO offline_tiles (tile_id, offline_id) VALUES (?, ?);" : ";"),
-        putLastAccess(_db, _cache ? "REPLACE INTO tile_last_access (tile_id, last_access) VALUES (?, CURRENT_TIMESTAMP);" : ";") {}
+        delOffline(_db, _cache ? "DELETE FROM offline_tiles WHERE offline_id = ?;" : ";"),
+        delOldTiles(_db, _cache ?  // note that rows in maps and tile_last_access will be deleted by trigger
+            "DELETE FROM images WHERE tile_id IN (SELECT tile_id FROM tile_last_access WHERE last_access < ? AND tile_id NOT IN (SELECT tile_id FROM offline_tiles));" : ";"),
+        getTileSizes(_db, _cache ?
+            "SELECT tile_last_access.tile_id AS tid, last_access, length(tile_data) FROM images JOIN tile_last_access ON images.tile_id = tid WHERE tid NOT IN (SELECT tile_id FROM offline_tiles);" : ";"),
+        getOfflineSize(_db, _cache ? "SELECT sum(length(tile_data)) FROM images WHERE tile_id IN (SELECT tile_id FROM offline_tiles);" : ";"),
+        putLastAccess(_db, _cache ?  // CURRENT_TIMESTAMP is a string!
+            "REPLACE INTO tile_last_access (tile_id, last_access) VALUES (?, CAST(strftime('%s') AS INTEGER));" : ";") {}
 
 };
 
@@ -559,9 +578,8 @@ void MBTilesDataSource::storeTileData(const TileID& _tileId, const std::vector<c
         stmt.bind(1, md5id);
         stmt.bind(2, data, size);
         stmt.exec();
-
         stmt.reset();
-
+        m_platform.notifyStorage(size, 0);  //offlineId ? size : 0);
     } catch (std::exception& e) {
         LOGE("MBTiles SQLite put image statement failed: %s", e.what());
     }
@@ -577,6 +595,57 @@ void MBTilesDataSource::storeTileData(const TileID& _tileId, const std::vector<c
             LOGE("MBTiles SQLite offline id statement failed: %s", e.what());
         }
     }
+}
+
+void MBTilesDataSource::deleteOfflineMap(int offlineId) {
+    try {
+        auto& stmt = m_queries->delOffline;
+        stmt.bind(1, offlineId);
+        stmt.exec();
+        stmt.reset();
+    } catch (std::exception& e) {
+        LOGE("MBTiles SQLite offline tile delete statement failed: %s", e.what());
+    }
+    updateOfflineSize();
+}
+
+void MBTilesDataSource::deleteOldTiles(int cutoff) {
+    try {
+        auto& stmt = m_queries->delOldTiles;
+        stmt.bind(1, cutoff);
+        stmt.exec();
+        stmt.reset();
+    } catch (std::exception& e) {
+        LOGE("MBTiles SQLite old tile delete statement failed: %s", e.what());
+    }
+}
+
+void MBTilesDataSource::getTileSizes(std::function<void(int, int)> cb) {
+    try {
+        auto& stmt = m_queries->getTileSizes;
+        while (stmt.executeStep()) {
+            //const char* tile_id = stmt.getColumn(0).getText();  -- tile_id not needed
+            int timestamp = stmt.getColumn(1).getInt();
+            int size = stmt.getColumn(2).getInt();
+            cb(timestamp, size);
+        }
+        stmt.reset();
+    } catch (std::exception& e) {
+        LOGE("MBTiles SQLite get tile sizes statement failed: %s", e.what());
+    }
+}
+
+int64_t MBTilesDataSource::getOfflineSize() {
+  int64_t size = 0;
+  try {
+      auto& stmt = m_queries->getOfflineSize;
+      if (stmt.executeStep())
+          size = stmt.getColumn(0).getInt64();
+      stmt.reset();
+  } catch (std::exception& e) {
+      LOGE("MBTiles SQLite get offline size statement failed: %s", e.what());
+  }
+  return size;
 }
 
 }

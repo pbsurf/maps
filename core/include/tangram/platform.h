@@ -105,10 +105,12 @@ public:
     virtual std::vector<FontSourceHandle> systemFontFallbacksHandle() const;
 
     size_t activeUrlRequests() const { return m_urlCallbacks.size(); }
+    void notifyStorage(int dtot, int doffl) const { if(onNotifyStorage) onNotifyStorage(dtot, doffl); }
 
     std::atomic_bool isOffline{false};
     size_t urlRequestsThreshold = 0;
     std::function<void(void)> onUrlRequestsThreshold;
+    std::function<void(int, int)> onNotifyStorage;
 
 protected:
     // Platform implementation specific id for URL requests. This id is
