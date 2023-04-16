@@ -680,8 +680,8 @@ bool Map::lngLatToScreenPosition(double _lng, double _lat, double* _x, double* _
     bool outsideViewport = false;
     glm::vec2 screenPosition = impl->view.lngLatToScreenPosition(_lng, _lat, outsideViewport, clipToViewport);
 
-    *_x = screenPosition.x;
-    *_y = screenPosition.y;
+    if(_x) *_x = screenPosition.x;
+    if(_y) *_y = screenPosition.y;
 
     return !outsideViewport;
 }
