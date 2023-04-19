@@ -93,6 +93,8 @@ struct CameraPosition {
     float zoom = 0;
     float rotation = 0;
     float tilt = 0;
+
+    LngLat lngLat() const { return {longitude, latitude}; }
 };
 
 struct EdgePadding {

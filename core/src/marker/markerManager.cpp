@@ -123,7 +123,7 @@ bool MarkerManager::setPoint(MarkerID markerID, LngLat lngLat) {
     }
 
     // Update the marker's bounds to the given coordinates.
-    auto origin = MapProjection::lngLatToProjectedMeters({lngLat.longitude, lngLat.latitude});
+    auto origin = MapProjection::lngLatToProjectedMeters(lngLat);
     marker->setBounds({ origin, origin });
 
     m_dirty = true;
