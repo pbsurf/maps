@@ -14,8 +14,9 @@ function importGooglePlaces()
       if(!loc) { continue; }  // some places are missing Location (and have lat,lng = 0,0)
       const lnglat = r.geometry.coordinates;
       const note = r.properties["Star Rating"] + "* " + r.properties["Review Comment"];
-      const props = { "name": loc["Business Name"] };
-      addBookmark(list, "none", props, note, lnglat[0], lnglat[1]);
+      //const props = { "name": loc["Business Name"] };
+      const name = loc["Business Name"];
+      addBookmark(list, "none", name, {}, note, lnglat[0], lnglat[1]);
     }
   });
 }
