@@ -116,3 +116,44 @@ layers:
                 outline:
                     width: 3px
                     color: "#FFFFFF"
+
+    track-marker:
+        draw:
+            marker:
+                style: points
+                collide: false
+                size: 12px
+                color: red
+                outline:
+                    width: 1px
+                    color: "#9A291D"
+
+    track:
+        draw:
+            track:
+                style: lines
+                interactive: true
+                color: blue
+                width: 2px
+                order: 5000
+
+    selected-track:
+        draw:
+            track:
+                style: lines
+                interactive: true
+                color: blue
+                width: 2px
+                order: 5000
+                outline:
+                    width: 2px
+                    color: white
+
+    recording-track:
+        draw:
+            track:
+                style: lines
+                interactive: true
+                color: red
+                width: 4px
+                order: 5000

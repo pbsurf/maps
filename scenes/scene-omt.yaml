@@ -5,8 +5,8 @@
 #  isn't practical
 # - mapzen walkabout style is nice, but way too big - nearly 10K lines
 import:
-    - markers.yaml
     - raster-contour.yaml
+    #- markers.yaml
 
 global:
     #feature_order: function () { return feature.sort_rank; }
