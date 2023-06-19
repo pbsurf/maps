@@ -111,10 +111,10 @@ layers:
             marker:
                 style: points
                 collide: false
-                size: 24px
+                size: 20px
                 color: "#0000FF"
                 outline:
-                    width: 3px
+                    width: 2px
                     color: "#FFFFFF"
 
     track-marker:

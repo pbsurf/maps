@@ -18,6 +18,8 @@ std::string doubleToString(double _doubleValue) {
 
 Properties::Properties() : sourceId(0) {}
 
+Properties::Properties(std::vector<Item>&& _items) : sourceId(0), props(_items) {}
+
 Properties::~Properties() {}
 
 Properties& Properties::operator=(Properties&& _other) {

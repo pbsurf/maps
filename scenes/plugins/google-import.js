@@ -16,7 +16,8 @@ function importGooglePlaces()
       const note = r.properties["Star Rating"] + "* " + r.properties["Review Comment"];
       //const props = { "name": loc["Business Name"] };
       const name = loc["Business Name"];
-      addBookmark(list, "none", name, {}, note, lnglat[0], lnglat[1]);
+      const date = Date.parse(r.properties["Published"])/1000;
+      addBookmark(list, "none", name, {}, note, lnglat[0], lnglat[1], date);
     }
   });
 }

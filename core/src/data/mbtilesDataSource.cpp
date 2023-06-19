@@ -606,7 +606,6 @@ void MBTilesDataSource::deleteOfflineMap(int offlineId) {
     } catch (std::exception& e) {
         LOGE("MBTiles SQLite offline tile delete statement failed: %s", e.what());
     }
-    updateOfflineSize();
 }
 
 void MBTilesDataSource::deleteOldTiles(int cutoff) {
