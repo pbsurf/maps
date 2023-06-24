@@ -137,9 +137,9 @@ SceneID Map::loadScene(SceneOptions&& _sceneOptions, bool _async) {
 
 SceneID Map::Impl::loadScene(SceneOptions&& _sceneOptions) {
 
-    // NB: This also disposes old scene which might be blocking
-    scene = std::make_unique<Scene>(platform, std::move(_sceneOptions));
-
+    std::unique_ptr<Scene> oldScene = std::move(scene);
+    scene = std::make_unique<Scene>(platform, std::move(_sceneOptions), nullptr, oldScene.get());
+    oldScene.reset();  // dispose old scene ... might be blocking
     scene->load();
 
     if (onSceneReady) {
@@ -167,7 +167,7 @@ SceneID Map::Impl::loadSceneAsync(SceneOptions&& _sceneOptions) {
         platform.requestRender();
     };
 
-    scene = std::make_unique<Scene>(platform, std::move(_sceneOptions), prefetchCallback);
+    scene = std::make_unique<Scene>(platform, std::move(_sceneOptions), prefetchCallback, oldScene.get());
 
     // This async task gets a raw pointer to the new scene and the following task takes ownership of the shared_ptr to
     // the old scene. Tasks in the async queue are executed one at a time in FIFO order, so even if another scene starts

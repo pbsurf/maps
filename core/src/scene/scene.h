@@ -103,7 +103,7 @@ public:
     enum animate { yes, no, none };
 
     Scene(Platform& _platform, SceneOptions&& = {},
-          std::function<void(Scene*)> _prefetchCallback = nullptr);
+          std::function<void(Scene*)> _prefetchCallback = nullptr, Scene* _oldScene = nullptr);
 
     ~Scene();
 

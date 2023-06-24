@@ -21,7 +21,7 @@ class MarkerManager {
 
 public:
 
-    explicit MarkerManager(const Scene& scene);
+    explicit MarkerManager(const Scene& scene, MarkerManager* _oldInst = nullptr);
     ~MarkerManager();
 
     // Create a new, empty marker and return its ID. An ID of 0 indicates an invalid marker.

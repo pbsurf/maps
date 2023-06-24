@@ -37,6 +37,8 @@ public:
 
     ~Marker();
 
+    void reset();
+
     // Set the axis-aligned bounding box for the feature geometry in Mercator meters;
     // The points in the feature for this Marker should be made relative to a coordinate system
     // whose origin is the South-West corner of the bounds and whose unit length is the

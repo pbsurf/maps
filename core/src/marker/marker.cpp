@@ -20,6 +20,14 @@ Marker::Marker(MarkerID id) : m_id(id) {
 Marker::~Marker() {
 }
 
+void Marker::reset() {
+    m_mesh.reset();
+    m_drawRuleData.reset();
+    m_drawRule.reset();
+    m_drawRuleSet.reset(new DrawRuleMergeSet());
+    m_builtZoomLevel = -1;
+}
+
 void Marker::setBounds(BoundingBox bounds) {
     m_bounds = bounds;
     m_origin = bounds.min; // South-West corner

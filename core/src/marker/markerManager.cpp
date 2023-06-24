@@ -19,7 +19,16 @@ namespace Tangram {
 // ':' Delimiter for style params and layer-sublayer naming
 static const char DELIMITER = ':';
 
-MarkerManager::MarkerManager(const Scene& _scene) : m_scene(_scene) {}
+MarkerManager::MarkerManager(const Scene& _scene, MarkerManager* _oldInst) : m_scene(_scene) {
+    if(_oldInst && !_oldInst->m_markers.empty()) {
+        m_dirty = true;
+        m_markers = std::move(_oldInst->m_markers);
+        m_idCounter = uint32_t(m_markers.size());
+        for(auto& marker : m_markers) {
+            marker->reset();
+        }
+    }
+}
 
 MarkerManager::~MarkerManager() {}
 

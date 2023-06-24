@@ -52,6 +52,9 @@ public:
     /// Start loading tiles as soon as possible
     bool prefetchTiles = true;
 
+    /// Preserve markers from previous scene?
+    bool preserveMarkers = false;
+
     /// Number of threads fetching tiles
     uint32_t numTileWorkers = 2;
 

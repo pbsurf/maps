@@ -33,7 +33,7 @@ namespace Tangram {
 static std::atomic<int32_t> s_serial;
 
 
-Scene::Scene(Platform& _platform, SceneOptions&& _options, std::function<void(Scene*)> _prefetchCallback) :
+Scene::Scene(Platform& _platform, SceneOptions&& _options, std::function<void(Scene*)> _prefetchCallback, Scene* _oldScene) :
     id(s_serial++),
     m_platform(_platform),
     m_options(std::move(_options)),
@@ -41,7 +41,8 @@ Scene::Scene(Platform& _platform, SceneOptions&& _options, std::function<void(Sc
 
     m_tileWorker = std::make_unique<TileWorker>(_platform, m_options.numTileWorkers);
     m_tileManager = std::make_unique<TileManager>(_platform, *m_tileWorker);
-    m_markerManager = std::make_unique<MarkerManager>(*this);
+    m_markerManager = std::make_unique<MarkerManager>(*this,
+        _oldScene && _options.preserveMarkers ? _oldScene->m_markerManager.get() : NULL);
 }
 
 Scene::~Scene() {
