@@ -66,12 +66,14 @@ osm-raster-terrain:
 ridewithgps-heatmap:
     type: Raster
     title: RideWithGPS Heatmap
+    layer: true
     url: https://heatmap.ridewithgps.com/v1/map/default/normalized/{z}/{x}/{y}.png?start_color=%23A1E6E6&mid_color=%23E64560&end_color=%23E60026&midpoint=0.2&start_opacity=60&mid_opacity=120&end_opacity=200
 
 
 osm-gps-tracks:
     type: Raster
     title: OSM GPS Tracks
+    layer: true
     url: http://gps-{s}.tile.openstreetmap.org/lines/{z}/{x}/{y}.png
     url_subdomains: [a, b, c]
 
@@ -100,6 +102,7 @@ enable-contours:
 hillshade-vector:
     type: Vector
     title: Hillshading (for Vector)
+    layer: true
     url: raster-contour.yaml
     updates:
         styles.hillshade.shaders.defines.ELEVATION_INDEX: 0
@@ -111,6 +114,7 @@ hillshade-vector:
 hillshade-raster:
     type: Vector
     title: Hillshading (for Raster)
+    layer: true
     url: raster-contour.yaml
     updates:
         styles.hillshade.shaders.defines.ELEVATION_INDEX: 1

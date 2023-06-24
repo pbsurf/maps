@@ -3,11 +3,11 @@
 //addUIElement("file_picker", "Input file:", "file");  addUIElement("text_input", "List:", "list");  ...
 //createPluginUI('<g class="horz_layout"><g id="file" class="file_picker"/><g id="list" class="text_input"/></g>');
 
-function importGooglePlaces()
+function importGooglePlaces(url, list)
 {
-  const url = "file:///home/mwhite/maps/Reviews.json";
+  //const url = "file:///home/mwhite/maps/Reviews.json";
   jsonHttpRequest(url, "", function(places) {
-    const list = "Reviews";
+    //const list = "Reviews";
     for(var ii = 0; ii < places.features.length; ii++) {
       const r = places.features[ii];
       const loc = r.properties["Location"];
@@ -22,4 +22,4 @@ function importGooglePlaces()
   });
 }
 
-registerFunction("importGooglePlaces", "command", "Import Google Places");
+registerFunction("importGooglePlaces", "command", "importGooglePlaces(<path to json file>, <name of bookmark list>");

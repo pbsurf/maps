@@ -111,7 +111,7 @@ layers:
             marker:
                 style: points
                 collide: false
-                size: 20px
+                size: 18px
                 color: "#0000FF"
                 outline:
                     width: 2px
@@ -123,10 +123,11 @@ layers:
                 style: points
                 collide: false
                 size: 12px
-                color: red
+                color: function() { return feature.color || '#0000FF'; }
                 outline:
                     width: 1px
-                    color: "#9A291D"
+                    #color: "#9A291D"
+                    color: white
 
     track:
         draw:
