@@ -103,10 +103,10 @@ struct EdgePadding {
     int right = 0;
     int bottom = 0;
 
-    EdgePadding() = default;
+    EdgePadding(int _pad = 0) : left(_pad), top(_pad), right(_pad), bottom(_pad) {}
 
-    EdgePadding(int left, int top, int right, int bottom)
-        : left(left), top(top), right(right), bottom(bottom) {}
+    EdgePadding(int _left, int _top, int _right, int _bottom)
+        : left(_left), top(_top), right(_right), bottom(_bottom) {}
 
     bool operator==(const EdgePadding& other) const {
         return left == other.left && top == other.top && right == other.right && bottom == other.bottom;
