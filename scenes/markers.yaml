@@ -111,7 +111,7 @@ layers:
             marker:
                 style: points
                 collide: false
-                size: 18px
+                size: 16px
                 color: "#0000FF"
                 outline:
                     width: 2px
@@ -134,7 +134,7 @@ layers:
             track:
                 style: lines
                 interactive: true
-                color: blue
+                color: function() { return feature.color || '#0000FF'; }
                 width: 2px
                 order: 5000
 
@@ -143,7 +143,7 @@ layers:
             track:
                 style: lines
                 interactive: true
-                color: blue
+                color: function() { return feature.color || '#0000FF'; }
                 width: 2px
                 order: 5000
                 outline:
@@ -155,6 +155,6 @@ layers:
             track:
                 style: lines
                 interactive: true
-                color: red
+                color: function() { return feature.color || '#FF0000'; }
                 width: 4px
                 order: 5000

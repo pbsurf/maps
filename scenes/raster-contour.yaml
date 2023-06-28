@@ -16,7 +16,7 @@
 
 # - slight seams between tiles are sometimes visible - I don't think there is any way to completely eliminate
 #  these other than adding a 1 pixel border around each tile with pixels from adjacent tiles (as mapbox-gl does)
-#  ... or use precalculated normal tiles for hillshading instead calculating from elevation
+#  ... or use precalculated normal tiles for hillshading instead of calculating from elevation
 # - mapbox-gl calculates gradient from elevation in 1st pass ("hillshade_prepare") using Horn (Sobel operator)
 #  and GL_NEAREST, then in 2nd pass ("hillshade") calculates normal (reading gradients from texture w/
 #  GL_LINEAR) and does some fancy adjustments to get final hillshading
@@ -70,6 +70,7 @@ styles:
                 SHOW_CONTOURS: false
             uniforms:
                 u_exaggerate: 1.5
+                # some more colormaps: https://www.fabiocrameri.ch/
                 # https://github.com/der-stefan/OpenTopoMap/blob/master/mapnik/relief_color_text_file.txt
                 u_terrain_color: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADMAAAABCAYAAABzE5aMAAAAU0lEQVR4nGMUrGD+b67lxBAgo8vgL6PD8OvzZ4ZfXz4z/P78meHXl09w/q/PEPz7y2eGX58/wcX+/WNi+PeXCSv9F4c4nObgIArz8/Mz8PHxEaQBkIhP/pBqnoYAAAAASUVORK5CYII=
                 # this colormap is based on matplotlib terrain colormap
