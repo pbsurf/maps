@@ -610,10 +610,13 @@ void MBTilesDataSource::deleteOfflineMap(int offlineId) {
 
 void MBTilesDataSource::deleteOldTiles(int cutoff) {
     try {
+        int totchanges = m_db->getTotalChanges();
         auto& stmt = m_queries->delOldTiles;
         stmt.bind(1, cutoff);
         stmt.exec();
         stmt.reset();
+        if (m_db->getTotalChanges() - totchanges > 32)  // SqliteCpp doesn't wrap sqlite3_changes()
+            m_db->exec("VACUUM;");
     } catch (std::exception& e) {
         LOGE("MBTiles SQLite old tile delete statement failed: %s", e.what());
     }
