@@ -84,7 +84,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS last_access_index ON tile_last_access (tile_id
 CREATE TRIGGER IF NOT EXISTS delete_tile AFTER DELETE ON images
 BEGIN
     DELETE FROM map WHERE tile_id = OLD.tile_id;
-    DELETE FROM tiles_last_access WHERE tile_id = OLD.tile_id;
+    DELETE FROM tile_last_access WHERE tile_id = OLD.tile_id;
     --DELETE FROM offline_tiles WHERE tile_id = OLD.tile_id;
 END;
 

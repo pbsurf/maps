@@ -10,8 +10,6 @@ import:
 
 global:
     #feature_order: function () { return feature.sort_rank; }
-    sdk_api_key: ''
-
     camera_settings: { type: isometric, axis: [-.2, .2] }
 
     # TODO: globals can be nested, so replace global.color_ with global.color.
