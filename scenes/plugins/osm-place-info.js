@@ -2,106 +2,71 @@
 
 // Populate place info from OSM tags from API
 
-// function addPlaceInfo(icon, title, value) { console.log(title + ": " + value); }
-// function jsonHttpRequest(url, hdrs, callback) { fetch(url).then(res => callback(res.json())); }
+//function addPlaceInfo(icon, title, value) { console.log(title + ": " + value); }
+//function jsonHttpRequest(url, hdrs, callback) { fetch(url).then(res => res.json()).then(j => callback(j)); }
 
 // from https://github.com/osmlab/jsopeninghours
 // - see https://wiki.openstreetmap.org/wiki/Key:opening_hours for more sophisticated (and far more complex) parsers
 function parseOpeningHours(text)
 {
   const days = ['mo', 'tu', 'we', 'th', 'fr', 'sa', 'su'];
-  var result = null;
-  if (text === '' || text === null) {
-    result = null;
-  }
-  else if (text == '24/7') {
-    result = {'24/7': true};
-  }
-  else if (text == 'seasonal') {
-    result = {'seasonal': true};
-  }
-  else {
-    result = {};
-    var modified_some_days = false;
-    for (var k = 0; k < days.length; k++) {
-      result[k] = null;
+  var result = [[], [], [], [], [], [], []];
+  var dayregex = /^(mo|tu|we|th|fr|sa|su)\-?(mo|tu|we|th|fr|sa|su)?$/,
+      timeregex = /^\s*(\d\d:\d\d)\-(\d\d:\d\d)\s*$/,
+      dtranges = text.toLowerCase().split(/\s*;\s*/),
+      dtrange;
+  if(dtranges.length == 0) { return null; }
+  while((dtrange = dtranges.shift())) {
+    var dtclean = dtrange.trim().replace(/\s*,\s*/, ",");
+    var daytimes = dtclean.split(/\s+/),
+        opendays = [null, null, null, null, null, null, null],
+        dayrange,
+        timerange;
+
+    if(daytimes.length == 0) { return null; }
+    else if(daytimes.length == 1) { daytimes = ["mo-su", daytimes[0]]; }
+    var dayranges = daytimes[0].split(",");
+    while((dayrange = dayranges.shift())) {
+      if(dayrange == "ph") { break; }
+      var daymatches = dayrange.match(dayregex);
+      if (daymatches && daymatches.length === 3) {
+        var startday = days.indexOf(daymatches[1]);
+        var endday = daymatches[2] ? days.indexOf(daymatches[2]) : startday;
+        if(endday < startday) { endday += 7; }
+        for (var j = startday; j <= endday; j++) {
+          opendays[j%7] = true;
+        }
+      } else {
+        return null;
+      }
     }
 
-    var dayregex = /^(mo|tu|we|th|fr|sa|su)\-?(mo|tu|we|th|fr|sa|su)?$/,
-      timeregex = /^\s*(\d\d:\d\d)\-(\d\d:\d\d)\s*$/,
-      dayranges = text.toLowerCase().split(/\s*;\s*/),
-      dayrange;
-    while((dayrange = dayranges.shift())) {
-      var daytimes = dayrange.trim().split(/\s+/),
-        daytime,
-        startday = 0,
-        endday = 6,
-        whichDays,
-        whichTimes,
-        starttime,
-        endtime;
-
-      while((daytime = daytimes.shift())) {
-        if (dayregex.test(daytime)) {
-          var daymatches = daytime.match(dayregex);
-
-          if (daymatches.length === 3) {
-            startday = days.indexOf(daymatches[1]);
-            if (daymatches[2]) {
-              endday = days.indexOf(daymatches[2]);
-            } else {
-              endday = startday;
-            }
-          } else {
-            return null;
+    var timeranges = daytimes[1].split(",");
+    while((timerange = timeranges.shift())) {
+      if(timerange == "off") { break; }
+      var timematches = timerange.match(timeregex);
+      if (timematches && timematches.length === 3) {
+        var starttime = timematches[1];
+        var endtime = timematches[2];
+        for (var j = 0; j < opendays.length; j++) {
+          if(opendays[j]) {
+            result[j].push([starttime, endtime]);
           }
-        } else if (timeregex.test(daytime)) {
-          var timematches = daytime.match(timeregex);
-
-          if (timematches.length === 3) {
-            starttime = timematches[1];
-            endtime = timematches[2];
-          } else {
-            return null;
-          }
-        } else {
-          return null;
         }
-      }
-
-      for (var j = startday; j <= endday; j++) {
-        result[j] = [starttime, endtime];
-        modified_some_days = true;
-      }
-
-      if (!modified_some_days) {
-        result = null;
+      } else {
+        return null;
       }
     }
   }
   return result;
 }
-/*
-
-How will we pass opening hours to app?
-- we want row showing current state (closed until X or open until X)
-- expanding down to hours for each day
-
-- pass JS map to separate plugin fn?
-- pass special string to special fn or addPlaceInfo
-
-\n\n (or other delim) = fold; \n for each lin
-
-How will user select which place info plugin to use?  support multiple plugins?
-- show "More info from <select box for plugin, defaulting to first place info plugin>"
-
-
-*/
 
 function to12H(hm)
 {
-  const h = parseInt(hm);
-  return h > 12 ? (h - 12) + hm.slice(2) + " PM" : hm + " AM";
+  var h = parseInt(hm);
+  if(h == 0 || h == 24) { return "12" + hm.slice(-3) + " AM"; }
+  if(h > 24) { h -= 24; }
+  return (h > 12 ? h - 12 : h) + hm.slice(-3) + (h >= 12 ? " PM" : " AM");
 }
 
 function osmPlaceInfo(osmid)
@@ -109,10 +74,14 @@ function osmPlaceInfo(osmid)
   osmid = osmid.replace(":", "/");
   const url = "https://www.openstreetmap.org/api/0.6/" + osmid + ".json";
   jsonHttpRequest(url, "", function(content) {
+    //console.log(content);
+    //try {
     const tags = content["elements"][0]["tags"];
+    //} catch (err) { return; }
 
     if(tags["cuisine"]) {
-      addPlaceInfo("food", "Cuisine", tags["cuisine"]);
+      const s = tags["cuisine"];
+      addPlaceInfo("food", "Cuisine", s[0].toUpperCase() + s.slice(1));
     }
     //tags["takeaway"] (yes, no, only)
     //tags["outdoor_seating"] (yes, no)
@@ -121,49 +90,86 @@ function osmPlaceInfo(osmid)
       const city = tags["addr:city"];
       const state = tags["addr:state"] || tags["addr:province"];
       const zip = tags["addr:postcode"];
-      const addr = (hnum ? (hnum + " ") : "") + street + (city ? " " + city : "")
+      const addr = (hnum ? (hnum + " ") : "") + tags["addr:street"] + (city ? "\n" + city : "")
           + (state ? ", " + state : "") + (zip ? " " + zip : "");
       addPlaceInfo("pin", "Address", addr);
     }
-    if(tags["website"]) {
-      addPlaceInfo("globe", "Website", tags["website"]);
+    const url = tags["website"];
+    if(url) {
+      const shorturl = url.split("://").slice(-1)[0];
+      addPlaceInfo("globe", "Website", "<a href='" + url + "'><text>" + shorturl + "</text></a>");
     }
     if(tags["phone"]) {
-      addPlaceInfo("phone", "Phone", tags["phone"]);
+      addPlaceInfo("phone", "Phone", "<a href='tel:" + tags["phone"] + "'><text>" + tags["phone"] + "</text></a>");
     }
 
     if(tags["opening_hours"]) {
-      const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-      const hours = parseOpeningHours(tags["opening_hours"]);
-      const now = new Date();
-      const today = now.getDay();
-      const nowhm = now.getHours() + ":" + now.getMinutes();
-      const toolate = !hours[today] || hours[today][1] < nowhm;  // lexical comparison
-      const tooearly = !toolate && hours[today][0] > nowhm;
+      //console.log(tags["opening_hours"]);
+      if(tags["opening_hours"] == "24/7") {
+        addPlaceInfo("clock", "Hours", "Open 24 hours");
+      } else if(tags["opening_hours"] == "sunrise-sunset") {
+        addPlaceInfo("clock", "Hours", "Open sunrise to sunset");
+      } else {
+        const hours = parseOpeningHours(tags["opening_hours"]);
+        if(!hours) {
+          addPlaceInfo("clock", "Hours", tags["opening_hours"]);
+        } else {
+          //console.log(hours);
+          const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+          const now = new Date();
+          // change from Sunday = 0 to Monday = 0
+          const today = (now.getDay() + 6)%7;
+          const nowhm = ("0" + now.getHours()).slice(-2) + ":" + now.getMinutes();
 
-      const state = tooearly || toolate ? "Closed" : "Open";
-      if(tooearly) {
-        state += " until " + to12H(hours[today][0]);
-      } else if(toolate) {
-        for (var ii = today; ii < today + 7; ii++) {
-          if(hours[ii%7]) {
-            state += " until " + days[ii%7] + " " + to12H(hours[ii%7][0]);
-            break;
+          var state = "";
+          const yd = hours[(today+6)%7];
+          if(yd.length) {
+            const ydopen = yd.slice(-1)[0][0];
+            const ydclose = yd.slice(-1)[0][1];
+            const nowhm24 = (24 + now.getHours()) + ":" + now.getMinutes();
+            if((ydclose < ydopen && nowhm < ydclose) || nowhm24 < ydclose) {
+              state = "Open until " + to12H(ydclose);
+            }
           }
+          if(!state) {
+            for(var jj = 0; jj < hours[today].length; jj++) {
+              const h = hours[today][jj];
+              if(nowhm < h[0]) {
+                state = "Closed until " + to12H(h[0]);
+                break;
+              } else if (nowhm < h[1]) {
+                state = "Open until " + to12H(h[1]);
+                break;
+              }
+            }
+          }
+          if(!state) {
+            for (var ii = today; ii < today + 7; ii++) {
+              if(hours[ii%7].length) {
+                state = "Closed until " + days[ii%7] + " " + to12H(hours[ii%7][0][0]);
+                break;
+              }
+            }
+          }
+
+          var daily = [];
+          // TODO: use \t for alignment!
+          for (var ii = 0; ii < hours.length; ii++) {
+            var t = [];
+            for (var jj = 0; jj < hours[ii].length; jj++) {
+              t.push( to12H(hours[ii][jj][0]) + " - " + to12H(hours[ii][jj][1]) );
+            }
+            daily.push( days[ii] + " " + (t.length ? t.join(", ") : "Closed") );
+          }
+
+          addPlaceInfo("clock", "Hours", state + "\r" + daily.join("\n"));
         }
       }
-
-      var daily = [];
-      // TODO: use \t for alignment!
-      for (var ii = 0; ii < hours.length; ii++) {
-        daily.push( days[ii] + "  " + to12H(hours[ii][0]) + " - " + to12H(hours[ii][1]) );
-      }
-
-      addPlaceInfo("clock", "Hours", state + "\r" + daily.join("\n"));
     }
   });
 }
 
-registerFunction("osmPlaceInfo", "place", "OSM Place Info");
+registerFunction("osmPlaceInfo", "place", "OpenStreetMap");
 
+//osmPlaceInfo("node:9203665041");
 //</script> <head/> <body/> </html>
