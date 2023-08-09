@@ -92,7 +92,7 @@ function osmPlaceInfo(osmid)
       const zip = tags["addr:postcode"];
       const addr = (hnum ? (hnum + " ") : "") + tags["addr:street"] + (city ? "\n" + city : "")
           + (state ? ", " + state : "") + (zip ? " " + zip : "");
-      addPlaceInfo("pin", "Address", addr);
+      addPlaceInfo("road", "Address", addr);
     }
     const url = tags["website"];
     if(url) {
@@ -144,9 +144,10 @@ function osmPlaceInfo(osmid)
             }
           }
           if(!state) {
-            for (var ii = today; ii < today + 7; ii++) {
-              if(hours[ii%7].length) {
-                state = "Closed until " + days[ii%7] + " " + to12H(hours[ii%7][0][0]);
+            for (var ii = 1; ii < 7; ii++) {
+              if(hours[(today+ii)%7].length) {
+                const day = ii == 1 ? "tomorrow" : days[(today+ii)%7];
+                state = "Closed until " + day + " " + to12H(hours[(today+ii)%7][0][0]);
                 break;
               }
             }
