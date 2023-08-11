@@ -97,37 +97,6 @@ global:
     priority_poi_religion: function() { return Number('101.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
     priority_poi_parking: function() { return Number('102.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
 
-    poi_sprite_fn: |
-        function()
-        {
-          const tourism = { "viewpoint": "viewpoint", "camp_site": "campground", "information": "information",
-            "museum": "museum", "hotel": "hotel", "motel": "hotel", "hostel": "hotel", "guest_house": "hotel",
-            "bed_and_breakfast": "hotel", "chalet": "hotel", "alpine_hut": "hotel", "attraction": "attraction",
-            "artwork": "artwork", "gallery": "shop"
-          };
-          const historic = { "monument": "artwork" };
-          const leisure = { "fitness_centre": "gym", "sports_centre": "gym" };
-          const amenity = { "parking": "parking", "bicycle_rental": "bike_shop", "university": "university",
-            "school": "university", "college": "university", "kindergarten": "university",
-            "restaurant": "restaurant", "fast_food": "restaurant", "ice_cream": "restaurant", "cafe": "cafe",
-            "pharmacy": "pharmacy", "bar": "bar", "pub": "bar", "nightclub": "bar", "library": "library",
-            "cinema": "theatre", "theatre": "theatre", "concert_hall": "theatre", "arts_centre": "theatre",
-            "place_of_worship": "church", "bank": "bank", "hospital": "hospital", "clinic": "doctor", "doctors": "doctor",
-            "fuel": "fuel", "dentist": "dentist", "toilets": "toilet", "drinking_water": "drinking_water",
-            "water_point": "drinking_water"
-          };
-          const shop = { "beverages": "cafe", "confectionery": "cafe", "bakery": "bakery", "pastry": "bakery",
-            "supermarket": "grocery", "convenience": "convenience", "greengrocer": "convenience", "deli": "convenience",
-             "delicatessen": "convenience", "butcher": "convenience", "farm": "convenience", "alcohol": "liquor",
-             "wine": "liquor", "clothes": "clothes", "tailor": "clothes", "fashion_accessories": "clothes",
-             "shoes": "clothes", "fashion": "clothes", "hardware": "hardware", "doityourself": "hardware",
-             "bicycle": "bike_shop", "chemist": "pharmacy", "car_repair": "auto_repair", "laundry": "laundry",
-             "dry_cleaning": "laundry", "hairdresser": "scissor", "beauty": "scissor"
-          };
-          return tourism[feature.tourism] || leisure[feature.leisure] || amenity[feature.amenity] ||
-              historic[feature.historic] || shop[feature.shop] || (feature.shop ? "shop" : "");
-        }
-
     # if we want to easily add on top of various raster sources, have MapsSources set global._vector_order to
     #  layer number for vector source
     show_polygons: true  # function() { return !(global._vector_order > 0); }
@@ -192,19 +161,7 @@ lights:
         ambient: [0.7, 0.7, 0.7, 1.]
 
 
-textures:
-    pois:
-        url: img/pois.svg
-        density: 2
-        # sprites set from svg ids
-
-    pois-search:
-        url: img/pois-search.svg
-        density: 2
-
-    marker-stroked:
-        url: img/marker-stroked.png
-        density: 2
+#textures:
 
 
 styles:
