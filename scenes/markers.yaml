@@ -27,7 +27,7 @@ global:
         railway: { "station": "train", "tram_stop": "tram" }
         station: { "light_rail": "tram" }
 
-    poi_type: { "viewpoint": "public", "campground": "public", "information": "public", "parking": "public", "toilet": "public", "drinking_water": "public", "artwork": "culture", "museum": "culture", "attraction": "culture", "university": "culture", "library": "culture", "theatre": "culture", "church": "culture", "shop": "shop", "bike_shop": "shop", "pharmacy": "shop", "fuel": "shop", "grocery": "shop", "convenience": "shop", "liquor": "shop", "clothes": "shop", "hardware": "shop", "gym": "service", "bank": "service", "dentist": "service", "auto_repair": "service", "laundry": "service", "scissor": "service", "restaurant": "food", "cafe": "food", "bar": "food", "bakery": "food", "hospital": "medical", "doctor": "medical", "hotel": "lodging", "park": "outdoor", "golf": "outdoor" }
+    poi_type: { "viewpoint": "public", "campground": "public", "information": "public", "parking": "public", "toilet": "public", "drinking_water": "public", "artwork": "culture", "museum": "culture", "attraction": "culture", "university": "culture", "library": "culture", "theatre": "culture", "church": "culture", "shop": "shop", "bike_shop": "shop", "pharmacy": "shop", "fuel": "shop", "grocery": "shop", "convenience": "shop", "liquor": "shop", "clothes": "shop", "hardware": "shop", "gym": "service", "bank": "service", "dentist": "service", "auto_repair": "service", "laundry": "service", "scissor": "service", "restaurant": "food", "cafe": "food", "bar": "food", "bakery": "food", "hospital": "medical", "doctor": "medical", "hotel": "lodging", "tree": "outdoor", "golf": "outdoor" }
 
     poi_color:
         public: "#1A73E8"
@@ -56,10 +56,6 @@ textures:
         density: 2
         # sprites set from svg ids
 
-    pois-search:
-        url: img/pois-search.svg
-        density: 2
-
     pick-marker:
         density: 2
         url: |
@@ -79,9 +75,20 @@ textures:
             </svg>
 
 
-#styles:
-#    dot-marker: { base: points, lighting: false, blend_order: 2000 }
-#    pin-marker: { base: points, lighting: false, blend_order: 2001 }
+styles:
+    poi-points:
+        base: points
+        # make sure this is drawn over search dots
+        blend_order: 1
+        shaders:
+            #defines: { DEST_COLOR: vec3(0.812,0.318,0.239) } # #CF513D
+            blocks:  # see core/shaders/point.fs to see how this is used
+                color: |
+                    vec4 tex = texture2D(u_tex, v_texcoords);
+                    float bg = tex.r;
+                    float icon = tex.g;
+                    color = icon*vec4(1.0) + (1.0-icon)*(bg*v_color);  //v_outline_color
+
 
 layers:
     pick-marker:
@@ -135,10 +142,11 @@ layers:
     search-marker:
         draw:
             marker:
-                style: points
-                texture: pois-search
+                style: poi-points
+                texture: pois
                 sprite: global.poi_sprite_fn
                 sprite_default: generic
+                color: "#CF513D"
                 size: [[13, 16px], [15, 20px]]
                 interactive: true
                 collide: false

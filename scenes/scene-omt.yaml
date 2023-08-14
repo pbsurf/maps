@@ -811,7 +811,9 @@ layers:
         data: { source: osm, layer: poi }
         draw:
             points:
+                style: poi-points
                 texture: pois
+                color: global.poi_color_fn
                 size: [[13, 16px], [15, 20px]]
                 interactive: true
                 collide: true

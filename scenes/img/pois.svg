@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', function(event) {
     x += 64;
     if(x >= 640) { x = 0; y += 64; }
   }
+  document.children[0].classList.add("preview");
 });
 
     ]]>
@@ -38,16 +39,18 @@ document.addEventListener('DOMContentLoaded', function(event) {
 
 <style type="text/css">
   <![CDATA[
-    .icon { fill: #FFFFFF }
-    .food .poi-bg { fill: #F68C30 }
-    .shop .poi-bg { fill: #5491F5 }
-    .service .poi-bg { fill: #9398DD }
-    .lodging .poi-bg { fill: #F06292 }
-    .generic .poi-bg { fill: #78909C }
-    .medical .poi-bg { fill: #EE675C }
-    .culture .poi-bg { fill: #12A7BC }
-    .outdoor .poi-bg { fill: #34A853 }
-    .public .poi-bg { fill: #1A73E8 }
+    .icon { fill: #FFFF00; }
+    .poi-bg { fill: #FF0000; }
+    .preview .icon { fill: #FFFFFF }
+    .preview .food .poi-bg { fill: #F68C30 }
+    .preview .shop .poi-bg { fill: #5491F5 }
+    .preview .service .poi-bg { fill: #9398DD }
+    .preview .lodging .poi-bg { fill: #F06292 }
+    .preview .generic .poi-bg { fill: #78909C }
+    .preview .medical .poi-bg { fill: #EE675C }
+    .preview .culture .poi-bg { fill: #12A7BC }
+    .preview .outdoor .poi-bg { fill: #34A853 }
+    .preview .public .poi-bg { fill: #1A73E8 }
 
   ]]>
 </style>
