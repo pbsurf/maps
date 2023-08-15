@@ -124,7 +124,7 @@ global:
     # specify fields indexed for search
     search_data:
         - layer: poi
-          fields: name, amenity, leisure, shop, sport, tourism
+          fields: name, amenity, leisure, shop, sport, tourism, cuisine
         - layer: place
           fields: name
 

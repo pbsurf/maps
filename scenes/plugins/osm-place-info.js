@@ -80,7 +80,7 @@ function osmPlaceInfo(osmid)
     //} catch (err) { return; }
 
     if(tags["cuisine"]) {
-      const s = tags["cuisine"];
+      const s = tags["cuisine"].replace("_", " ").replace(";", ", ");
       addPlaceInfo("food", "Cuisine", s[0].toUpperCase() + s.slice(1));
     }
     //tags["takeaway"] (yes, no, only)
@@ -160,7 +160,7 @@ function osmPlaceInfo(osmid)
             for (var jj = 0; jj < hours[ii].length; jj++) {
               t.push( to12H(hours[ii][jj][0]) + " - " + to12H(hours[ii][jj][1]) );
             }
-            daily.push( days[ii] + " " + (t.length ? t.join(", ") : "Closed") );
+            daily.push( days[ii] + "  " + (t.length ? t.join(", ") : "Closed") );
           }
 
           addPlaceInfo("clock", "Hours", state + "\r" + daily.join("\n"));
@@ -171,6 +171,19 @@ function osmPlaceInfo(osmid)
 }
 
 registerFunction("osmPlaceInfo", "place", "OpenStreetMap");
+
+/* Maybe something like this to format opening hours?
+<g layout="flex" flex-direction="row" box-anchor="hfill"/>
+  <g layout="flex" flex-direction="column" box-anchor="left"/>
+    <text box-anchor="left" margin="0 10"></text>
+    ...
+  </g>
+  <g layout="flex" flex-direction="column" box-anchor="left"/>
+    <text box-anchor="left" margin="0 10"></text>
+    ...
+  </g>
+</g>
+*/
 
 //osmPlaceInfo("node:9203665041");
 //</script> <head/> <body/> </html>
