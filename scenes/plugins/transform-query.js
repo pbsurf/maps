@@ -1,3 +1,6 @@
+// fn to modify query for offline search, e.g, for catagorical search
+// - see e.g., https://github.com/organicmaps/organicmaps/blob/master/data/categories.txt
+
 const catagories = {
   "restaurant": ["fast food", "food court"],
   "food": ["restaurant"],
