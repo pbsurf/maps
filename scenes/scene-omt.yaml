@@ -165,19 +165,6 @@ lights:
 
 
 styles:
-    #pois-search:
-    #    base: points
-    #    shaders:
-    #        defines:
-    #            # #CF513D
-    #            DEST_COLOR: vec3(0.812,0.318,0.239)
-    #        blocks:  # see core/shaders/point.fs to see how where this is used
-    #            color: "color.rgb = color.r*vec3(1.) + color.g*v_outline_color;"
-    #icons:
-    #    base: points
-    #    texture: pois
-    #    draw:
-    #        interactive: true
     heightglow:
         base: polygons
         blend: translucent
