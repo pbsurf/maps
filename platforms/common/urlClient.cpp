@@ -260,10 +260,10 @@ void UrlClient::curlWakeUp() {
     }
 }
 
-UrlClient::RequestId UrlClient::addRequest(const std::string& _url, const HttpHeaders& _headers, UrlCallback _onComplete) {
+UrlClient::RequestId UrlClient::addRequest(const std::string& _url, const HttpOptions& _options, UrlCallback _onComplete) {
 
     auto id = ++m_requestCount;
-    Request request = {_url, _headers, _onComplete, id};
+    Request request = {_url, _options, _onComplete, id};
 
     // Add the request to our list.
     {
@@ -343,9 +343,9 @@ void UrlClient::startPendingRequests() {
         // set custom request headers
         curl_slist_free_all(task.slist);
         task.slist = NULL;
-        if (!task.request.headers.empty()) {
+        if (!task.request.options.headers.empty()) {
             // split string
-            const std::string& hdrs = task.request.headers;
+            const std::string& hdrs = task.request.options.headers;
             size_t start = 0, end = 0;
             while ((end = hdrs.find_first_of("\r\n", start)) != std::string::npos) {
                 if (end > start)  // note that curl_slist_append() copies the string
@@ -356,6 +356,10 @@ void UrlClient::startPendingRequests() {
                 task.slist = curl_slist_append(task.slist, hdrs.substr(start).c_str());
         }
         curl_easy_setopt(task.handle, CURLOPT_HTTPHEADER, task.slist);
+        // HTTP POST implied if payload not empty
+        if (!task.request.options.payload.empty()) {
+            curl_easy_setopt(task.handle, CURLOPT_POSTFIELDS, task.request.options.payload.c_str());
+        }
 
         LOGD("Tasks %d - starting request for url: %s", int(m_activeTasks), url);
 

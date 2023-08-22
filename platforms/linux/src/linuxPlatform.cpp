@@ -84,9 +84,10 @@ FontSourceHandle LinuxPlatform::systemFont(const std::string& _name,
     return FontSourceHandle(Url(fontFile));
 }
 
-bool LinuxPlatform::startUrlRequestImpl(const Url& _url, const HttpHeaders& _headers, const UrlRequestHandle _request, UrlRequestId& _id) {
+bool LinuxPlatform::startUrlRequestImpl(const Url& _url, const HttpOptions& _options,
+                                        const UrlRequestHandle _request, UrlRequestId& _id) {
 
-    _id = m_urlClient->addRequest(_url.string(), _headers,
+    _id = m_urlClient->addRequest(_url.string(), _options,
                                   [this, _request](UrlResponse&& response) {
                                       onUrlResponse(_request, std::move(response));
                                   });

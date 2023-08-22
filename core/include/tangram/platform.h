@@ -28,12 +28,15 @@ struct UrlResponse {
 // Function type for receiving data from a URL request.
 using UrlCallback = std::function<void(UrlResponse&&)>;
 
-// put all headers in single string separated by newlines for now
-using HttpHeaders = std::string;
+struct HttpOptions {
+  HttpOptions(const char* hdrs = "", const char* post = "") : headers(hdrs), payload(post) {}
+  std::string headers;  // put all headers in single string separated by newlines for now
+  std::string payload;  // implies POST if not empty
+};
 
 struct UrlOptions {
     std::vector<std::string> subdomains;
-    HttpHeaders headers;
+    HttpOptions headers;
     bool isTms = false;
 };
 
@@ -93,7 +96,7 @@ public:
     // thread than the original call to startUrlRequest.
     UrlRequestHandle startUrlRequest(Url _url, UrlCallback&& _callback);
 
-    UrlRequestHandle startUrlRequest(Url _url, const HttpHeaders& _headers, UrlCallback&& _callback);
+    UrlRequestHandle startUrlRequest(Url _url, const HttpOptions& _options, UrlCallback&& _callback);
 
     // Stop retrieving data from a URL that was previously requested. When a
     // request is canceled its callback will still be run, but the response
@@ -125,7 +128,7 @@ protected:
     virtual void cancelUrlRequestImpl(UrlRequestId _id) = 0;
 
     // Return true when UrlRequestId has been set (i.e. when request is async and can be canceled)
-    virtual bool startUrlRequestImpl(const Url& _url, const HttpHeaders& _headers, UrlRequestHandle _request, UrlRequestId& _id) = 0;
+    virtual bool startUrlRequestImpl(const Url& _url, const HttpOptions& _options, UrlRequestHandle _request, UrlRequestId& _id) = 0;
 
     static bool bytesFromFileSystem(const char* _path, std::function<char*(size_t)> _allocator);
 

@@ -1,7 +1,8 @@
 function nominatimSearch(query, bounds, flags)
 {
   const url = "https://nominatim.openstreetmap.org/search?format=jsonv2&bounded=1&viewbox=" + bounds.join() + "&limit=50&q=" + query;
-  jsonHttpRequest(url, "", function(content) {
+  httpRequest(url, "", function(_content) {
+    const content = JSON.parse(_content);
     if(content.length >= 50) { flags = flags | 0x8000; }  // MapSearch::MORE_RESULTS flag
     for(var ii = 0; ii < content.length; ii++) {
       const r = content[ii];

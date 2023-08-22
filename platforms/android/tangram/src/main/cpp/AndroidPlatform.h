@@ -33,7 +33,7 @@ public:
     void setContinuousRendering(bool isContinuous) override;
     FontSourceHandle systemFont(const std::string& name, const std::string& weight, const std::string& face) const override;
     std::vector<FontSourceHandle> systemFontFallbacksHandle() const override;
-    bool startUrlRequestImpl(const Url& url, const HttpHeaders& headers, const UrlRequestHandle request, UrlRequestId& id) override;
+    bool startUrlRequestImpl(const Url& url, const HttpOptions& options, const UrlRequestHandle request, UrlRequestId& id) override;
     void cancelUrlRequestImpl(const UrlRequestId id) override;
 
     void onUrlComplete(JNIEnv* jniEnv, jlong jRequestHandle, jbyteArray jBytes, jstring jError);

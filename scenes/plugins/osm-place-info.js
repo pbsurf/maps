@@ -73,7 +73,8 @@ function osmPlaceInfo(osmid)
 {
   osmid = osmid.replace(":", "/");
   const url = "https://www.openstreetmap.org/api/0.6/" + osmid + ".json";
-  jsonHttpRequest(url, "", function(content) {
+  httpRequest(url, function(_content) {
+    const content = JSON.parse(_content);
     //console.log(content);
     //try {
     const tags = content["elements"][0]["tags"];

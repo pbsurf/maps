@@ -212,7 +212,7 @@ std::vector<char> AndroidPlatform::bytesFromFile(const Url& url) const {
     return data;
 }
 
-bool AndroidPlatform::startUrlRequestImpl(const Url& url, const HttpHeaders& headers, const UrlRequestHandle request, UrlRequestId& id) {
+bool AndroidPlatform::startUrlRequestImpl(const Url& url, const HttpOptions& options, const UrlRequestHandle request, UrlRequestId& id) {
 
     // If the requested URL does not use HTTP or HTTPS, retrieve it asynchronously.
     if (!url.hasHttpScheme()) {
@@ -239,10 +239,11 @@ bool AndroidPlatform::startUrlRequestImpl(const Url& url, const HttpHeaders& hea
                       "Cannot convert jlong to UrlRequestHandle!");
 
         jstring jUrl = JniHelpers::javaStringFromString(jniEnv, url.string());
-        jstring jHeaders = JniHelpers::javaStringFromString(jniEnv, headers);
+        jstring jHeaders = JniHelpers::javaStringFromString(jniEnv, options.headers);
+        jstring jPayload = JniHelpers::javaStringFromString(jniEnv, options.payload);
 
         // Call the MapController method to start the URL request.
-        jniEnv->CallVoidMethod(m_mapController, startUrlRequestMID, jUrl, jHeaders, jRequestHandle);
+        jniEnv->CallVoidMethod(m_mapController, startUrlRequestMID, jUrl, jHeaders, jPayload, jRequestHandle);
         jniEnv->DeleteLocalRef(jUrl);
         jniEnv->DeleteLocalRef(jHeaders);
     });
