@@ -90,6 +90,7 @@ public:
 
     // Size of texture data in bytes
     size_t bufferSize() const { return m_bufferSize; }
+    GLubyte* bufferData() const { return m_buffer.get(); }
 
     float displayScale() const { return m_options.displayScale; }
 

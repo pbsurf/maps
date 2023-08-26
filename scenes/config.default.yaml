@@ -1,0 +1,40 @@
+# Stylus Labs Maps config
+sources: mapsources.yaml
+#  - usersources.yaml
+
+#sources_sort: alphabetical, recent, or none (as listed in files)
+last_source: stylus-osm
+
+elevation_sources: ["elevation"]
+
+common_imports:
+  - markers.yaml
+  - secrets.yaml
+
+storage:
+  # cache size thresholds
+  shrink_at: 600
+  shrink_to: 400
+
+view:
+  lng: -122.434668
+  lat: 37.776444
+  zoom: 15
+
+metric_units: true
+
+# color choices for tracks and markers; from https://colorkit.co
+colors: ["#1abc9c","#16a085","#2ecc71","#27ae60","#3498db","#2980b9","#9b59b6","#8e44ad","#34495e","#2c3e50","#f1c40f","#f39c12","#e67e22","#d35400","#e74c3c","#c0392b"]
+
+#debug:
+#  freeze_tiles: false
+#  proxy_colors: false
+#  tile_bounds: false
+#  tile_infos: false
+#  labels: false
+#  tangram_infos: false
+#  draw_all_labels: false
+#  tangram_stats: false
+#  selection_buffer: false
+
+#num_tile_workers: 1  # for debugging
