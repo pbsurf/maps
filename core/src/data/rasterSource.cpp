@@ -214,16 +214,22 @@ std::shared_ptr<Texture> RasterSource::cacheTexture(const TileID& _tileId, std::
     return texture;
 }
 
-// get raster task texture for direct access to data (e.g. elevation data)
-std::shared_ptr<Texture> RasterSource::getTextureDirect(std::shared_ptr<TileTask> _task)
+// get raster task texture for direct access to data (e.g. elevation data) ... unfortunately, we cannot
+//  use our cached, decoded textures unless we clear the Texture.m_disposeBuffer flag
+// _task should be a plain BinaryTileTask, not a RasterTileTask to skip our cache!
+std::unique_ptr<Texture> RasterSource::getTextureDirect(std::shared_ptr<TileTask> _task)
 {
-  auto* rasterTask = static_cast<RasterTileTask*>(_task.get());
-  // RasterTileTask.raster will be set at creation if texture is already cached
-  if(!rasterTask->texture && !rasterTask->raster)
-    rasterTask->texture = createTexture(rasterTask->tileId(), *rasterTask->rawTileData);
-  rasterTask->setTile(std::make_unique<Tile>(rasterTask->tileId(), id(), generation()));
-  rasterTask->complete();
-  return rasterTask->tile()->rasters().empty() ? nullptr : rasterTask->tile()->rasters().front().texture;
+  auto* task = static_cast<BinaryTileTask*>(_task.get());
+  return task->rawTileData->empty() ? nullptr : createTexture(task->tileId(), *task->rawTileData);
+
+  //~auto* rasterTask = static_cast<RasterTileTask*>(_task.get());
+  //~// RasterTileTask.raster will be set at creation if texture is already cached
+  //~if(!rasterTask->texture && !rasterTask->raster)
+  //~  rasterTask->texture = createTexture(rasterTask->tileId(), *rasterTask->rawTileData);
+  //~rasterTask->setTile(std::make_unique<Tile>(rasterTask->tileId(), id(), generation()));
+  //~rasterTask->complete();
+  //~auto& rasters = rasterTask->tile()->rasters();
+  //~return rasters.empty() || !rasters.front().texture->bufferData() ? nullptr : rasters.front().texture;
 }
 
 }

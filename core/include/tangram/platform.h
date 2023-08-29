@@ -36,7 +36,7 @@ struct HttpOptions {
 
 struct UrlOptions {
     std::vector<std::string> subdomains;
-    HttpOptions headers;
+    HttpOptions httpOptions;
     bool isTms = false;
 };
 

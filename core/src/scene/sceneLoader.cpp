@@ -785,13 +785,14 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
 
     // custom headers
     if (auto headersNode = _source["headers"]) {
+        std::string& headers = urlOptions.httpOptions.headers;
         if (headersNode.IsMap()) {
             for (const auto& hdr : headersNode) {
-                urlOptions.headers += hdr.first.Scalar() + ": " + hdr.second.Scalar() + "\r\n";
+                headers += hdr.first.Scalar() + ": " + hdr.second.Scalar() + "\r\n";
             }
-            urlOptions.headers.resize(std::max(2UL, urlOptions.headers.size()) - 2);  // remove trailing \r\n
+            headers.resize(std::max(2UL, headers.size()) - 2);  // remove trailing \r\n
         } else if (headersNode.IsScalar()) {
-          urlOptions.headers = headersNode.Scalar();
+          headers = headersNode.Scalar();
         }
     }
 
