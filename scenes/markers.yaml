@@ -187,6 +187,31 @@ layers:
                     width: 2px
                     color: "#FFFFFF"
 
+    waypoint:
+        draw:
+            marker:
+                style: poi-points
+                texture: bookmark-marker
+                size: 26px
+                interactive: true
+                collide: false
+                color: function() { return feature.color || '#12B5CB'; }
+                priority: 'function() { return (1+feature.priority)/1E6; }'
+                offset: [0px, -11px]
+                text:
+                    text_source: name
+                    anchor: [right, left, bottom, top]
+                    collide: true
+                    optional: true
+                    max_lines: 2
+                    offset: [0px, -11px]
+                    font:
+                        family: Open Sans
+                        weight: 600
+                        size: 12px
+                        fill: black
+                        stroke: { color: white, width: 2px }
+
     track-marker:
         draw:
             marker:

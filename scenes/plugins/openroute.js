@@ -5,9 +5,10 @@ function openRouteService(mode, waypoints)
   const mode0 = mode.split("-")[0];
   const profile = mode0 == "walk" ? "foot-hiking" : mode0 == "bike" ? "cycling-regular" : "driving-car";
   const url = "https://api.openrouteservice.org/v2/directions/" + profile + "/gpx";
-  const auth = "Authorization: " + secrets.openroute_auth;
+  const hdrs = "Content-Type: application/json\r\nAuthorization: " + secrets.openroute_auth;
+  const body = {"coordinates": waypoints};
 
-  httpRequest(url, auth, JSON.stringify(waypoints), function(content) {
+  httpRequest(url, hdrs, JSON.stringify(body), function(content) {
     addRouteGPX(content);
   });
 }

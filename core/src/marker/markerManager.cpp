@@ -112,7 +112,8 @@ bool MarkerManager::setDrawOrder(MarkerID markerID, int drawOrder) {
 
 bool MarkerManager::setProperties(MarkerID markerID, Properties&& properties) {
     Marker* marker = getMarkerOrNull(markerID);
-    if (!marker || !marker->feature()) { return false; }
+    if (!marker) { return false; }
+    if (!marker->feature()) { LOGE("Marker geometry must be set before properties!"); return false; }
     marker->feature()->props = std::move(properties);
     return true;
 }
