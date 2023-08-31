@@ -7,7 +7,8 @@
 
 function importGooglePlaces(url, list)
 {
-  jsonHttpRequest(url, "", function(places) {
+  httpRequest(url, function(_places) {
+    const places = JSON.parse(_places);
     for(var ii = 0; ii < places.features.length; ii++) {
       const r = places.features[ii];
       const loc = r.properties["Location"];
