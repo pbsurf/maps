@@ -42,10 +42,12 @@ global:
     color_transit: '#EB322F'
     color_rail: [0.588,0.671,0.698]
     color_ferry: '#8db3ce'
-    color_runway_13: '#FFE4B5'
-    color_runway_16: '#fff'
-    color_runway_casing: orange
-    color_airport: '#ddd'
+    color_runway_13: '#C7CADC'  #'#FFE4B5'
+    #color_runway_16: '#fff'
+    #color_runway_casing: orange
+    color_taxiway: '#BCBCCC'
+    color_airport: '#E8EAEF'  #'#ddd'
+    color_airport_name: '#487585'
     color_road_name: '#666'
     color_ferry_name: '#8db3ce'
     color_border: wheat
@@ -66,8 +68,8 @@ global:
     priority_park: 21
     priority_forest: 22
     # road labels
-    priority_motorway_name: 25
     priority_motorway_ref: 25
+    priority_motorway_name: 26
     priority_road_primary: 30
     priority_road_secondary: 40
     priority_road_tertiary: 50
@@ -103,7 +105,7 @@ global:
     show_bike: false
     show_transit: false
     show_trails: false
-    mute_motorways: false
+    show_motorways: true
     show_contours: 1
 
     gui_variables:
@@ -115,8 +117,8 @@ global:
           label: Transit
         - name: show_trails
           label: Hike
-        - name: mute_motorways
-          label: Mute motorways  # in app, this would be set automatically when bike/hike/transit shown
+        - name: show_motorways
+          label: Motorways
         - name: u_exaggerate
           style: terrain  # not hillshade!
           label: Hillshade Exaggeration  # but in general, make gui_variables a map instead of an array so it can be merged!
@@ -404,7 +406,7 @@ layers:
             draw:
                 lines:
                     order: 80
-                    color: 'function() { return global.mute_motorways ? global.color_motorway_muted : global.color_motorway; }'
+                    color: 'function() { return global.show_motorways ? global.color_motorway : global.color_motorway_muted; }'
                     #[[5, global.color_motorway_5], [7, global.color_motorway_7]]
                     width: [[5, 1px], [8, 1.5px], [14, 2px], [15, 12]]
                     outline:
@@ -506,6 +508,40 @@ layers:
                         placement_spacing: [[17, 70px], [20, 175px]]
                         angle: auto
 
+
+    shields:
+        enabled: global.show_motorways
+        data: { source: osm, layer: transportation_name }
+        filter:
+            ref: true
+            any:
+                - { class: motorway, $zoom: { min: 5 } }
+                - { class: [trunk, primary], $zoom: { min: 10 } }
+                - $zoom: { min: 13 }
+        draw:
+            points:
+                #style: poi-points
+                #color: red
+                style: points
+                texture: pois
+                sprite: shield  #function() { return feature.network; }
+                #sprite_default: shield
+                priority: global.priority_motorway_ref
+                size: function() { return [(feature.ref.split(";")[0].length || 4)*7, 16]; }
+                # midpoint generates too many labels (overwhelming label collider)
+                placement: spaced
+                placement_spacing: 30px
+                placement_min_length_ratio: 0
+                repeat_distance: 150px
+                repeat_group: shields
+                text:
+                    anchor: center
+                    text_source: function() { return feature.ref.split(";")[0]; }
+                    font:
+                        size: 11px
+                        fill: white
+
+
     transportation_name:
         data: { source: osm, layer: transportation_name }
         filter:
@@ -530,43 +566,42 @@ layers:
             filter: { class: motorway, $zoom: {min: 13} }
             draw:
                 text:
-                    visible: function() { return !global.mute_motorways; }
+                    visible: global.show_motorways
                     repeat_distance: 200px
                     repeat_group: road_labels
                     priority: global.priority_motorway_name
                     font:
                         stroke: { color: white, width: 4 }
-                        transform: capitalize
 
-        shields:
-            exclusive: true
-            filter:
-                network: us-interstate
-            draw:
-                points:
-                    texture: pois
-                    sprite: shield
-                    # sprite: function() { return feature.network }
-                    priority: global.priority_motorway_ref
-                    color: white
-                    size: 24px
-                    placement: midpoint
-                    repeat_group: shields
-                    text:
-                        repeat_distance: 150px
-                        anchor: center
-                        text_source: ref
-                        font:
-                            family: sans-serif
-                            size: 11px
-                            fill: white
-
-            # thin-out shields at low-zoom
-            thinning:
-                filter: { $zoom: { max: 11 } }
-                draw:
-                    points:
-                        repeat_distance: 75px
+        #shields:
+        #    exclusive: true
+        #    filter:
+        #        ref: true
+        #    draw:
+        #        points:
+        #            #style: poi-points
+        #            #color: red
+        #            texture: pois
+        #            sprite: function() { return feature.network; }
+        #            sprite_default: shield
+        #            priority: global.priority_motorway_ref
+        #            size: function() { return [(feature.ref.length || 4)*7, 16]; }
+        #            placement: midpoint
+        #            repeat_group: shields
+        #            text:
+        #                repeat_distance: 150px
+        #                anchor: center
+        #                text_source: ref
+        #                font:
+        #                    size: 11px
+        #                    fill: white
+        #
+        #    # thin-out shields at low-zoom
+        #    thinning:
+        #        filter: { $zoom: { max: 11 } }
+        #        draw:
+        #            points:
+        #                repeat_distance: 75px
 
         primary:
             exclusive: true
@@ -628,28 +663,52 @@ layers:
 
     airports:
         data: { source: osm, layer: aeroway }
-        draw:
-            lines:
-                color: global.color_airport
-                outline:
-                    width: 0
+
+        footprint:
+            enabled: global.show_polygons
+            filter: { class: aerodrome }
+            draw:
+                polygons:
+                    style: terrain
+                    order: 1
+                    color: global.color_airport
 
         taxiways:
-            filter: { class: taxiway }
+            filter: { class: taxiway, $zoom: { min: 13 } }
             draw:
                 lines:
+                    color: global.color_taxiway
+                    order: 50
                     width: [[13, 0px], [14, 2px], [17, 10px]]
 
         runways:
-            filter: { class: runway }
+            filter: { class: [runway, airstrip], $zoom: { min: 12 } }
             draw:
                 lines:
-                    color: [[13, global.color_runway_13], [16, global.color_runway_16]]
-                    width: [[11, 3px], [12, 5px], [13, 10px], [15, 75]]
+                    color: global.color_runway_13  #[[13, global.color_runway_13], [16, global.color_runway_16]]
+                    width: [[12, 3px], [13, 5px], [14, 10px], [15, 75]]
+                    order: 55
                     cap: square
-                    outline:
-                        color: global.color_runway_casing
-                        width: [[11, 0px], [12, 1px], [13, 2px], [15, 12.5]]
+                    #outline:
+                    #    color: global.color_runway_casing
+                    #    width: [[11, 0px], [12, 1px], [13, 2px], [15, 12.5]]
+
+    airport_name:
+        data: { source: osm, layer: aerodrome_label }
+        filter:
+            - { class: international, $zoom: { min: 12 } }
+            - { class: regional, $zoom: { min: 13 } }
+            - $zoom: { min: 14 }
+        draw:
+            text:
+                interactive: true
+                text_source: name
+                transition: { show: { time: 0s }, hide: { time: 1s } }
+                font:
+                    family: Open Sans
+                    fill: global.color_airport_name
+                    stroke: { color: white, width: 2 }
+                    size: [[12, 12px], [13, 14px]]
 
     bicycle:
         data: { source: osm, layer: transportation }

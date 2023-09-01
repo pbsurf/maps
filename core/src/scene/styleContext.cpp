@@ -276,6 +276,17 @@ bool StyleContext::evalStyle(FunctionID _id, StyleParamKey _key, StyleParam::Val
                 _val = ColorF(r, g, b, a).toColor().abgr;
                 break;
             }
+            case StyleParamKey::size: {
+                if (len != 2) {
+                    LOGW("Wrong array size for style parameter 'size': '%d'.", len);
+                    break;
+                }
+                StyleParam::SizeValue vec;
+                vec.x.value = static_cast<float>(jsValue.getValueAtIndex(0).toDouble());
+                vec.y.value = static_cast<float>(jsValue.getValueAtIndex(1).toDouble());
+                _val = vec;
+                break;
+            }
             default:
                 LOGW("Unused array return type from Javascript style function for %d.", _key);
                 break;

@@ -181,10 +181,10 @@ layers:
             marker:
                 style: points
                 collide: false
-                size: 16px
+                size: 12px
                 color: "#0000FF"
                 outline:
-                    width: 2px
+                    width: 1.25px
                     color: "#FFFFFF"
 
     waypoint:
