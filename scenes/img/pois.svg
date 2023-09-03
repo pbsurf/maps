@@ -374,7 +374,7 @@ document.addEventListener('DOMContentLoaded', function(event) {
 </svg>
 
 <svg id="shield" class="other" width="64" height="64" viewBox="-25 -25 50 50">
-  <rect fill="blue" x="-22.5" y="-22.5" width="45" height="45" rx="2" ry="2"/>
+  <rect fill="#FFDC36" x="-22.5" y="-22.5" width="45" height="45"/>
 </svg>
 
 <!-- traffic light: https://www.svgrepo.com/svg/407686/vertical-traffic-light -->

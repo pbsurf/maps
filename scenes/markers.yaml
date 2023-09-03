@@ -76,6 +76,10 @@ textures:
 
 
 styles:
+    loc-points:
+        base: points
+        blend_order: 1000
+
     poi-points:
         base: points
         # make sure this is drawn over search dots
@@ -179,12 +183,13 @@ layers:
     loc-marker:
         draw:
             marker:
-                style: points
+                style: loc-points
                 collide: false
-                size: 12px
+                size: 18px
                 color: "#0000FF"
+                priority: 0
                 outline:
-                    width: 1.25px
+                    width: 2px
                     color: "#FFFFFF"
 
     waypoint:

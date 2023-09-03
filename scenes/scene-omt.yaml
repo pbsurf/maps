@@ -501,18 +501,18 @@ layers:
                 draw:
                     points:
                         texture: pois
-                        flat: true
                         sprite: arrow
+                        flat: true
                         size: [[17, 18px], [18, 20px], [20, 32px]]
                         placement: spaced
                         placement_spacing: [[17, 70px], [20, 175px]]
                         angle: auto
 
-
     shields:
         enabled: global.show_motorways
         data: { source: osm, layer: transportation_name }
         filter:
+            #function() { const s = feature.maxspeed.split(" "); return parseInt(s[0]) >= (s[1] == "mph" ? 50 : 80); }
             ref: true
             any:
                 - { class: motorway, $zoom: { min: 5 } }
@@ -527,7 +527,9 @@ layers:
                 sprite: shield  #function() { return feature.network; }
                 #sprite_default: shield
                 priority: global.priority_motorway_ref
-                size: function() { return [(feature.ref.split(";")[0].length || 4)*7, 16]; }
+                # faster roads get higher priority
+                #priority: function() { return global.priority_motorway_ref - parseInt(feature.maxspeed)/200; }
+                size: function() { return [(feature.ref.split(";")[0].length || 4)*6.5, 14]; }
                 # midpoint generates too many labels (overwhelming label collider)
                 placement: spaced
                 placement_spacing: 30px
@@ -538,9 +540,8 @@ layers:
                     anchor: center
                     text_source: function() { return feature.ref.split(";")[0]; }
                     font:
-                        size: 11px
-                        fill: white
-
+                        size: 10px
+                        fill: black
 
     transportation_name:
         data: { source: osm, layer: transportation_name }
@@ -572,36 +573,6 @@ layers:
                     priority: global.priority_motorway_name
                     font:
                         stroke: { color: white, width: 4 }
-
-        #shields:
-        #    exclusive: true
-        #    filter:
-        #        ref: true
-        #    draw:
-        #        points:
-        #            #style: poi-points
-        #            #color: red
-        #            texture: pois
-        #            sprite: function() { return feature.network; }
-        #            sprite_default: shield
-        #            priority: global.priority_motorway_ref
-        #            size: function() { return [(feature.ref.length || 4)*7, 16]; }
-        #            placement: midpoint
-        #            repeat_group: shields
-        #            text:
-        #                repeat_distance: 150px
-        #                anchor: center
-        #                text_source: ref
-        #                font:
-        #                    size: 11px
-        #                    fill: white
-        #
-        #    # thin-out shields at low-zoom
-        #    thinning:
-        #        filter: { $zoom: { max: 11 } }
-        #        draw:
-        #            points:
-        #                repeat_distance: 75px
 
         primary:
             exclusive: true

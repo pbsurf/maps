@@ -428,11 +428,19 @@ function way_function(way)
       SetNameAttributes(way)
       way:Attribute("class",h)
       way:Attribute("network","road") -- **** could also be us-interstate, us-highway, us-state
+      local maxspeed = way:Find("maxspeed")
+      if maxspeed~="" then
+        way:Attribute("maxspeed",maxspeed)
+      end
+      local lanes = way:Find("lanes")  -- should this go in transportation layer instead?
+      if lanes~="" then
+        way:Attribute("lanes",lanes)
+      end
       if h~=highway then way:Attribute("subclass",highway) end
       local ref = way:Find("ref")
       if ref~="" then
         way:Attribute("ref",ref)
-        way:AttributeNumeric("ref_length",ref:len())
+        --way:AttributeNumeric("ref_length",ref:len())
       end
     end
   end
