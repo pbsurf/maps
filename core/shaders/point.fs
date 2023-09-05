@@ -31,6 +31,7 @@ uniform LOWP int u_sprite_mode;
 
 #pragma tangram: global
 
+#ifndef TANGRAM_CUSTOM_MAIN
 void main(void) {
 
     vec4 color = v_color;
@@ -67,3 +68,4 @@ void main(void) {
 
     gl_FragColor = color;
 }
+#endif

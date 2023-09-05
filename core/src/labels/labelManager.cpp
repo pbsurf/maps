@@ -350,6 +350,9 @@ void LabelManager::handleOcclusions(const ViewState& _viewState) {
         if (l->isChild()) {
             if (l->relative()->isOccluded()) {
                 l->occlude();
+                if(l->relative()->state() == Label::State::skip_transition) {
+                    l->skipTransitions();
+                }
                 continue;
             }
         }
@@ -394,10 +397,17 @@ void LabelManager::handleOcclusions(const ViewState& _viewState) {
                             return true;
                         }
                         // Ignore intersection with relative label
-                        if (l->relative() && l->relative() == findLabel(std::begin(m_labels), it, other)) {
+                        Label* other_label = findLabel(std::begin(m_labels), it, other);
+                        if (l->relative() && l->relative() == other_label) {
                             return true;
                         }
                         l->occlude();
+                        // for now, we're using non-zero selection transition time (previously unused style
+                        //  param) to indicate a marker which should immediately hide all colliding labels
+                        // in the future, we could use it to specify a (faster) hide transition in this case
+                        if(other_label->options().selectTransition.time != 0) {
+                            l->skipTransitions();
+                        }
                         return false;
 
                     }, false);
@@ -411,6 +421,9 @@ void LabelManager::handleOcclusions(const ViewState& _viewState) {
         if (l->isOccluded()) {
             if (l->relative() && !l->options().optional) {
                 l->relative()->occlude();
+                if(l->state() == Label::State::skip_transition) {
+                    l->relative()->skipTransitions();
+                }
             }
         } else {
             // Insert into ISect2D grid

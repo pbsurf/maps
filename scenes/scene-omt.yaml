@@ -550,7 +550,7 @@ layers:
             not: { class: [rail, aeroway] }
         draw:
             text:
-                interactive: true
+                #interactive: true
                 text_source: |
                     function() {
                        return feature.name.replace(" Avenue", " Ave.").replace(" Street", " St.").replace(" Boulevard", " Blvd.").replace(" Drive", " Dr.").replace(" Lane", " Ln.").replace(" Road", " Rd.");
@@ -945,6 +945,7 @@ layers:
             filter: { $zoom: { min: 19 }, highway: traffic_signals }
             draw:
                 points:
+                    style: points
                     interactive: false
                     sprite: traffic_light
                     priority: global.priority_traffic_light
@@ -963,7 +964,7 @@ layers:
                     - 'function() { return global.search_active; }'
             draw:
                 points:
-                    interactive: true
+                    #interactive: true  -- already set on parent
                     sprite: global.poi_sprite_fn
                     color: global.poi_color_fn
                     priority: global.priority_poi_default
