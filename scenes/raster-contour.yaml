@@ -68,8 +68,11 @@ styles:
                 ELEVATION_MAX_ZOOM: 14.0
                 ELEVATION_INDEX: 0
                 SHOW_CONTOURS: false
+                SHOW_ANGLE: false
             uniforms:
                 u_exaggerate: 1.5
+                u_min_slope_angle: 0.2618
+                u_slope_angle: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAC0AAAABCAYAAABKdCfXAAAAOUlEQVR4nJ3IoRHAIBAAwY1FJyJpg/47CC1gkZQA9iOIQOzczB2GceJC7N9LDSV40R7kj+5WWaJvmRsvHRKfpO7RAAAAAElFTkSuQmCC
                 # some more colormaps: https://www.fabiocrameri.ch/
                 # https://github.com/der-stefan/OpenTopoMap/blob/master/mapnik/relief_color_text_file.txt
                 u_terrain_color: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADMAAAABCAYAAABzE5aMAAAAU0lEQVR4nGMUrGD+b67lxBAgo8vgL6PD8OvzZ4ZfXz4z/P78meHXl09w/q/PEPz7y2eGX58/wcX+/WNi+PeXCSv9F4c4nObgIArz8/Mz8PHxEaQBkIhP/pBqnoYAAAAASUVORK5CYII=
@@ -132,8 +135,8 @@ styles:
                     float z = u_map_position.z;
                     if(z < 10.) {
                         // terrain colormap (i.e., map height to color) for low zooms
-                        vec4 tint = texture2D(u_terrain_color, vec2(elev/5000., 0.5));
-                        color = mix(base_color, tint, 0.5);
+                        vec4 relief = texture2D(u_terrain_color, vec2(elev/5000., 0.5));
+                        color = mix(base_color, relief, 0.5);
                     } else {
                         // contour lines
                         // slope from gradient calculated above
@@ -159,10 +162,20 @@ styles:
                         dup = fract(hc/coarse)*coarse/slope / u_meters_per_pixel;
                         ddn = abs(1. - fract(hc/coarse))*coarse/slope / u_meters_per_pixel;
                         cov += max(0.5 - dup + coarsehw, 0.) + max(0.5 - ddn + coarsehw, 0.);
+                    #ifdef SHOW_ANGLE
+                        float angle = atan(slope);
+                        vec4 tint = texture2D(u_slope_angle, vec2(atan(slope), 0.5));
+                        base_color = mix(base_color, tint, elev > 0. && angle >= u_min_slope_angle ? 0.5 : 0.0);
+                    #endif
                         // blend
                         color = mix(base_color, CONTOUR_COLOR, min(cov, 1.));
                     }
                     #else
+                    #ifdef SHOW_ANGLE
+                        float angle = atan(length(grad));
+                        vec4 tint = texture2D(u_slope_angle, vec2(angle, 0.5));
+                        base_color = mix(base_color, tint, elev > 0. && angle >= u_min_slope_angle ? 0.5 : 0.0);
+                    #endif
                     color = base_color;
                     #endif
 

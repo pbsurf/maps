@@ -99,6 +99,13 @@ enable-contours:
         styles.hillshade.shaders.defines.SHOW_CONTOURS: true
 
 
+enable-slope-angle:
+    type: Update
+    title: Slope Angle
+    updates:
+        styles.hillshade.shaders.defines.SHOW_ANGLE: true
+
+
 hillshade-vector:
     type: Vector
     title: Hillshading (for Vector)
