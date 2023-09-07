@@ -71,13 +71,27 @@ styles:
                 SHOW_ANGLE: false
             uniforms:
                 u_exaggerate: 1.5
-                u_min_slope_angle: 0.2618
-                u_slope_angle: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAC0AAAABCAYAAABKdCfXAAAAOUlEQVR4nJ3IoRHAIBAAwY1FJyJpg/47CC1gkZQA9iOIQOzczB2GceJC7N9LDSV40R7kj+5WWaJvmRsvHRKfpO7RAAAAAElFTkSuQmCC
+                u_min_slope_angle: 0.2618  # we could use stop-opacity="0" instead
+                u_slope_angle: |
+                    data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="1">
+                      <defs>
+                        <linearGradient id="grad" x1="0" x2="1.111">
+                          <stop offset="0.00" stop-color="#00FF00" />
+                          <stop offset="0.25" stop-color="#FFFF00" />
+                          <stop offset="0.35" stop-color="#FF0000" />
+                          <stop offset="0.45" stop-color="#FF00FF" />
+                          <stop offset="0.60" stop-color="#0000FF" />
+                          <stop offset="0.90" stop-color="#000000" />
+                        </linearGradient>
+                      </defs>
+                      <rect x="0" y="0" width="32" height="1" fill="url(#grad)" />
+                    </svg>
+                # data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAC0AAAABCAYAAABKdCfXAAAAOUlEQVR4nJ3IoRHAIBAAwY1FJyJpg/47CC1gkZQA9iOIQOzczB2GceJC7N9LDSV40R7kj+5WWaJvmRsvHRKfpO7RAAAAAElFTkSuQmCC
                 # some more colormaps: https://www.fabiocrameri.ch/
                 # https://github.com/der-stefan/OpenTopoMap/blob/master/mapnik/relief_color_text_file.txt
                 u_terrain_color: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADMAAAABCAYAAABzE5aMAAAAU0lEQVR4nGMUrGD+b67lxBAgo8vgL6PD8OvzZ4ZfXz4z/P78meHXl09w/q/PEPz7y2eGX58/wcX+/WNi+PeXCSv9F4c4nObgIArz8/Mz8PHxEaQBkIhP/pBqnoYAAAAASUVORK5CYII=
                 # this colormap is based on matplotlib terrain colormap
-                #data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAYAAAABCAYAAAD9yd/wAAAAJElEQVR4nAEZAOb/ADMzmf8Amf//AMxm////mf+AXFT//////7WBEIg9mVbsAAAAAElFTkSuQmCC
+                # data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAYAAAABCAYAAAD9yd/wAAAAJElEQVR4nAEZAOb/ADMzmf8Amf//AMxm////mf+AXFT//////7WBEIg9mVbsAAAAAElFTkSuQmCC
             blocks:
                 global: |
                     #ifdef TANGRAM_FRAGMENT_SHADER
@@ -164,7 +178,7 @@ styles:
                         cov += max(0.5 - dup + coarsehw, 0.) + max(0.5 - ddn + coarsehw, 0.);
                     #ifdef SHOW_ANGLE
                         float angle = atan(slope);
-                        vec4 tint = texture2D(u_slope_angle, vec2(atan(slope), 0.5));
+                        vec4 tint = texture2D(u_slope_angle, vec2(angle/(3.14159*0.5), 0.5));
                         base_color = mix(base_color, tint, elev > 0. && angle >= u_min_slope_angle ? 0.5 : 0.0);
                     #endif
                         // blend
@@ -173,7 +187,7 @@ styles:
                     #else
                     #ifdef SHOW_ANGLE
                         float angle = atan(length(grad));
-                        vec4 tint = texture2D(u_slope_angle, vec2(angle, 0.5));
+                        vec4 tint = texture2D(u_slope_angle, vec2(angle/(3.14159*0.5), 0.5));
                         base_color = mix(base_color, tint, elev > 0. && angle >= u_min_slope_angle ? 0.5 : 0.0);
                     #endif
                     color = base_color;
