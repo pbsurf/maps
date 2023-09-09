@@ -2,7 +2,7 @@
 // - see e.g., https://github.com/organicmaps/organicmaps/blob/master/data/categories.txt
 
 const catagories = {
-  "restaurant": ["fast food", "food court"],
+  "restaurant": ["fast + food", "food + court"],
   "food": ["restaurant"],
   "coffee": ["cafe"],
   "bar": ["pub", "biergarten"],
@@ -19,10 +19,10 @@ const catagories = {
   "hardware": "doityourself",
   "electronics": ["computer", "hifi"],
   "auto": ["car"],
-  "hotel": ["motel", "hostel", "guest house"],
-  "motel": ["hotel", "hostel", "guest house"],
-  "accomodation": ["hotel", "motel", "hostel", "guest house", "apartment", "chalet"],
-  "lodging": ["hotel", "motel", "hostel", "guest house", "apartment", "chalet"]
+  "hotel": ["motel", "hostel", "guest + house"],
+  "motel": ["hotel", "hostel", "guest + house"],
+  "accomodation": ["hotel", "motel", "hostel", "guest + house", "apartment", "chalet"],
+  "lodging": ["hotel", "motel", "hostel", "guest + house", "apartment", "chalet"]
 };
 
 function transformQuery(query)

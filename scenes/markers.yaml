@@ -7,15 +7,7 @@ global:
         }
         historic: { "monument": "artwork" }
         leisure: { "fitness_centre": "gym", "sports_centre": "gym", "park": "tree", "golf_course": "golf" }
-        amenity: { "parking": "parking", "bicycle_rental": "bike_shop", "university": "university",
-          "school": "university", "college": "university", "kindergarten": "university",
-          "restaurant": "restaurant", "fast_food": "restaurant", "ice_cream": "restaurant", "cafe": "cafe",
-          "pharmacy": "pharmacy", "bar": "bar", "pub": "bar", "nightclub": "bar", "library": "library",
-          "cinema": "theatre", "theatre": "theatre", "concert_hall": "theatre", "arts_centre": "theatre",
-          "place_of_worship": "church", "bank": "bank", "hospital": "hospital", "clinic": "doctor", "doctors": "doctor",
-          "fuel": "fuel", "dentist": "dentist", "toilets": "toilet", "drinking_water": "drinking_water",
-          "water_point": "drinking_water"
-        }
+        amenity: { "parking": "parking", "bicycle_rental": "bike_shop", "university": "university", "school": "university", "college": "university", "kindergarten": "university", "restaurant": "restaurant", "fast_food": "restaurant", "food_court": "restaurant", "ice_cream": "restaurant", "cafe": "cafe", "pharmacy": "pharmacy", "bar": "bar", "pub": "bar", "nightclub": "bar", "library": "library", "cinema": "theatre", "theatre": "theatre", "concert_hall": "theatre", "arts_centre": "theatre", "place_of_worship": "church", "bank": "bank", "hospital": "hospital", "clinic": "doctor", "doctors": "doctor", "fuel": "fuel", "dentist": "dentist", "toilets": "toilet", "drinking_water": "drinking_water", "water_point": "drinking_water" }
         shop: { "beverages": "cafe", "confectionery": "cafe", "bakery": "bakery", "pastry": "bakery",
           "supermarket": "grocery", "convenience": "convenience", "greengrocer": "convenience", "deli": "convenience",
            "delicatessen": "convenience", "butcher": "convenience", "farm": "convenience", "alcohol": "liquor",
@@ -210,7 +202,7 @@ layers:
                 texture: bookmark-marker
                 size: 26px
                 interactive: true
-                collide: false
+                collide: true
                 color: function() { return feature.color || '#12B5CB'; }
                 priority: 'function() { return (1+feature.priority)/1E6; }'
                 offset: [0px, -11px]
