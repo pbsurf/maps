@@ -29,6 +29,38 @@ global:
           style: hillshade
           label: Hillshade Exaggeration
 
+    __legend:
+        slope_angle:
+            title: Slope Angle
+            svg: |
+                <svg xmlns="http://www.w3.org/2000/svg" width="400" height="80">
+                  <defs>
+                    <linearGradient id="grad" x1="0" x2="1.111">
+                      <stop offset="0.00" stop-color="#00FF00" />
+                      <stop offset="0.25" stop-color="#FFFF00" />
+                      <stop offset="0.35" stop-color="#FF0000" />
+                      <stop offset="0.45" stop-color="#FF00FF" />
+                      <stop offset="0.60" stop-color="#0000FF" />
+                      <stop offset="0.90" stop-color="#000000" />
+                    </linearGradient>
+                  </defs>
+
+                  <rect x="0" y="0" rx="4" ry="4" width="400" height="80" fill="white" />
+                  <g transform="translate(20, 8) scale(4)">
+                    <rect x="0" y="0" rx="1" ry="1" width="90" height="12" fill="url(#grad)" />
+                    <g transform="translate(-2, 16)" font-size="4">
+                      <!-- text x="0" y="0">0°</text -->
+                      <text x="15" y="0">15°</text>
+                      <text x="25" y="0">25°</text>
+                      <text x="35" y="0">35°</text>
+                      <text x="45" y="0">45°</text>
+                      <text x="60" y="0">60°</text>
+                      <text x="90" y="0">90°</text>
+                    </g>
+                  </g>
+                </svg>
+
+
 sources:
     #normals:
     #    type: Raster
