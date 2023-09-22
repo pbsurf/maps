@@ -119,21 +119,17 @@ std::string Properties::asString(const Value& value) {
 }
 
 std::string Properties::getAsString(const std::string& key) const {
-
     return asString(get(key));
-
 }
 
 void Properties::sort() {
     std::sort(props.begin(), props.end());
 }
 
-void Properties::set(std::string key, std::string value) {
+void Properties::set(std::string key, Value value) {
 
     auto it = std::lower_bound(props.begin(), props.end(), key,
-                               [](auto& item, auto& key) {
-                                   return keyComparator(item.key, key);
-                               });
+        [](auto& item, auto& key) { return keyComparator(item.key, key); });
 
     if (it == props.end() || it->key != key) {
         props.emplace(it, std::move(key), std::move(value));
@@ -142,18 +138,12 @@ void Properties::set(std::string key, std::string value) {
     }
 }
 
+void Properties::set(std::string key, std::string value) {
+    set(key, Value(std::move(value)));
+}
+
 void Properties::set(std::string key, double value) {
-
-    auto it = std::lower_bound(props.begin(), props.end(), key,
-                               [](auto& item, auto& key) {
-                                   return keyComparator(item.key, key);
-                               });
-
-    if (it == props.end() || it->key != key) {
-        props.emplace(it, std::move(key), value);
-    } else {
-        it->value = value;
-    }
+    set(key, Value(value));
 }
 
 std::string Properties::toJson() const {
