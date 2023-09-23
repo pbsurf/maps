@@ -45,7 +45,7 @@ struct Properties {
 
     std::string toJson() const;
 
-    void set(std::string key, Value value);
+    void setValue(std::string key, Value value);
     void set(std::string key, std::string value);
     void set(std::string key, double value);
 

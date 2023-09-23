@@ -1,6 +1,5 @@
 global:
     feature_order: function () { return feature.sort_rank; }
-    sdk_api_key: ''
 
 fonts:
     Montserrat:
@@ -39,7 +38,7 @@ lights:
         ambient: [0.7, 0.7, 0.7, 1.]
 
 textures:
-    pois:
+    mzpois:
         url: img/poi_icons_32.png
         sprites:
             plane: [0, 0, 32, 32]
@@ -65,7 +64,7 @@ textures:
 styles:
     icons:
         base: points
-        texture: pois
+        texture: mzpois
         draw:
             interactive: true
     heightglow:
@@ -327,7 +326,7 @@ layers:
                 filter: { oneway: yes, $zoom: { min: 17 } }
                 draw:
                     points:
-                        texture: pois
+                        texture: mzpois
                         flat: true
                         sprite: arrow
                         size: [[17, 18px], [18, 20px], [20, 32px]]
@@ -342,7 +341,7 @@ layers:
                     shield_text: true
                 draw:
                     points:
-                        texture: pois
+                        texture: mzpois
                         sprite: shield
                         # sprite: function() { return feature.network }
                         priority: 2.5
@@ -481,7 +480,7 @@ layers:
         data: { source: osm }
         draw:
             points:
-                texture: pois
+                texture: mzpois
                 interactive: true
                 collide: true
                 transition: { show: { time: 0s }, hide: { time: 1s } }
