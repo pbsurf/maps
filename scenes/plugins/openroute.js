@@ -9,7 +9,10 @@ function openRouteService(mode, waypoints)
   const body = {"coordinates": waypoints, "elevation": "true"};
 
   httpRequest(url, hdrs, JSON.stringify(body), function(content) {
-    addRouteGPX(content);
+    if(!content)
+      notifyError("route", "Open Route Service error");
+    else
+      addRouteGPX(content);
   });
 }
 

@@ -1,15 +1,11 @@
 # Stylus Labs Maps config
-sources: mapsources.yaml
-#  - usersources.yaml
-
-#sources_sort: alphabetical, recent, or none (as listed in files)
-last_source: stylus-osm
-
-elevation_sources: ["elevation"]
-
-common_imports:
-  - markers.yaml
-  - secrets.yaml
+sources:
+  file: mapsources.yaml
+  last_source: stylus-osm
+  elevation: ["elevation"]
+  common_imports:
+    - markers.yaml
+    - secrets.yaml
 
 storage:
   # cache size thresholds
