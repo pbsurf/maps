@@ -73,8 +73,13 @@ function osmPlaceInfo(osmid)
 {
   osmid = osmid.replace(":", "/");
   const url = "https://www.openstreetmap.org/api/0.6/" + osmid + ".json";
-  httpRequest(url, function(_content) {
-    if(!_content) { notifyError("place", "OpenStreetMap place info error"); return; }
+  httpRequest(url, function(_content, _error) {
+    if(!_content) {
+      if(_error.substr(-3) != "410") {
+        notifyError("place", "OpenStreetMap place info error");
+      }
+      return;
+    }
     const content = JSON.parse(_content);
     //console.log(content);
     //try {

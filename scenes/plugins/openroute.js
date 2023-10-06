@@ -8,7 +8,7 @@ function openRouteService(mode, waypoints)
   const hdrs = "Content-Type: application/json\r\nAuthorization: " + secrets.openroute_auth;
   const body = {"coordinates": waypoints, "elevation": "true"};
 
-  httpRequest(url, hdrs, JSON.stringify(body), function(content) {
+  httpRequest(url, hdrs, JSON.stringify(body), function(content, error) {
     if(!content)
       notifyError("route", "Open Route Service error");
     else

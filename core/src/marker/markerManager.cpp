@@ -114,7 +114,9 @@ bool MarkerManager::setProperties(MarkerID markerID, Properties&& properties) {
     Marker* marker = getMarkerOrNull(markerID);
     if (!marker) { return false; }
     if (!marker->feature()) { LOGE("Marker geometry must be set before properties!"); return false; }
+    marker->clearMesh();
     marker->feature()->props = std::move(properties);
+    m_dirty = true;
     return true;
 }
 

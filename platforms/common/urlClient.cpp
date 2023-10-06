@@ -359,6 +359,8 @@ void UrlClient::startPendingRequests() {
         // HTTP POST implied if payload not empty
         if (!task.request.options.payload.empty()) {
             curl_easy_setopt(task.handle, CURLOPT_POSTFIELDS, task.request.options.payload.c_str());
+        } else {
+            curl_easy_setopt(task.handle, CURLOPT_HTTPGET, 1L);  // in case handle previously used for POST
         }
 
         LOGD("Tasks %d - starting request for url: %s", int(m_activeTasks), url);
