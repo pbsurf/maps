@@ -86,18 +86,19 @@ global:
     # we want to show every traffic light if showing any
     priority_traffic_light: 4
     # POIs - use osm_id to provide well-defined ordering so POIs don't get replaced by nearby ones when zooming in
-    priority_poi_default: function() { return Number('101.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
-    priority_poi_viewpoint: function() { return Number('31.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
-    priority_poi_toilet: function() { return Number('32.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
-    priority_poi_university: function() { return Number('33.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
-    priority_poi_grocery: function() { return Number('34.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
-    priority_poi_culture: function() { return Number('41.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
-    priority_poi_restaurant: function() { return Number('43.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
-    priority_poi_cafe: function() { return Number('44.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
-    priority_poi_convenience: function() { return Number('51.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
-    priority_poi_school: function() { return Number('52.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
-    priority_poi_religion: function() { return Number('101.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
-    priority_poi_parking: function() { return Number('102.' + feature.osm_id.substring(feature.osm_id.length - 6)); }
+    # - looks like it's faster to let Tangram convert string to number instead of using Number() in JS fn
+    priority_poi_default: function() { return '101.' + feature.osm_id.substring(feature.osm_id.length - 6); }
+    priority_poi_viewpoint: function() { return '31.' + feature.osm_id.substring(feature.osm_id.length - 6); }
+    priority_poi_toilet: function() { return '32.' + feature.osm_id.substring(feature.osm_id.length - 6); }
+    priority_poi_university: function() { return '33.' + feature.osm_id.substring(feature.osm_id.length - 6); }
+    priority_poi_grocery: function() { return '34.' + feature.osm_id.substring(feature.osm_id.length - 6); }
+    priority_poi_culture: function() { return '41.' + feature.osm_id.substring(feature.osm_id.length - 6); }
+    priority_poi_restaurant: function() { return '43.' + feature.osm_id.substring(feature.osm_id.length - 6); }
+    priority_poi_cafe: function() { return '44.' + feature.osm_id.substring(feature.osm_id.length - 6); }
+    priority_poi_convenience: function() { return '51.' + feature.osm_id.substring(feature.osm_id.length - 6); }
+    priority_poi_school: function() { return '52.' + feature.osm_id.substring(feature.osm_id.length - 6); }
+    priority_poi_religion: function() { return '101.' + feature.osm_id.substring(feature.osm_id.length - 6); }
+    priority_poi_parking: function() { return '102.' + feature.osm_id.substring(feature.osm_id.length - 6); }
 
     # if we want to easily add on top of various raster sources, have MapsSources set global._vector_order to
     #  layer number for vector source
@@ -787,7 +788,9 @@ layers:
             filter: { $zoom: { min: 15 } }
             draw:
                 polygons:
-                    extrude: function () { return feature.render_height > 20 || $zoom >= 16; }
+                    # JS call much slower than extruding geometry
+                    #extrude: function () { return feature.render_height > 20 || $zoom >= 16; }
+                    extrude: true
                     color: global.color_bldg_3d
                     order: 1001
                 lines:
@@ -961,13 +964,15 @@ layers:
                     - amenity: [parking, bicycle_rental, drinking_water, water_point, toilets]
                 not:
                     - { railway: subway_entrance }
-                    - 'function() { return global.search_active; }'
+                    #- 'function() { return global.search_active; }'
             draw:
                 points:
                     #interactive: true  -- already set on parent
                     sprite: global.poi_sprite_fn
                     color: global.poi_color_fn
                     priority: global.priority_poi_default
+                    # transition.selected < 0 to indicate label should be hidden when search results shown
+                    transition: { selected: { time: -1s } }
                     text:
                         font:
                             size: 12px

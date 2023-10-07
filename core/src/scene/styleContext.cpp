@@ -109,12 +109,17 @@ bool StyleContext::setFunctions(const std::vector<std::string>& _functions) {
     }
 
     m_functionCount = id;
-
+#ifdef DEBUG
+    m_callCounts.assign(id, 0);
+#endif
     return success;
 }
 
 bool StyleContext::addFunction(const std::string& _function) {
     bool success = m_jsContext->setFunction(m_functionCount++, _function);
+#ifdef DEBUG
+    m_callCounts.push_back(0);
+#endif
     return success;
 }
 
@@ -175,13 +180,23 @@ void StyleContext::clear() {
 }
 
 bool StyleContext::evalFilter(FunctionID _id) {
+#ifdef DEBUG
+    auto t0 = std::chrono::high_resolution_clock::now();
+#endif
     bool result = m_jsContext->evaluateBooleanFunction(_id);
+#ifdef DEBUG
+    auto t1 = std::chrono::high_resolution_clock::now();
+    m_callCounts[_id] += std::chrono::duration<double>(t1 - t0).count() * 1E9;
+#endif
     return result;
 }
 
 bool StyleContext::evalStyle(FunctionID _id, StyleParamKey _key, StyleParam::Value& _val) {
     _val = none_type{};
 
+#ifdef DEBUG
+    auto t0 = std::chrono::high_resolution_clock::now();
+#endif
     JSScope jsScope(*m_jsContext);
     auto jsValue = jsScope.getFunctionResult(_id);
     if (!jsValue) {
@@ -353,7 +368,10 @@ bool StyleContext::evalStyle(FunctionID _id, StyleParamKey _key, StyleParam::Val
     } else {
         LOGW("Unhandled return type from Javascript style function for %d.", _key);
     }
-
+#ifdef DEBUG
+    auto t1 = std::chrono::high_resolution_clock::now();
+    m_callCounts[_id] += std::chrono::duration<double>(t1 - t0).count() * 1E9;
+#endif
     return !_val.is<none_type>();
 }
 

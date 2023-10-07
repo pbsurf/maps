@@ -175,7 +175,7 @@ bool SpriteLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& 
     return true;
 }
 
-void SpriteLabel::obbs(ScreenTransform& _transform, OBBBuffer& _obbs) {
+void SpriteLabel::obbs(ScreenTransform& _transform, OBBBuffer& _obbs) const {
     OBB obb;
 
     if (m_options.flat) {

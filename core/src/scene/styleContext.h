@@ -83,6 +83,9 @@ private:
     const Feature* m_feature = nullptr;
 
     std::unique_ptr<JSContext> m_jsContext;
+#ifdef DEBUG
+    std::vector<size_t> m_callCounts;
+#endif
 };
 
 }

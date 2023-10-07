@@ -24,9 +24,13 @@
 
 namespace Tangram {
 
-Mvt::Geometry Mvt::getGeometry(ParserContext& _ctx, protobuf::message _geomIn) {
+void Mvt::getGeometry(ParserContext& _ctx, protobuf::message _geomIn) {
 
-    Geometry geometry;
+    // previously, this fn was creating new Geometry instance every time, but vector realloc was showing
+    //  up in profiling, so we now reuse ParserContext.geometry
+    Geometry& geometry = _ctx.geometry;
+    geometry.sizes.clear();
+    geometry.coordinates.clear();
 
     GeomCmd cmd = GeomCmd::moveTo;
     uint32_t cmdRepeat = 0;
@@ -81,8 +85,7 @@ Mvt::Geometry Mvt::getGeometry(ParserContext& _ctx, protobuf::message _geomIn) {
     if (numCoordinates > 0) {
         geometry.sizes.push_back(numCoordinates);
     }
-
-    return geometry;
+    //return geometry;
 }
 
 Feature Mvt::getFeature(ParserContext& _ctx, protobuf::message _featureIn) {
@@ -132,7 +135,7 @@ Feature Mvt::getFeature(ParserContext& _ctx, protobuf::message _featureIn) {
                 break;
             // Actual geometry data
             case FEATURE_GEOM:
-                _ctx.geometry = getGeometry(_ctx, _featureIn.getMessage());
+                getGeometry(_ctx, _featureIn.getMessage());  //_ctx.geometry =
                 break;
 
             default:

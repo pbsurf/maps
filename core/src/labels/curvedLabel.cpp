@@ -149,7 +149,7 @@ bool CurvedLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& 
     return true;
 }
 
-void CurvedLabel::obbs(ScreenTransform& _transform, OBBBuffer& _obbs) {
+void CurvedLabel::obbs(ScreenTransform& _transform, OBBBuffer& _obbs) const {
 
     glm::vec2 dim = m_dim - m_options.buffer;
 

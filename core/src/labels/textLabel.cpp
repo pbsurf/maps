@@ -174,7 +174,7 @@ float TextLabel::candidatePriority() const {
     return 1.f / (glm::length2(m_coordinates[0] - m_coordinates[1]));
 }
 
-void TextLabel::obbs(ScreenTransform& _transform, OBBBuffer& _obbs) {
+void TextLabel::obbs(ScreenTransform& _transform, OBBBuffer& _obbs) const {
 
     glm::vec2 dim = m_dim;
 

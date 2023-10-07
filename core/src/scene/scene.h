@@ -187,6 +187,9 @@ public:
     /// incremented whenever globals are updated
     int64_t globalsGeneration = 0;
 
+    /// set to hide labels with transition.selected < 0
+    bool hideExtraLabels = false;
+
     using Lights = std::vector<std::unique_ptr<Light>>;
     using LightShaderBlocks = std::map<std::string, std::string>;
     using TileSources = std::vector<std::shared_ptr<TileSource>>;

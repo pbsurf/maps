@@ -318,7 +318,7 @@ bool LabelManager::zOrderComparator(const LabelEntry& _a, const LabelEntry& _b) 
     return bool(_a.tile);
 }
 
-void LabelManager::handleOcclusions(const ViewState& _viewState) {
+void LabelManager::handleOcclusions(const ViewState& _viewState, bool _hideExtraLabels) {
 
     m_isect2d.clear();
     m_repeatGroups.clear();
@@ -340,10 +340,12 @@ void LabelManager::handleOcclusions(const ViewState& _viewState) {
         auto& entry = *it;
         auto* l = entry.label;
 
-        ScreenTransform transform { m_transforms, entry.transformRange };
-        OBBBuffer obbs { m_obbs, entry.obbsRange };
-
-        l->obbs(transform, obbs);
+        // if requested, hide extra labels indicated by transition.selected < 0
+        if (_hideExtraLabels && l->options().selectTransition.time < 0) {
+          l->occlude();
+          l->skipTransitions();
+          continue;
+        }
 
         // Parent must have been processed earlier so at this point its
         // occlusion and anchor position is determined for the current frame.
@@ -369,6 +371,11 @@ void LabelManager::handleOcclusions(const ViewState& _viewState) {
                 continue;
             }
         }
+
+        ScreenTransform transform { m_transforms, entry.transformRange };
+        OBBBuffer obbs { m_obbs, entry.obbsRange };
+
+        l->obbs(transform, obbs);
 
         int anchorIndex = l->anchorIndex();
 
@@ -402,10 +409,10 @@ void LabelManager::handleOcclusions(const ViewState& _viewState) {
                             return true;
                         }
                         l->occlude();
-                        // for now, we're using non-zero selection transition time (previously unused style
+                        // for now, we're using selection transition time > 0 (previously unused style
                         //  param) to indicate a marker which should immediately hide all colliding labels
                         // in the future, we could use it to specify a (faster) hide transition in this case
-                        if(other_label->options().selectTransition.time != 0) {
+                        if(other_label->options().selectTransition.time > 0) {
                             l->skipTransitions();
                         }
                         return false;
@@ -479,7 +486,7 @@ void LabelManager::updateLabelSet(const ViewState& _viewState, float _dt, const 
     m_isect2d.resize({_viewState.viewportSize.x / 256, _viewState.viewportSize.y / 256},
                      {_viewState.viewportSize.x, _viewState.viewportSize.y});
 
-    handleOcclusions(_viewState);
+    handleOcclusions(_viewState, _scene.hideExtraLabels);
 
     // Update label state
     for (auto& entry : m_labels) {

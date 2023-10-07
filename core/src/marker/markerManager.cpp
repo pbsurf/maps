@@ -40,9 +40,6 @@ MarkerID MarkerManager::add() {
     auto id = ++m_idCounter;
     m_markers.push_back(std::make_unique<Marker>(id));
 
-    // Sort the marker list by draw order.
-    std::stable_sort(m_markers.begin(), m_markers.end(), Marker::compareByDrawOrder);
-
     // Return a handle for the marker.
     return id;
 }
@@ -102,9 +99,6 @@ bool MarkerManager::setDrawOrder(MarkerID markerID, int drawOrder) {
     if (!marker) { return false; }
 
     marker->setDrawOrder(drawOrder);
-    // Sort the marker list by draw order.
-    std::stable_sort(m_markers.begin(), m_markers.end(), Marker::compareByDrawOrder);
-
     m_dirty = true;
 
     return true;
@@ -285,6 +279,11 @@ bool MarkerManager::update(const View& _view, float _dt) {
     bool easing = false;
     bool dirty = m_dirty;
     m_dirty = false;
+
+    // Sort the marker list by draw order - now done here instead of in add() and setDrawOrder()
+    if (dirty) {
+        std::stable_sort(m_markers.begin(), m_markers.end(), Marker::compareByDrawOrder);
+    }
 
     for (auto& marker : m_markers) {
         // skip hidden markers (else we'll end up rendering continuously since buildStyling() doesn't finish)
@@ -476,8 +475,10 @@ const Marker* MarkerManager::getMarkerOrNullBySelectionColor(uint32_t selectionC
 
 Marker* MarkerManager::getMarkerOrNull(MarkerID markerID) {
     if (!markerID) { return nullptr; }
-    for (const auto& entry : m_markers) {
-        if (entry->id() == markerID) { return entry.get(); }
+    // typical use case is to add marker, then call fns to configure it, so caller is most likely to want
+    //  marker at end of list, so we search from end
+    for (size_t ii = m_markers.size(); ii--;) {
+      if (m_markers[ii]->id() == markerID) { return m_markers[ii].get(); }
     }
     return nullptr;
 }
