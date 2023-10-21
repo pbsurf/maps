@@ -23,33 +23,18 @@ CREATE TABLE IF NOT EXISTS map (
    zoom_level INTEGER,
    tile_column INTEGER,
    tile_row INTEGER,
-   tile_id TEXT,
-   grid_id TEXT
-);
-
-CREATE TABLE IF NOT EXISTS grid_key (
-    grid_id TEXT,
-    key_name TEXT
-);
-
-CREATE TABLE IF NOT EXISTS keymap (
-    key_name TEXT,
-    key_json TEXT
-);
-
-CREATE TABLE IF NOT EXISTS grid_utfgrid (
-    grid_id TEXT,
-    grid_utfgrid BLOB
+   tile_id TEXT
+   -- grid_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS images (
-    tile_data blob,
-    tile_id text
+    tile_data BLOB,
+    tile_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS metadata (
-    name text,
-    value text
+    name TEXT,
+    value TEXT
 );
 
 CREATE TABLE IF NOT EXISTS offline_tiles (
@@ -62,21 +47,9 @@ CREATE TABLE IF NOT EXISTS tile_last_access (
     last_access INTEGER
 );
 
--- CREATE TABLE IF NOT EXISTS geocoder_data (
---     type TEXT,
---     shard INTEGER,
---     data BLOB
--- );
-
 CREATE UNIQUE INDEX IF NOT EXISTS map_index ON map (zoom_level, tile_column, tile_row);
-CREATE UNIQUE INDEX IF NOT EXISTS grid_key_lookup ON grid_key (grid_id, key_name);
-CREATE UNIQUE INDEX IF NOT EXISTS keymap_lookup ON keymap (key_name);
-CREATE UNIQUE INDEX IF NOT EXISTS grid_utfgrid_lookup ON grid_utfgrid (grid_id);
 CREATE UNIQUE INDEX IF NOT EXISTS images_id ON images (tile_id);
 CREATE UNIQUE INDEX IF NOT EXISTS name ON metadata (name);
-CREATE INDEX IF NOT EXISTS map_grid_id ON map (grid_id);
--- CREATE INDEX IF NOT EXISTS geocoder_type_index ON geocoder_data (type);
--- CREATE UNIQUE INDEX IF NOT EXISTS geocoder_shard_index ON geocoder_data (type, shard);
 CREATE UNIQUE INDEX IF NOT EXISTS offline_index ON offline_tiles (tile_id, offline_id);
 CREATE UNIQUE INDEX IF NOT EXISTS last_access_index ON tile_last_access (tile_id);
 
@@ -98,6 +71,37 @@ CREATE VIEW IF NOT EXISTS tiles AS
     FROM map
     JOIN images ON images.tile_id = map.tile_id;
 
+COMMIT;)SQL_ESC";
+
+/* We have no use for GridUTF stuff
+CREATE TABLE IF NOT EXISTS grid_key (
+    grid_id TEXT,
+    key_name TEXT
+);
+
+CREATE TABLE IF NOT EXISTS keymap (
+    key_name TEXT,
+    key_json TEXT
+);
+
+CREATE TABLE IF NOT EXISTS grid_utfgrid (
+    grid_id TEXT,
+    grid_utfgrid BLOB
+);
+
+-- CREATE TABLE IF NOT EXISTS geocoder_data (
+--     type TEXT,
+--     shard INTEGER,
+--     data BLOB
+-- );
+
+CREATE UNIQUE INDEX IF NOT EXISTS grid_key_lookup ON grid_key (grid_id, key_name);
+CREATE UNIQUE INDEX IF NOT EXISTS keymap_lookup ON keymap (key_name);
+CREATE UNIQUE INDEX IF NOT EXISTS grid_utfgrid_lookup ON grid_utfgrid (grid_id);
+CREATE INDEX IF NOT EXISTS map_grid_id ON map (grid_id);
+-- CREATE INDEX IF NOT EXISTS geocoder_type_index ON geocoder_data (type);
+-- CREATE UNIQUE INDEX IF NOT EXISTS geocoder_shard_index ON geocoder_data (type, shard);
+
 CREATE VIEW IF NOT EXISTS grids AS
     SELECT
         map.zoom_level AS zoom_level,
@@ -117,7 +121,7 @@ CREATE VIEW IF NOT EXISTS grid_data AS
     FROM map
     JOIN grid_key ON map.grid_id = grid_key.grid_id
     JOIN keymap ON grid_key.key_name = keymap.key_name;
-COMMIT;)SQL_ESC";
+*/
 
 struct MBTilesQueries {
     // SELECT statement from tiles view

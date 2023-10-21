@@ -23,7 +23,7 @@ MarkerManager::MarkerManager(const Scene& _scene, MarkerManager* _oldInst) : m_s
     if(_oldInst && !_oldInst->m_markers.empty()) {
         m_dirty = true;
         m_markers = std::move(_oldInst->m_markers);
-        m_idCounter = uint32_t(m_markers.size());
+        m_idCounter = _oldInst->m_idCounter;
         for(auto& marker : m_markers) {
             marker->reset();
         }
