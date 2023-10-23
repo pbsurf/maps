@@ -187,6 +187,7 @@ layers:
         draw:
             marker:
                 style: loc-points
+                interactive: true
                 collide: false
                 size: 18px
                 color: "#0000FF"
