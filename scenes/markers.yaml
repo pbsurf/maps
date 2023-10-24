@@ -225,6 +225,7 @@ layers:
         draw:
             marker:
                 style: points
+                interactive: true
                 collide: false
                 size: 12px
                 color: function() { return feature.color || '#0000FF'; }
