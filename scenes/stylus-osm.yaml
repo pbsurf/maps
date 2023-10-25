@@ -1,8 +1,8 @@
-# adaption of tangram default scene.yaml to OpenMapTiles vector tile schema
+# adaption of tangram default scene.yaml to Stylus Labs vector tile schema
+# - OpenMapTiles schema omits some important information, unnecessarily groups OSM tags, uses too many layers, etc.
 # - don't seem to be many services using mapzen schema (except HERE)
 # - no one uses mapbox schema except mapbox?
-# - sufficiently different from mapzen schema that trying to create schema that works for both (w/ some globals)
-#  isn't practical
+# - trying to create schema that works for multiple schema (w/ some globals) isn't practical
 # - mapzen walkabout style is nice, but way too big - nearly 10K lines
 import:
     - raster-contour.yaml
@@ -12,53 +12,60 @@ global:
     #feature_order: function () { return feature.sort_rank; }
     camera_settings: { type: isometric, axis: [-.2, .2] }
 
-    # TODO: globals can be nested, so replace global.color_ with global.color.
-    color_landuse: honeydew
-    color_parks: '#bddec5'
-    color_park_detail: '#9dbea5'
-    color_golf: hsl(124, 83%, 88%)  #'#C8FACC'
-    color_industry: '#C0CDCD'
-    color_retail: '#FEF0D0'
-    color_civic: '#D9CFC3'
-    color_urban_7: lightgrey
-    color_urban_9: [.88, .88, .88]
-    color_water: '#9dc3de'
-    color_water_name: "#51909c"
-    color_water_halo: "#e2eef0"
-    color_beach: '#FEEFC3'  #[1.000,0.953,0.900]
-    color_ice: white
-    color_rock: grey
-    color_road: '#fff'
-    color_casing_16: '#999'
-    color_casing_18: '#aaa'
-    color_tunnel: '#E3E3E3'
-    color_tunnel_casing: '#A0A0A0'
-    color_motorway: '#FDE293'
-    #color_motorway_5: '#F89595'
-    #color_motorway_7: '#D16768'
-    color_motorway_link: '#FDE293'  #'#aaa'
-    color_motorway_muted: '#eee'
-    color_path: '#fff'
-    color_transit: '#EB322F'
-    color_rail: [0.588,0.671,0.698]
-    color_ferry: '#8db3ce'
-    color_runway_13: '#C7CADC'  #'#FFE4B5'
-    #color_runway_16: '#fff'
-    #color_runway_casing: orange
-    color_taxiway: '#BCBCCC'
-    color_airport: '#E8EAEF'  #'#ddd'
-    color_airport_name: '#487585'
-    color_road_name: '#666'
-    color_ferry_name: '#8db3ce'
-    color_border: wheat
-    color_border_country: [0.824, 0.651, 0.329, 1.00]
-    color_city_point: darkred
-    color_place_name: [0, 0, 0, .8]
-    color_hood_name: rgba(136, 45, 23, 0.9)
-    color_bldg: [.83, .83, .83]
-    color_bldg_3d: [.83, .83, .83, 0.5]
-    color_bldg_3d_line: [.75, .75, .73, 0.5]
-    color_park_name: darkgreen
+    color:
+        default_label: black
+        default_halo: white
+        landuse: honeydew
+        parks: '#bddec5'
+        park_detail: '#9dbea5'
+        golf: hsl(124, 83%, 88%)  #'#C8FACC'
+        industry: '#C0CDCD'
+        retail: '#FEF0D0'
+        civic: '#D9CFC3'
+        water: '#9dc3de'
+        water_name: "#51909c"
+        water_halo: "#e2eef0"
+        beach: '#FEEFC3'  #[1.000,0.953,0.900]
+        ice: white
+        rock: grey
+        road: '#fff'
+        casing_16: '#999'
+        casing_18: '#aaa'
+        tunnel: '#E3E3E3'
+        tunnel_casing: '#A0A0A0'
+        motorway: '#FDE293'
+        motorway_link: '#FDE293'  #'#aaa'
+        motorway_muted: '#eee'
+        path: '#fff'
+        transit: '#EB322F'
+        rail: [0.588,0.671,0.698]
+        ferry: '#8db3ce'
+        runway_13: '#C7CADC'  #'#FFE4B5'
+        taxiway: '#BCBCCC'
+        airport: '#E8EAEF'  #'#ddd'
+        airport_name: '#487585'
+        road_name: '#666'
+        road_halo: white
+        ferry_name: '#8db3ce'
+        ferry_halo: white
+        border: wheat
+        border_country: [0.824, 0.651, 0.329, 1.00]
+        city_point: darkred
+        place_name: [0, 0, 0, .8]
+        place_halo: white
+        hood_name: rgba(136, 45, 23, 0.9)
+        hood_halo: white
+        bldg: [.83, .83, .83]
+        bldg_3d: [.83, .83, .83, 0.5]
+        bldg_3d_line: [.75, .75, .73, 0.5]
+        park_name: darkgreen
+        park_halo: white
+        #urban_7: lightgrey
+        #urban_9: [.88, .88, .88]
+        #motorway_5: '#F89595'
+        #motorway_7: '#D16768'
+        #runway_16: '#fff'
+        #runway_casing: orange
 
     # priorities for colliding objects (points and text) - float in tangram (docs incorrectly say integer)
     priority_boundary: 0
@@ -180,30 +187,26 @@ styles:
         base: lines
         blend_order: -1
         mix: heightglow
+    unlit-lines:
+        base: lines
+        lighting: false
     # dash only supported for styles, not draw block because each dash pattern requires separate shader
     dashed-path:
-        base: lines
-        lighting: false
+        mix: unlit-lines
         dash: [3.0, 0.5]
     dashed-track:
-        base: lines
-        lighting: false
+        mix: unlit-lines
         dash: [2.5, 1.0]
     dashed-steps:
-        base: lines
-        lighting: false
+        mix: unlit-lines
         dash: [0.5, 0.5]
     dashed-bike:
-        base: lines
-        lighting: false
+        mix: unlit-lines
         dash: [1.0, 1.0]
     #dashed-tunnel:
     #    base: lines
     #    lighting: false
     #    dash: [3, 2]
-    unlit-lines:
-        base: lines
-        lighting: false
     transit-lines:
         base: lines
         blend: overlay
@@ -261,26 +264,26 @@ layers:
                 polygons:
                     style: terrain
                     order: 3
-                    color: global.color_landuse
+                    color: global.color.landuse
             green:
                 filter: { class: [wood, grass, farmland, wetland] }
-                draw: { polygons: { color: global.color_parks } }
+                draw: { polygons: { color: global.color.parks } }
                 # golf course can be inside park, so make sure it is drawn on top
                 golf:
                     filter: { subclass: golf_course }
-                    draw: { polygons: { order: 2, color: global.color_golf } }
+                    draw: { polygons: { order: 2, color: global.color.golf } }
                 park:
                     filter: { subclass: park }
-                    draw: { polygons: { order: 1, color: global.color_parks } }
+                    draw: { polygons: { order: 1, color: global.color.parks } }
             beach:
                 filter: { class: sand }
-                draw: { polygons: { color: global.color_beach } }
+                draw: { polygons: { color: global.color.beach } }
             ice:
                 filter: { class: ice }
-                draw: { polygons: { color: global.color_ice } }
+                draw: { polygons: { color: global.color.ice } }
             rock:
                 filter: { class: rock }
-                draw: { polygons: { color: global.color_rock } }
+                draw: { polygons: { color: global.color.rock } }
 
     landuse:
         data: { source: osm, layer: landuse }
@@ -294,19 +297,19 @@ layers:
                     visible: false
                     style: terrain
                     order: 1
-                    color: global.color_landuse
+                    color: global.color.landuse
             green:
                 filter: { class: [zoo, playground, pitch, cemetery] }
-                draw: { polygons: { visible: true, color: global.color_park_detail } }
+                draw: { polygons: { visible: true, color: global.color.park_detail } }
             retail:
                 filter: { class: [retail] }  #industrial, commercial
-                draw: { polygons: { visible: true, color: global.color_retail } }
+                draw: { polygons: { visible: true, color: global.color.retail } }
             civic:
                 filter: { class: [university, college] }
-                draw: { polygons: { visible: true, color: global.color_civic } }
+                draw: { polygons: { visible: true, color: global.color.civic } }
             #urban:
             #    filter: { kind: urban_area }
-            #    draw: { polygons: { color: [[7, global.color_urban_7], [9, global.color_urban_9]] } }
+            #    draw: { polygons: { color: [[7, global.color.urban_7], [9, global.color.urban_9]] } }
 
     park:
         data: { source: osm, layer: park }
@@ -318,7 +321,7 @@ layers:
             polygons:
                 style: terrain
                 order: 1
-                color: global.color_parks
+                color: global.color.parks
 
     water:
         data: { source: osm, layer: water }
@@ -326,7 +329,7 @@ layers:
         draw:
             polygons:
                 order: 5
-                color: global.color_water
+                color: global.color.water
         #ocean:
         #    filter: { class: ocean}
         #inter:
@@ -345,8 +348,8 @@ layers:
                 transition: { show: { time: 0s }, hide: { time: 1s } }
                 font:
                     family: Open Sans
-                    fill: global.color_water_name
-                    stroke: { color: global.color_water_halo, width: 2 }
+                    fill: global.color.water_name
+                    stroke: { color: global.color.water_halo, width: 2 }
                     style: italic
                     size: 12px
         oceans:
@@ -358,10 +361,11 @@ layers:
 
     waterway:
         data: { source: osm, layer: waterway }
+        enabled: global.show_polygons
         draw:
             lines:
                 order: 4
-                color: global.color_water
+                color: global.color.water
                 width: [[7,0.5px],[8,1px],[15,2px]]
         river:
             filter: { class: river }
@@ -371,8 +375,8 @@ layers:
                     #buffer: 3px
                     font:
                         family: Open Sans
-                        fill: global.color_water_name
-                        stroke: { color: global.color_water_halo, width: 2 }
+                        fill: global.color.water_name
+                        stroke: { color: global.color.water_halo, width: 2 }
                         style: italic
                         size: [[11, 0px], [12, 8px], [14, 9px], [16, 10px], [17, 11px]]
         #minor:
@@ -384,11 +388,12 @@ layers:
         draw:
             lines:
                 style: unlit-lines
-                color: global.color_road
+                color: global.color.road
                 width: 12
                 order: 40
                 outline:
-                    color: [[16, global.color_casing_16], [18, global.color_casing_18]]
+                    visible: global.show_polygons
+                    color: [[16, global.color.casing_16], [18, global.color.casing_18]]
                     width: 0  #[[15, 0], [16, 2]]
                     order: 10 # put all outlines below all roads
         rounded:
@@ -401,14 +406,14 @@ layers:
         tunnel:
             filter: { brunnel: tunnel, $zoom: { min: 14 } }
             priority: 1
-            draw: { lines: { color: global.color_tunnel, outline: { color: global.color_tunnel_casing } } }
+            draw: { lines: { color: global.color.tunnel, outline: { color: global.color.tunnel_casing } } }
         motorway:
             filter: { class: motorway }
             draw:
                 lines:
                     order: 80
-                    color: 'function() { return global.show_motorways ? global.color_motorway : global.color_motorway_muted; }'
-                    #[[5, global.color_motorway_5], [7, global.color_motorway_7]]
+                    color: 'function() { return global.show_motorways ? global.color.motorway : global.color.motorway_muted; }'
+                    #[[5, global.color.motorway_5], [7, global.color.motorway_7]]
                     width: [[5, 1px], [8, 1.5px], [14, 2px], [15, 12]]
                     outline:
                         width: [[14, 0], [15, 2]]
@@ -416,7 +421,7 @@ layers:
                 filter: { ramp: 1 }
                 draw:
                     lines:
-                        #color: global.color_motorway_link
+                        #color: global.color.motorway_link
                         width: [[13, 0], [14, 12]]
         major_road:
             filter: { class: [trunk, primary, secondary], $zoom: { min: 10 } }
@@ -446,7 +451,7 @@ layers:
                 lines:
                     order: 50
                     style: dashed-path
-                    color: global.color_path
+                    color: global.color.path
                     width: [[14, 0px], [15, 1px], [18, 3px]]
                     outline:
                         width: 0
@@ -466,7 +471,7 @@ layers:
                 lines:
                     order: 50
                     style: dashed-track
-                    color: global.color_path
+                    color: global.color.path
                     width: [[14, 1px], [15, 2px], [18, 4px]]
                     outline:
                         width: 0
@@ -477,7 +482,7 @@ layers:
             draw:
                 lines:
                     order: 40
-                    color: global.color_rail
+                    color: global.color.rail
                     width: [[12, 1px], [14, 1px], [16, 2px]]
             tunnel:
                 filter: { brunnel: tunnel }
@@ -490,7 +495,7 @@ layers:
             draw:
                 lines:
                     style: dashed-path
-                    color: global.color_ferry
+                    color: global.color.ferry
                     width: [[14, 1px], [18, 2px]]
                     outline:
                         width: 0
@@ -559,8 +564,8 @@ layers:
                 transition: { show: { time: 0s }, hide: { time: 1s } }
                 font:
                     family: Open Sans
-                    fill: global.color_road_name
-                    stroke: { color: white, width: 2 }
+                    fill: global.color.road_name
+                    stroke: { color: global.color.road_halo, width: 2 }
                     size: 12px
 
         motorway:
@@ -573,7 +578,7 @@ layers:
                     repeat_group: road_labels
                     priority: global.priority_motorway_name
                     font:
-                        stroke: { color: white, width: 4 }
+                        stroke: { width: 4 }
 
         primary:
             exclusive: true
@@ -588,7 +593,7 @@ layers:
                     priority: global.priority_road_primary
                     font:
                         size: 14px
-                        stroke: { color: white, width: 4 }
+                        stroke: { width: 4 }
 
         secondary:
             exclusive: true
@@ -600,7 +605,7 @@ layers:
                     priority: global.priority_road_secondary
                     font:
                         size: 14px
-                        stroke: { color: white, width: 4 }
+                        stroke: { width: 4 }
 
         tertiary:
             exclusive: true
@@ -610,7 +615,7 @@ layers:
                     priority: global.priority_road_tertiary
                     font:
                         size: 12px
-                        stroke: { color: white, width: 4 }
+                        stroke: { width: 4 }
 
         minor:
             exclusive: true
@@ -620,7 +625,7 @@ layers:
                     priority: global.priority_road_minor
                     font:
                         size: 10px
-                        stroke: { color: white, width: 4 }
+                        stroke: { width: 4 }
 
         ferry:
             exclusive: true
@@ -629,8 +634,8 @@ layers:
                 text:
                     text_wrap: 20
                     font:
-                        fill: global.color_ferry_name
-                        stroke: { color: white, width: 4px }
+                        fill: global.color.ferry_name
+                        stroke: { color: global.color.ferry_halo, width: 4px }
                         style: italic
 
     airports:
@@ -643,13 +648,13 @@ layers:
                 polygons:
                     style: terrain
                     order: 1
-                    color: global.color_airport
+                    color: global.color.airport
 
         taxiways:
             filter: { class: taxiway, $zoom: { min: 13 } }
             draw:
                 lines:
-                    color: global.color_taxiway
+                    color: global.color.taxiway
                     order: 50
                     width: [[13, 0px], [14, 2px], [17, 10px]]
 
@@ -657,12 +662,12 @@ layers:
             filter: { class: [runway, airstrip], $zoom: { min: 12 } }
             draw:
                 lines:
-                    color: global.color_runway_13  #[[13, global.color_runway_13], [16, global.color_runway_16]]
+                    color: global.color.runway_13  #[[13, global.color.runway_13], [16, global.color.runway_16]]
                     width: [[12, 3px], [13, 5px], [14, 10px], [15, 75]]
                     order: 55
                     cap: square
                     #outline:
-                    #    color: global.color_runway_casing
+                    #    color: global.color.runway_casing
                     #    width: [[11, 0px], [12, 1px], [13, 2px], [15, 12.5]]
 
     airport_name:
@@ -678,8 +683,8 @@ layers:
                 transition: { show: { time: 0s }, hide: { time: 1s } }
                 font:
                     family: Open Sans
-                    fill: global.color_airport_name
-                    stroke: { color: white, width: 2 }
+                    fill: global.color.airport_name
+                    stroke: { color: global.color.default_halo, width: 2 }
                     size: [[12, 12px], [13, 14px]]
 
     bicycle:
@@ -695,7 +700,7 @@ layers:
         draw:
             lines:
                 style: unlit-lines
-                color: '#008800'  #global.color_road
+                color: '#008800'  #global.color.road
                 width: [[13, 2px], [14, 3px]]
                 order: 120
         track:
@@ -745,7 +750,7 @@ layers:
                 width: [[13, 3px], [14, 4px]]
                 order: 150
                 #style: transit-lines
-                color: function() { return feature.color || global.color_transit; }
+                color: function() { return feature.color || global.color.transit; }
             text:
                 interactive: true
                 priority: global.priority_transit_ref
@@ -758,7 +763,7 @@ layers:
                     family: Open Sans
                     fill: white  #'function() { return feature.color == "yellow" ? "#555": "white"; }'
                     stroke:
-                        color: function() { return feature.color || global.color_transit; }
+                        color: function() { return feature.color || global.color.transit; }
                         width: 3
                     size: 14px
         secondary:
@@ -781,7 +786,7 @@ layers:
             polygons:
                 style: heightglow
                 order: 10
-                color: global.color_bldg
+                color: global.color.bldg
 
         # extrude 3d buildings
         extruded:
@@ -791,12 +796,12 @@ layers:
                     # JS call much slower than extruding geometry
                     #extrude: function () { return feature.render_height > 20 || $zoom >= 16; }
                     extrude: true
-                    color: global.color_bldg_3d
+                    color: global.color.bldg_3d
                     order: 1001
                 lines:
                     style: heightglowline
                     width: 2px
-                    color: global.color_bldg_3d_line
+                    color: global.color.bldg_3d_line
                     order: 1000
                     extrude: true
 
@@ -825,7 +830,8 @@ layers:
                         family: Open Sans
                         style: italic
                         size: 8pt
-                        fill: black
+                        fill: global.color.default_label
+                        stroke: { color: global.color.default_halo, width: 3 }
 
     pois:
         data: { source: osm, layer: poi }
@@ -844,8 +850,8 @@ layers:
                     font:
                         family: Open Sans
                         size: 1.2em
-                        fill: black
-                        stroke: { color: white, width: 3 }
+                        fill: global.color.default_label
+                        stroke: { color: global.color.default_halo, width: 3 }
         parks:
             exclusive: true
             priority: 1
@@ -868,8 +874,8 @@ layers:
                         font:
                             size: 10pt
                             style: italic
-                            fill: global.color_park_name
-                            stroke: { color: white, width: 3 }
+                            fill: global.color.park_name
+                            stroke: { color: global.color.park_halo, width: 3 }
             golf:
                 filter: { leisure: golf_course }
                 draw: { points: { sprite: golf } }
@@ -895,8 +901,8 @@ layers:
                     font:
                         size: 9pt
                         style: italic
-                        fill: global.color_park_name
-                        stroke: { color: white, width: 3 }
+                        fill: global.color.park_name
+                        stroke: { color: global.color.park_halo, width: 3 }
 
         station:
             exclusive: true
@@ -976,8 +982,8 @@ layers:
                     text:
                         font:
                             size: 12px
-                            fill: black
-                            stroke: { color: white, width: 3 }
+                            fill: global.color.default_label
+                            stroke: { color: global.color.default_halo, width: 3 }
             # make label optional at higher zoom to show more POI icons
             labels:
                 filter: { $zoom: { min: 17 } }
@@ -1075,7 +1081,7 @@ layers:
                 visible: false
                 order: 3
                 width: 2px
-                color: global.color_border
+                color: global.color.border
 
             text:
                 priority: global.priority_boundary
@@ -1085,8 +1091,8 @@ layers:
                 font:
                     family: Open Sans
                     size: 12px
-                    fill: global.color_place_name
-                    stroke: { color: white, width: 4 }
+                    fill: global.color.place_name
+                    stroke: { color: global.color.place_halo, width: 4 }
                     transform: uppercase
                     weight: bold
 
@@ -1095,7 +1101,7 @@ layers:
             draw:
                 lines:
                     visible: true
-                    color: global.color_border_country
+                    color: global.color.border_country
 
         region:
             filter: { admin_level: [3, 4] }
@@ -1114,8 +1120,8 @@ layers:
                     font:
                         family: Open Sans
                         size: 12px
-                        fill: [0, 0, 0, .8]
-                        stroke: { color: white, width: 4 }
+                        fill: global.color.place_name
+                        stroke: { color: global.color.place_halo, width: 4 }
                         transform: uppercase
 
         # city labels with points
@@ -1127,13 +1133,13 @@ layers:
             draw:
                 points:
                     size: 8px
-                    color: global.color_city_point
+                    color: global.color.city_point
                     text:
                         priority: global.priority_place
                         font:
                             family: Open Sans
-                            fill: global.color_place_name
-                            stroke: { color: white, width: 4 }
+                            fill: global.color.place_name
+                            stroke: { color: global.color.place_halo, width: 4 }
                             transform: uppercase
                             weight: bold
                             size: [[8, 11px], [12, 16px]]
@@ -1147,8 +1153,8 @@ layers:
                     font:
                         family: Open Sans
                         size: 12px
-                        fill: global.color_place_name
-                        stroke: { color: white, width: 4 }
+                        fill: global.color.place_name
+                        stroke: { color: global.color.place_halo, width: 4 }
                         transform: uppercase
 
             countries:
@@ -1209,4 +1215,5 @@ layers:
                         font:
                             size: [[13, 11px], [14, 11px], [15, 13px]]
                             style: italic
-                            fill: global.color_hood_name
+                            fill: global.color.hood_name
+                            stroke: { color: global.color.hood_halo }

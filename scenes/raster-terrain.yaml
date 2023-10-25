@@ -18,6 +18,7 @@ sources:
         type: Raster
         #url: http://a.tile.stamen.com/terrain-background/{z}/{x}/{y}.jpg
         url: http://a.tile.openstreetmap.org/{z}/{x}/{y}.png
+        zoom_offset: -1
         rasters: [terrain-normals]
 
 styles:

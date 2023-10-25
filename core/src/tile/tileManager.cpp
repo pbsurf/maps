@@ -296,8 +296,21 @@ void TileManager::updateTileSets(const View& _view) {
                 auto zoomBias = tileSet.source->zoomBias();
                 auto maxZoom = tileSet.source->maxZoom();
 
-                // Insert scaled and maxZoom mapped tileID in the visible set
-                tileSet.visibleTiles.insert(_tileID.zoomBiasAdjusted(zoomBias).withMaxSourceZoom(maxZoom));
+                if (zoomBias < 0) {
+                    std::function<void(TileID, int32_t)> addChildren;
+                    addChildren = [&](TileID tid, int32_t bias){
+                        if(bias < 0) {
+                            for (int i = 0; i < 4; i++)
+                                addChildren(tid.getChild(i, maxZoom), bias+1);
+                        } else {
+                            tileSet.visibleTiles.insert(tid);
+                        }
+                    };
+                    addChildren(_tileID, zoomBias);
+                } else {
+                    // Insert scaled and maxZoom mapped tileID in the visible set
+                    tileSet.visibleTiles.insert(_tileID.zoomBiasAdjusted(zoomBias).withMaxSourceZoom(maxZoom));
+                }
             }
         };
 

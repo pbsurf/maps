@@ -8,7 +8,13 @@
 stylus-osm:
     type: Vector
     title: Stylus Labs OSM
-    url: scene-omt.yaml
+    url: stylus-osm.yaml
+
+
+stylus-osm-sat:
+  type: Vector
+  title: Stylus Labs OSM for Satellite
+  url: stylus-osm-sat.yaml
 
 
 # not updated after 2017?
@@ -84,6 +90,7 @@ bing-earth:
     title: Bing Satellite
     url: http://a{s}.ortho.tiles.virtual%65arth.net/tiles/a{q}.JPG?g=45&mkt=en
     url_subdomains: [0, 1, 2, 3]
+    zoom_offset: -1
 
 
 usgs-imagery:
@@ -143,10 +150,8 @@ custom-1:
 
 
 stylus-satellite:
-    type: Multi
-    title: Stylus Labs OSM Satellite
-    layers:
-        - source: bing-earth
-        - source: stylus-osm
-    updates:
-        global.show_polygons: false
+  type: Multi
+  title: Stylus Labs OSM + Bing Earth
+  layers:
+    - source: bing-earth
+    - source: stylus-osm-sat

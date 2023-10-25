@@ -730,9 +730,8 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
         }
     }
 
-    if (zoomOffset >= 0) {
-        zoomOptions.zoomBias += zoomOffset;
-    }
+    // support zoomBias < 0 for high-dpi
+    zoomOptions.zoomBias += zoomOffset;  //if (zoomOffset >= 0) {
 
     // Parse and append any URL parameters.
     if (auto urlParamsNode = _source["url_params"]) {
