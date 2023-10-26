@@ -13,6 +13,8 @@ global:
     camera_settings: { type: isometric, axis: [-.2, .2] }
 
     color:
+        background: [.97, .955, .94] #'#f0ebeb'
+        earth: white
         default_label: black
         default_halo: white
         landuse: honeydew
@@ -154,7 +156,7 @@ fonts:
 
 scene:
     background:
-        color: [.97, .955, .94] #'#f0ebeb'
+        color: global.color.background
 
 
 cameras:
@@ -251,6 +253,7 @@ layers:
         draw:
             polygons:
                 style: terrain
+                color: global.color.earth
                 order: 0
 
     landcover:

@@ -11,10 +11,10 @@ stylus-osm:
     url: stylus-osm.yaml
 
 
-stylus-osm-sat:
+stylus-osm-dark:
   type: Vector
-  title: Stylus Labs OSM for Satellite
-  url: stylus-osm-sat.yaml
+  title: Stylus Labs OSM Dark
+  url: stylus-osm-dark.yaml
 
 
 # not updated after 2017?
@@ -154,4 +154,6 @@ stylus-satellite:
   title: Stylus Labs OSM + Bing Earth
   layers:
     - source: bing-earth
-    - source: stylus-osm-sat
+    - source: stylus-osm-dark
+  updates:
+    global.show_polygons: false
