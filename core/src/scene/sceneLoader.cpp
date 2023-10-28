@@ -697,7 +697,6 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
 
     std::string type;
     std::string url;
-    std::string mbtiles;
 
     UrlOptions urlOptions{};
 
@@ -795,16 +794,6 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
         }
     }
 
-    bool isTiled = NetworkDataSource::urlHasTilePattern(url);
-
-    bool isMBTilesFile = false;
-    {
-        const char* extStr = ".mbtiles";
-        const size_t extLength = strlen(extStr);
-        const size_t urlLength = url.length();
-        isMBTilesFile = urlLength > extLength && (url.compare(urlLength - extLength, extLength, extStr) == 0);
-    }
-
     if (const Node& tmsNode = _source["tms"]) {
         YamlUtil::getBool(tmsNode, urlOptions.isTms);
     }
@@ -812,6 +801,8 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
     std::unique_ptr<TileSource::DataSource> rawSources;
     std::string cachefile;
 
+    bool isTiled = url.empty() || NetworkDataSource::urlHasTilePattern(url);
+    bool isMBTilesFile = Url::getPathExtension(url) == "mbtiles";
     if (isMBTilesFile) {
 #ifdef TANGRAM_MBTILES_DATASOURCE
         // If we have MBTiles, we know the source is tiled.
@@ -823,21 +814,27 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
         return nullptr;
 #endif
     } else if (isTiled) {
-        rawSources = std::make_unique<NetworkDataSource>(_platform, url, urlOptions);
+        if (!url.empty())
+            rawSources = std::make_unique<NetworkDataSource>(_platform, url, urlOptions);
 #ifdef TANGRAM_MBTILES_DATASOURCE
         if (_options.diskTileCacheSize > 0) {
             std::string cachename = _source["cache"].as<std::string>("");
             if (cachename.empty()) {
                 LOGW("no cache file specified for source %s", _name.c_str());
             } else if (cachename != "false") {
+                const char* mimetype = type == "MVT" ? "pbf" : type == "Raster" ? "png" : "";
                 cachefile = _options.diskCacheDir + cachename + ".mbtiles";
-                auto s = std::make_unique<MBTilesDataSource>(_platform, _name, cachefile, "", true);
+                auto s = std::make_unique<MBTilesDataSource>(_platform, _name, cachefile, mimetype, true);
                 s->next = std::move(rawSources);
                 rawSources = std::move(s);
                 LOGW("using %s as cache for source %s", cachefile.c_str(), _name.c_str());
             }
         }
 #endif
+        if (!rawSources) {
+            LOGE("No url and no cache file specified! This source will be ignored: %s", _name.c_str());
+            return nullptr;
+        }
         auto cacheSize = _options.memoryTileCacheSize;
         if (cacheSize > 0) {
             auto s = std::make_unique<MemoryCacheDataSource>();

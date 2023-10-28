@@ -170,10 +170,8 @@ public:
     explicit Map(std::unique_ptr<Platform> _platform);
     ~Map();
 
-
     // Load the scene with the given SceneOptions
     SceneID loadScene(SceneOptions&& _sceneOptions, bool _async = true);
-
 
     // Load the scene at the given absolute file path synchronously
     SceneID loadScene(const std::string& _scenePath, bool _useScenePosition = false,
