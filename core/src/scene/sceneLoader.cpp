@@ -827,7 +827,7 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
                 auto s = std::make_unique<MBTilesDataSource>(_platform, _name, cachefile, mimetype, true);
                 s->next = std::move(rawSources);
                 rawSources = std::move(s);
-                LOGW("using %s as cache for source %s", cachefile.c_str(), _name.c_str());
+                LOGD("using %s as cache for source %s", cachefile.c_str(), _name.c_str());
             }
         }
 #endif

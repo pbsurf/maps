@@ -654,4 +654,9 @@ int64_t MBTilesDataSource::getOfflineSize() {
   return size;
 }
 
+sqlite3* MBTilesDataSource::dbHandle()
+{
+  return m_db->getHandle();
+}
+
 }

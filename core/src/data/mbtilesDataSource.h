@@ -6,6 +6,7 @@ namespace SQLite {
 class Database;
 }
 
+struct sqlite3;
 
 namespace Tangram {
 
@@ -30,6 +31,7 @@ public:
     void deleteOldTiles(int cutoff);
     void getTileSizes(std::function<void(int, int)> cb);
     int64_t getOfflineSize();
+    sqlite3* dbHandle();
 
 private:
     bool getTileData(const TileID& _tileId, std::vector<char>& _data, int offlineId);
