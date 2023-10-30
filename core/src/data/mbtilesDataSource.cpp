@@ -137,6 +137,7 @@ struct MBTilesQueries {
     SQLite::Statement getOffline;
     SQLite::Statement putOffline;
     SQLite::Statement delOffline;
+    SQLite::Statement delOfflineTiles;
     SQLite::Statement delOldTiles;
     SQLite::Statement getTileSizes;
     SQLite::Statement getOfflineSize;
@@ -151,10 +152,17 @@ struct MBTilesQueries {
         getOffline(_db, _cache ? "SELECT 1,tile_id FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;" : ";"),
         putOffline(_db, _cache ? "REPLACE INTO offline_tiles (tile_id, offline_id) VALUES (?, ?);" : ";"),
         delOffline(_db, _cache ? "DELETE FROM offline_tiles WHERE offline_id = ?;" : ";"),
-        delOldTiles(_db, _cache ?  // note that rows in maps and tile_last_access will be deleted by trigger
-            "DELETE FROM images WHERE tile_id IN (SELECT tile_id FROM tile_last_access WHERE last_access < ? AND tile_id NOT IN (SELECT tile_id FROM offline_tiles));" : ";"),
-        getTileSizes(_db, _cache ?
-            "SELECT tile_last_access.tile_id AS tid, last_access, length(tile_data) FROM images JOIN tile_last_access ON images.tile_id = tid WHERE tid NOT IN (SELECT tile_id FROM offline_tiles);" : ";"),
+        // note that rows in maps and tile_last_access will be deleted by trigger
+        // a few potential alternatives are:
+        // - omit "WHERE offline_id = ?1" ... seems like this might be slower though
+        // - SELECT tile_id FROM offline_tiles GROUP BY tile_id HAVING MAX(offline_id) = ? AND MIN(offline_id) = ?
+        // - SELECT tile_id FROM offline_tiles EXCEPT SELECT tile_id FROM offline_tiles WHERE offline_id <> ?;
+        delOfflineTiles(_db, _cache ? "DELETE FROM images WHERE tile_id IN (SELECT tile_id FROM offline_tiles"
+            " WHERE offline_id = ?1 AND tile_id NOT IN (SELECT tile_id FROM offline_tiles WHERE offline_id <> ?1));" : ";"),
+        delOldTiles(_db, _cache ? "DELETE FROM images WHERE tile_id IN (SELECT tile_id FROM tile_last_access"
+            " WHERE last_access < ? AND tile_id NOT IN (SELECT tile_id FROM offline_tiles));" : ";"),
+        getTileSizes(_db, _cache ? "SELECT images.tile_id, ot.offline_id, tla.last_access, length(tile_data)"
+            " FROM images LEFT JOIN tile_last_access AS tla ON images.tile_id = tla.tile_id LEFT JOIN offline_tiles AS ot ON images.tile_id = ot.tile_id;" : ";"),
         getOfflineSize(_db, _cache ? "SELECT sum(length(tile_data)) FROM images WHERE tile_id IN (SELECT tile_id FROM offline_tiles);" : ";"),
         putLastAccess(_db, _cache ?  // CURRENT_TIMESTAMP is a string!
             "REPLACE INTO tile_last_access (tile_id, last_access) VALUES (?, CAST(strftime('%s') AS INTEGER));" : ";") {}
@@ -601,8 +609,14 @@ void MBTilesDataSource::storeTileData(const TileID& _tileId, const std::vector<c
     }
 }
 
-void MBTilesDataSource::deleteOfflineMap(int offlineId) {
+void MBTilesDataSource::deleteOfflineMap(int offlineId, bool delTiles) {
     try {
+        if (delTiles) {
+            auto& stmt = m_queries->delOfflineTiles;
+            stmt.bind(1, offlineId);
+            stmt.exec();
+            stmt.reset();
+        }
         auto& stmt = m_queries->delOffline;
         stmt.bind(1, offlineId);
         stmt.exec();
@@ -626,14 +640,15 @@ void MBTilesDataSource::deleteOldTiles(int cutoff) {
     }
 }
 
-void MBTilesDataSource::getTileSizes(std::function<void(int, int)> cb) {
+void MBTilesDataSource::getTileSizes(std::function<void(int, int, int)> cb) {
     try {
         auto& stmt = m_queries->getTileSizes;
         while (stmt.executeStep()) {
             //const char* tile_id = stmt.getColumn(0).getText();  -- tile_id not needed
-            int timestamp = stmt.getColumn(1).getInt();
-            int size = stmt.getColumn(2).getInt();
-            cb(timestamp, size);
+            int offline_id = stmt.getColumn(1).getInt();
+            int timestamp = stmt.getColumn(2).getInt();
+            int size = stmt.getColumn(3).getInt();
+            cb(offline_id, timestamp, size);
         }
         stmt.reset();
     } catch (std::exception& e) {

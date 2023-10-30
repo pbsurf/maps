@@ -218,6 +218,8 @@ Feature Mvt::getFeature(ParserContext& _ctx, protobuf::message _featureIn) {
     return feature;
 }
 
+#define TANGRAM_DUMP_MVT_STATS
+
 Layer Mvt::getLayer(ParserContext& _ctx, protobuf::message _layerIn) {
 
     Layer layer("");
@@ -229,6 +231,9 @@ Layer Mvt::getLayer(ParserContext& _ctx, protobuf::message _layerIn) {
     bool lastWasFeature = false;
     size_t numFeatures = 0;
     protobuf::message featureItr;
+#ifdef TANGRAM_DUMP_MVT_STATS
+    auto layerPBFSize = _layerIn.getEnd() - _layerIn.getData();
+#endif
 
     // Iterate layer to populate featureMsgs, keys and values
     while(_layerIn.next()) {
@@ -296,6 +301,10 @@ Layer Mvt::getLayer(ParserContext& _ctx, protobuf::message _layerIn) {
         lastWasFeature = false;
     }
 
+#ifdef TANGRAM_DUMP_MVT_STATS
+    LOGW("  Layer %s: %d features, %d bytes in PBF", layer.name.c_str(), numFeatures, layerPBFSize);
+#endif
+
     if (_ctx.featureMsgs.empty()) { return layer; }
 
     //// Assign ordering to keys for faster sorting
@@ -332,6 +341,10 @@ std::shared_ptr<TileData> Mvt::parseTile(const TileTask& _task, int32_t _sourceI
 
     protobuf::message item(task.rawTileData->data(), task.rawTileData->size());
     ParserContext ctx(_sourceId);
+
+#ifdef TANGRAM_DUMP_MVT_STATS
+    LOGW("Stats for vector tile %s (%d bytes):", _task.tileId().toString().c_str(), task.rawTileData->size());
+#endif
 
     try {
         while(item.next()) {

@@ -62,6 +62,8 @@ global:
         bldg_3d_line: [.75, .75, .73, 0.5]
         park_name: darkgreen
         park_halo: white
+        housenumber: [0.30,0.30,0.30]  #"#d2b17d"
+        housenumber_halo: [0.913,0.925,0.933]  #rgba(38,38,38,0.15)
         #urban_7: lightgrey
         #urban_9: [.88, .88, .88]
         #motorway_5: '#F89595'
@@ -94,6 +96,8 @@ global:
     priority_station_tram: 6  # only shown when show_transit = true
     # we want to show every traffic light if showing any
     priority_traffic_light: 4
+    # housenumbers only shown at high zoom and unlikely to collide
+    priority_housenumber: 350
     # POIs - use osm_id to provide well-defined ordering so POIs don't get replaced by nearby ones when zooming in
     # - looks like it's faster to let Tangram convert string to number instead of using Number() in JS fn
     priority_poi_default: function() { return '101.' + feature.osm_id.substring(feature.osm_id.length - 6); }
@@ -807,6 +811,23 @@ layers:
                     color: global.color.bldg_3d_line
                     order: 1000
                     extrude: true
+
+
+    housenumber:
+        data: { source: osm, layer: housenumber}
+        filter: { $zoom: { min: 19 } }
+        #enabled: false
+        draw:
+            text:
+                #order: 1
+                priority: global.priority_housenumber
+                text_source: housenumber
+                font:
+                    family: Open Sans
+                    size: 11px
+                    fill: global.color.housenumber
+                    stroke: { color: global.color.housenumber_halo, width: 2px }
+
 
     peaks:
         data: { source: osm, layer: mountain_peak }

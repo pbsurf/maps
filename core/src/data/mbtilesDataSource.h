@@ -27,9 +27,9 @@ public:
 
     void clear() override {}
 
-    void deleteOfflineMap(int offlineId);
+    void deleteOfflineMap(int offlineId, bool delTiles);
     void deleteOldTiles(int cutoff);
-    void getTileSizes(std::function<void(int, int)> cb);
+    void getTileSizes(std::function<void(int, int, int)> cb);
     int64_t getOfflineSize();
     sqlite3* dbHandle();
 
