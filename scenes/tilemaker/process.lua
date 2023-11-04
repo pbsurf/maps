@@ -50,26 +50,27 @@ aerodromeValues = Set { "international", "public", "regional", "military", "priv
 
 node_keys = { "addr:housenumber","aerialway","aeroway","amenity","barrier","highway","historic","leisure","natural","office","place","railway","shop","sport","tourism","waterway" }
 function node_function(node)
-  -- Write 'aerodrome_label'
+  -- many smaller airports only have aerodrome node instead of way
   local aeroway = node:Find("aeroway")
-  if aeroway == "aerodrome" then
-    node:Layer("aerodrome_label", false)
+  if aeroway=="aerodrome" then
+    node:Layer("transportation", false)  --"aeroway"
+    node:MinZoom(11)
+    node:Attribute("aeroway", aeroway)
+    node:Attribute("ref", node:Find("ref"))
     SetNameAttributesEx(node, "node")
-    node:Attribute("iata", node:Find("iata"))
     SetEleAttributes(node)
+    node:Attribute("iata", node:Find("iata"))
     node:Attribute("icao", node:Find("icao"))
+    local aerodrome = node:Find("aerodrome")
+    node:Attribute("aerodrome", aerodromeValues[aerodrome] and aerodrome or "other")
+  end
 
-    local aerodrome_value = node:Find("aerodrome")
-    local class
-    if aerodromeValues[aerodrome_value] then class = aerodrome_value else class = "other" end
-    node:Attribute("class", class)
-  end
   -- Write 'housenumber'
-  local housenumber = node:Find("addr:housenumber")
-  if housenumber~="" then
-    node:Layer("housenumber", false)
-    node:Attribute("housenumber", housenumber)
-  end
+  --local housenumber = node:Find("addr:housenumber")
+  --if housenumber~="" then
+  --  node:Layer("housenumber", false)
+  --  node:Attribute("housenumber", housenumber)
+  --end
 
   -- Write 'place'
   -- note that OpenMapTiles has a rank for countries (1-3), states (1-6) and cities (1-10+);
@@ -122,8 +123,8 @@ function node_function(node)
     return
   end
   if natural == "bay" then
-    node:Layer("water_name", false)
-    SetNameAttributesEx(node, "node")
+    node:Layer("water", false)  --node:Layer("water_name", false)
+    SetNameAttributesEx(node, "node", 14)
     return
   end
 end
@@ -142,18 +143,17 @@ constructionValues = Set { "primary", "secondary", "tertiary", "motorway", "serv
 pavedValues = Set { "paved", "asphalt", "cobblestone", "concrete", "concrete:lanes", "concrete:plates", "metal", "paving_stones", "sett", "unhewn_cobblestone", "wood" }
 unpavedValues = Set { "unpaved", "compacted", "dirt", "earth", "fine_gravel", "grass", "grass_paver", "gravel", "gravel_turf", "ground", "ice", "mud", "pebblestone", "salt", "sand", "snow", "woodchips" }
 
+aerowayBuildings = Set { "terminal", "gate", "tower" }
 parkValues = Set { "protected_area", "national_park" }
-
-aerowayBuildings= Set { "terminal", "gate", "tower" }
-landuseKeys     = Set { "school", "university", "kindergarten", "college", "library", "hospital",
-                        "railway", "cemetery", "military", "residential", "commercial", "industrial",
-                        "retail", "stadium", "pitch", "playground", "theme_park", "bus_station", "zoo" }
-landcoverKeys   = { wood="wood", forest="wood",
-                    wetland="wetland",
-                    beach="sand", sand="sand",
-                    farmland="farmland", farm="farmland", orchard="farmland", vineyard="farmland", plant_nursery="farmland",
-                    glacier="ice", ice_shelf="ice",
-                    grassland="grass", grass="grass", meadow="grass", allotments="grass", park="grass", village_green="grass", recreation_ground="grass", garden="grass", golf_course="grass" }
+landuseKeys = { school="school", university="school", kindergarten="school", college="school", library="library",
+    hospital="hospital", railway="railway", bus_station="bus_station", cemetery="cemetery",
+    military="military", residential="residential", commercial="commercial", industrial="industrial",
+    retail="retail", stadium="stadium", pitch="pitch", playground="playground", theme_park="theme_park", zoo="zoo",
+    -- previous landcover list
+    wood="forest", forest="forest", wetland="wetland", beach="sand", sand="sand", glacier="ice", ice_shelf="ice",
+    farmland="farmland", farm="farmland", orchard="farmland", vineyard="farmland", plant_nursery="farmland",
+    grassland="grass", grass="grass", meadow="grass", allotments="grass",
+    park="park", garden="park", recreation_ground="park", village_green="park", golf_course="golf_course" }
 
 -- POI key/value pairs: based on https://github.com/openmaptiles/openmaptiles/blob/master/layers/poi/mapping.yaml
 poiMinZoom = 14
@@ -360,7 +360,7 @@ function way_function(way)
       way:MinZoom(minzoom)
       SetZOrder(way)
       way:Attribute("class", h)
-      if h~=highway then way:Attribute("subclass",highway) end
+      if h~=highway then way:Attribute("highway", highway) end
       SetBrunnelAttributes(way)
       if ramp then way:AttributeNumeric("ramp",1) end
 
@@ -412,31 +412,34 @@ function way_function(way)
       end
 
       -- Write names
-      if minzoom < 8 then
-        minzoom = 8
-      end
+		  --"transportation_name":        { "minzoom": 8,  "maxzoom": 14 },
+		  --"transportation_name_mid":    { "minzoom": 12, "maxzoom": 14, "write_to": "transportation_name" },
+		  --"transportation_name_detail": { "minzoom": 14, "maxzoom": 14, "write_to": "transportation_name" },
+      --if minzoom < 8 then
+      --  minzoom = 8
+      --end
       if highway == "motorway" or highway == "trunk" then
-        way:Layer("transportation_name", false)
-        way:MinZoom(minzoom)
+        --way:Layer("transportation_name", false)
+        minzoom = math.max(minzoom, 8)  --way:MinZoom(minzoom)
       elseif h == "minor" or h == "track" or h == "path" or h == "service" then
-        way:Layer("transportation_name_detail", false)
-        way:MinZoom(minzoom)
+        --way:Layer("transportation_name_detail", false)
+        minzoom = math.max(minzoom, 14)  --way:MinZoom(minzoom)
       else
-        way:Layer("transportation_name_mid", false)
-        way:MinZoom(minzoom)
+        --way:Layer("transportation_name_mid", false)
+        minzoom = math.max(minzoom, 12)  --way:MinZoom(minzoom)
       end
-      SetNameAttributes(way)
-      way:Attribute("class",h)
-      way:Attribute("network","road") -- **** could also be us-interstate, us-highway, us-state
+      SetNameAttributes(way, minzoom)
+      --way:Attribute("class",h)
+      --if h~=highway then way:Attribute("subclass",highway) end
+      --way:Attribute("network","road") -- **** could also be us-interstate, us-highway, us-state
       local maxspeed = way:Find("maxspeed")
       if maxspeed~="" then
         way:Attribute("maxspeed",maxspeed)
       end
-      local lanes = way:Find("lanes")  -- should this go in transportation layer instead?
+      local lanes = way:Find("lanes")
       if lanes~="" then
         way:Attribute("lanes",lanes)
       end
-      if h~=highway then way:Attribute("subclass",highway) end
       local ref = way:Find("ref")
       if ref~="" then
         way:Attribute("ref",ref)
@@ -449,21 +452,16 @@ function way_function(way)
   if railway~="" then
     way:Layer("transportation", false)
     way:Attribute("class", "rail")
-    way:Attribute("subclass", railway)
+    way:Attribute("railway", railway)
     SetZOrder(way)
     SetBrunnelAttributes(way)
+    SetNameAttributes(way, 14)
     if service~="" then
       way:Attribute("service", service)
       way:MinZoom(12)
     else
       way:MinZoom(9)
     end
-
-    way:Layer("transportation_name", false)
-    SetNameAttributes(way)
-    way:MinZoom(14)
-    way:Attribute("class", "rail")
-    way:Attribute("subclass", railway)
   end
 
   -- Pier
@@ -482,32 +480,30 @@ function way_function(way)
     way:MinZoom(9)
     SetBrunnelAttributes(way)
 
-    way:Layer("transportation_name", false)
-    SetNameAttributes(way)
-    way:MinZoom(12)
-    way:Attribute("class", "ferry")
+    --way:Layer("transportation_name", false)
+    SetNameAttributes(way, 12)
+    --way:MinZoom(12)
+    --way:Attribute("class", "ferry")
   end
 
   -- 'Aeroway'
   if aeroway~="" then
-    way:Layer("aeroway", isClosed)
-    way:Attribute("class",aeroway)
-    way:Attribute("ref",way:Find("ref"))
+    way:Layer("transportation", isClosed)  --"aeroway"
+    way:MinZoom(10)
+    way:Attribute("aeroway", aeroway)
+    way:Attribute("ref", way:Find("ref"))
     write_name = true
-  end
 
-  -- 'aerodrome_label'
-  if aeroway=="aerodrome" then
-    way:LayerAsCentroid("aerodrome_label")
-    SetNameAttributes(way)
-    way:Attribute("iata", way:Find("iata"))
+    -- 'aerodrome_label'
+    if aeroway=="aerodrome" then
+      --way:LayerAsCentroid("aerodrome_label")
+      SetNameAttributes(way)
       SetEleAttributes(way)
-    way:Attribute("icao", way:Find("icao"))
-
-    local aerodrome = way:Find(aeroway)
-    local class
-    if aerodromeValues[aerodrome] then class = aerodrome else class = "other" end
-    way:Attribute("class", class)
+      way:Attribute("iata", way:Find("iata"))
+      way:Attribute("icao", way:Find("icao"))
+      local aerodrome = way:Find("aerodrome")
+      way:Attribute("aerodrome", aerodromeValues[aerodrome] and aerodrome or "other")
+    end
   end
 
   -- Set 'waterway' and associated
@@ -526,28 +522,31 @@ function way_function(way)
   elseif waterway == "fuel"      then way:Layer("landuse", isClosed); way:Attribute("class", "industrial"); way:MinZoom(14)
   end
   -- Set names on rivers
-  if waterwayClasses[waterway] and not isClosed then
-    if waterway == "river" and way:Holds("name") then
-      way:Layer("water_name", false)
-    else
-      way:Layer("water_name_detail", false)
-      way:MinZoom(14)
-    end
-    way:Attribute("class", waterway)
-    SetNameAttributes(way)
-  end
+  --"water_name":        { "minzoom": 14, "maxzoom": 14 },
+  --"water_name_detail": { "minzoom": 14, "maxzoom": 14, "write_to": "water_name" },
+  --if waterwayClasses[waterway] and not isClosed then
+  --  if waterway == "river" and way:Holds("name") then
+  --    way:Layer("water_name", false)
+  --  else
+  --    way:Layer("water_name_detail", false)
+  --    way:MinZoom(14)
+  --  end
+  --  way:Attribute("class", waterway)
+  --  SetNameAttributes(way)
+  --end
 
   -- Set 'building' and associated
   if building~="" then
     way:Layer("building", true)
     SetBuildingHeightAttributes(way)
     SetMinZoomByArea(way)
-  end
 
-  -- Set 'housenumber'
-  if housenumber~="" then
-    way:LayerAsCentroid("housenumber", false)
-    way:Attribute("housenumber", housenumber)
+    -- housenumber is also commonly set on poi nodes, but not very useful w/o at least street name too
+    --"housenumber":      { "minzoom": 14, "maxzoom": 14 },
+    if housenumber~="" then
+      --way:LayerAsCentroid("housenumber", false)
+      way:Attribute("housenumber", housenumber, 14)
+    end
   end
 
   -- Set 'water'
@@ -568,53 +567,54 @@ function way_function(way)
     --  https://www.openstreetmap.org/way/25309134
     --  https://www.openstreetmap.org/way/24579306
     if way:Holds("name") and natural=="water" and water ~= "basin" and water ~= "wastewater" then
-      way:LayerAsCentroid("water_name_detail")
-      SetNameAttributes(way)
-      SetMinZoomByArea(way)
-      way:Attribute("class", class)
+      --way:LayerAsCentroid("water_name_detail")
+      SetNameAttributes(way, 14)
+      --SetMinZoomByArea(way)
+      --way:Attribute("class", class)
       way:AttributeNumeric("area", way:Area())
     end
 
     return -- in case we get any landuse processing
   end
 
-  -- Set 'landcover' (from landuse, natural, leisure)
+  -- landuse/landcover
+  --"landcover":        { "minzoom":  0, "maxzoom": 14, "simplify_below": 13, "simplify_level": 0.0003, "simplify_ratio": 2, "write_to": "landuse" },
+  --"park":             { "minzoom": 11, "maxzoom": 14 },
   local l = landuse
   if l=="" then l=natural end
   if l=="" then l=leisure end
-  if landcoverKeys[l] then
-    way:Layer("landcover", true)
+  if l=="" then l=amenity end
+  if l=="" then l=tourism end
+  if landuseKeys[l] then
+    way:Layer("landuse", true)
+    way:Attribute("class", landuseKeys[l])
+    --if landcover then
     SetMinZoomByArea(way)
-    way:Attribute("class", landcoverKeys[l])
-    if l=="wetland" then way:Attribute("subclass", way:Find("wetland"))
-    else way:Attribute("subclass", l) end
-    write_name = true
+    --else
+    --  if landuse=="residential" then
+    --    if way:Area()<ZRES8^2 then way:MinZoom(8) else SetMinZoomByArea(way) end
+    --  else
+    --    way:MinZoom(11)
+    --  end
+    --end
+    if landuse~="" then way:Attribute("landuse", landuse)
+    elseif natural~="" then way:Attribute("natural", natural)
+    elseif leisure~="" then way:Attribute("leisure", leisure)
+    elseif amenity~="" then way:Attribute("amenity", amenity)
+    elseif tourism~="" then way:Attribute("tourism", tourism) end
 
-  -- Set 'landuse'
-  else
-    if l=="" then l=amenity end
-    if l=="" then l=tourism end
-    if landuseKeys[l] then
-      way:Layer("landuse", true)
-      way:Attribute("class", l)
-      if l=="residential" then
-        if way:Area()<ZRES8^2 then way:MinZoom(8)
-        else SetMinZoomByArea(way) end
-      else way:MinZoom(11) end
-      write_name = true
-    end
+    if natural=="wetland" then way:Attribute("wetland", way:Find("wetland")) end
+    write_name = true
   end
 
   -- Parks
   local write_area = false;
-  if parkValues[boundary] then
-    way:Layer("park",true);
-    way:Attribute("class",boundary);
-    SetNameAttributes(way)
-    write_area = true
-  elseif leisure=="nature_reserve" then
-    way:Layer("park",true);
-    way:Attribute("class",leisure );
+  local park_boundary = parkValues[boundary]
+  if park_boundary or leisure=="nature_reserve" then
+    way:Layer("landuse", true)
+    SetMinZoomByArea(way)  --way:MinZoom(11)
+    way:Attribute("class", park_boundary and boundary or leisure)  --"park");
+    --way:Attribute("subclass", park_boundary and boundary or leisure);
     SetNameAttributes(way)
     write_area = true
   end
@@ -684,9 +684,10 @@ function NewWritePOI(obj, osm_type, area)
 end
 
 -- Set name attributes on any object
-function SetNameAttributesEx(obj, osm_type)
+function SetNameAttributesEx(obj, osm_type, minzoom)
   local name = obj:Find("name"), iname
   local main_written = name
+  minzoom = minzoom or 0
   -- if we have a preferred language, then write that (if available), and additionally write the base name tag
   if preferred_language and obj:Holds("name:"..preferred_language) then
     iname = obj:Find("name:"..preferred_language)
@@ -708,8 +709,8 @@ function SetNameAttributesEx(obj, osm_type)
   obj:Attribute("osm_type", osm_type)
 end
 
-function SetNameAttributes(obj)
-  SetNameAttributesEx(obj, "way")
+function SetNameAttributes(obj, minzoom)
+  SetNameAttributesEx(obj, "way", minzoom)
 end
 
 -- Set ele and ele_ft on any object

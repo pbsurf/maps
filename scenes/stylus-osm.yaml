@@ -261,67 +261,63 @@ layers:
                 order: 0
 
     landcover:
-        data: { source: osm, layer: landcover }
+        data: { source: osm, layer: landuse }
         enabled: global.show_polygons
-        #filter:
-        #    - { $zoom: { min: 16 } }
-        #    #- { area: { min: 500px2 } }
-        areas:
-            draw:
-                polygons:
-                    style: terrain
-                    order: 3
-                    color: global.color.landuse
-            green:
-                filter: { class: [wood, grass, farmland, wetland] }
-                draw: { polygons: { color: global.color.parks } }
-                # golf course can be inside park, so make sure it is drawn on top
-                golf:
-                    filter: { subclass: golf_course }
-                    draw: { polygons: { order: 2, color: global.color.golf } }
-                park:
-                    filter: { subclass: park }
-                    draw: { polygons: { order: 1, color: global.color.parks } }
-            beach:
-                filter: { class: sand }
-                draw: { polygons: { color: global.color.beach } }
-            ice:
-                filter: { class: ice }
-                draw: { polygons: { color: global.color.ice } }
-            rock:
-                filter: { class: rock }
-                draw: { polygons: { color: global.color.rock } }
+        #filter: [ { $zoom: { min: 16 } }, { area: { min: 500px2 } } ]
+        draw:
+            polygons:
+                visible: false
+                style: terrain
+                order: 3
+                color: global.color.landuse
+        green:
+            filter: { class: [forest, grass, farmland, wetland] }
+            draw: { polygons: { visible: true, color: global.color.parks } }
+        # golf course can be inside park, so make sure it is drawn on top
+        golf:
+            filter: { class: golf_course }
+            draw: { polygons: { visible: true, order: 2, color: global.color.golf } }
+        park:
+            filter: { class: park }
+            draw: { polygons: { visible: true, order: 1, color: global.color.parks } }
+        beach:
+            filter: { class: sand }
+            draw: { polygons: { visible: true, color: global.color.beach } }
+        ice:
+            filter: { class: ice }
+            draw: { polygons: { visible: true, color: global.color.ice } }
+        rock:
+            filter: { class: rock }
+            draw: { polygons: { visible: true, color: global.color.rock } }
 
     landuse:
         data: { source: osm, layer: landuse }
         enabled: global.show_polygons
-        #filter:
-        #    - { $zoom: { min: 16 } }
-        #    #- { area: { min: 500px2 } }
-        areas:
-            draw:
-                polygons:
-                    visible: false
-                    style: terrain
-                    order: 1
-                    color: global.color.landuse
-            green:
-                filter: { class: [zoo, playground, pitch, cemetery] }
-                draw: { polygons: { visible: true, color: global.color.park_detail } }
-            retail:
-                filter: { class: [retail] }  #industrial, commercial
-                draw: { polygons: { visible: true, color: global.color.retail } }
-            civic:
-                filter: { class: [university, college] }
-                draw: { polygons: { visible: true, color: global.color.civic } }
-            #urban:
-            #    filter: { kind: urban_area }
-            #    draw: { polygons: { color: [[7, global.color.urban_7], [9, global.color.urban_9]] } }
+        #filter: [ { $zoom: { min: 16 } }, { area: { min: 500px2 } } ]
+        draw:
+            polygons:
+                visible: false
+                style: terrain
+                order: 1
+                color: global.color.landuse
+        green:
+            filter: { class: [zoo, playground, pitch, cemetery] }
+            draw: { polygons: { visible: true, color: global.color.park_detail } }
+        retail:
+            filter: { landuse: [retail] }  #industrial, commercial
+            draw: { polygons: { visible: true, color: global.color.retail } }
+        civic:
+            filter: { amenity: [university, college] }  # class: school
+            draw: { polygons: { visible: true, color: global.color.civic } }
+        #urban:
+        #    filter: { kind: urban_area }
+        #    draw: { polygons: { color: [[7, global.color.urban_7], [9, global.color.urban_9]] } }
 
     park:
-        data: { source: osm, layer: park }
+        data: { source: osm, layer: landuse }
         enabled: global.show_polygons
-        #filter:
+        filter:
+            class: [national_park, protected_area, nature_reserve]
         #    - { $zoom: { min: 16 } }
         #    #- { area: { min: 500px2 } }
         draw:
@@ -333,6 +329,7 @@ layers:
     water:
         data: { source: osm, layer: water }
         enabled: global.show_polygons
+        filter: { $geometry: polygon }
         draw:
             polygons:
                 order: 5
@@ -343,11 +340,13 @@ layers:
         #    filter: { class: [lake, river] }
 
     water_name:
-        data: { source: osm, layer: water_name }
+        data: { source: osm, layer: water }
         filter:
-            #name: true
-            - $zoom: { min: 17 }
-            - area: { min: 500px2 }
+            name: true
+            $geometry: [polygon, point]
+            any:
+                - $zoom: { min: 17 }
+                - area: { min: 500px2 }
         draw:
             text:
                 #interactive: true
@@ -360,32 +359,38 @@ layers:
                     style: italic
                     size: 12px
         oceans:
-            filter: { class: 'ocean', $zoom: { min: 1, max: 8 } }
+            filter: { class: ocean, $zoom: { min: 1, max: 8 } }
             draw: { text: { font: { size: 14pt } } }
         seas:
             filter: { class: [lake, sea], $zoom: { min: 7 } }
             draw: { text: { font: { size: [[9, 9px], [17, 10px], [18, 12px]] } } }
 
     waterway:
-        data: { source: osm, layer: waterway }
+        data: { source: osm, layer: water }
         enabled: global.show_polygons
+        filter: { $geometry: line }
         draw:
             lines:
                 order: 4
                 color: global.color.water
                 width: [[7,0.5px],[8,1px],[15,2px]]
-        river:
-            filter: { class: river }
-            draw:
-                text:
-                    text_source: name
-                    #buffer: 3px
-                    font:
-                        family: Open Sans
-                        fill: global.color.water_name
-                        stroke: { color: global.color.water_halo, width: 2 }
-                        style: italic
-                        size: [[11, 0px], [12, 8px], [14, 9px], [16, 10px], [17, 11px]]
+
+    waterway_name:
+        data: { source: osm, layer: water }
+        filter:
+            name: true
+            class: river
+        enabled: global.show_polygons
+        draw:
+            text:
+                text_source: name
+                #buffer: 3px
+                font:
+                    family: Open Sans
+                    fill: global.color.water_name
+                    stroke: { color: global.color.water_halo, width: 2 }
+                    style: italic
+                    size: [[11, 0px], [12, 8px], [14, 9px], [16, 10px], [17, 11px]]
         #minor:
         #    filter: { class: [stream, canal] }
 
@@ -452,6 +457,7 @@ layers:
             parking:
                 filter: { service: parking_aisle }
                 draw: { lines: { width: [[15, 0px], [16, 2px], [17, 4]] } }
+
         paths:
             filter: { class: path }
             draw:
@@ -463,13 +469,13 @@ layers:
                     outline:
                         width: 0
             steps:
-                filter: { subclass: steps }
+                filter: { highway: steps }
                 draw: { lines: { style: dashed-steps, width: [[14, 0px], [15, 3px], [18, 6px]] } }
             unpaved:
                 enabled: global.show_trails
                 filter:
-                    - subclass: false  # highway=path in OSM
-                    - { subclass: footway, surface: unpaved }
+                    - highway: false  # highway=path in OSM
+                    - { highway: footway, surface: unpaved }
                 draw: { lines: { color: '#B06000', width: [[10, 1px], [18, 3px]] } }
 
         tracks:
@@ -495,8 +501,9 @@ layers:
                 filter: { brunnel: tunnel }
                 draw: { lines: { width: [[16, 0px], [17, 2px]] } }
             hidden:
-                filter: { not: { subclass: [rail, light_rail, narrow_gauge, tram, funicular] } }
+                filter: { not: { railway: [rail, light_rail, narrow_gauge, tram, funicular] } }
                 draw: { lines: { visible: false } }
+
         ferry:
             filter: { class: ferry }
             draw:
@@ -523,7 +530,7 @@ layers:
 
     shields:
         enabled: global.show_motorways
-        data: { source: osm, layer: transportation_name }
+        data: { source: osm, layer: transportation }
         filter:
             #function() { const s = feature.maxspeed.split(" "); return parseInt(s[0]) >= (s[1] == "mph" ? 50 : 80); }
             ref: true
@@ -557,7 +564,7 @@ layers:
                         fill: black
 
     transportation_name:
-        data: { source: osm, layer: transportation_name }
+        data: { source: osm, layer: transportation }
         filter:
             name: true
             not: { class: [rail, aeroway] }
@@ -646,11 +653,12 @@ layers:
                         style: italic
 
     airports:
-        data: { source: osm, layer: aeroway }
+        data: { source: osm, layer: transportation }
+        filter: { aeroway: true }
 
         footprint:
             enabled: global.show_polygons
-            filter: { class: aerodrome }
+            filter: { aeroway: aerodrome }
             draw:
                 polygons:
                     style: terrain
@@ -658,7 +666,7 @@ layers:
                     color: global.color.airport
 
         taxiways:
-            filter: { class: taxiway, $zoom: { min: 13 } }
+            filter: { aeroway: taxiway, $zoom: { min: 13 } }
             draw:
                 lines:
                     color: global.color.taxiway
@@ -666,7 +674,7 @@ layers:
                     width: [[13, 0px], [14, 2px], [17, 10px]]
 
         runways:
-            filter: { class: [runway, airstrip], $zoom: { min: 12 } }
+            filter: { aeroway: [runway, airstrip], $zoom: { min: 12 } }
             draw:
                 lines:
                     color: global.color.runway_13  #[[13, global.color.runway_13], [16, global.color.runway_16]]
@@ -678,11 +686,13 @@ layers:
                     #    width: [[11, 0px], [12, 1px], [13, 2px], [15, 12.5]]
 
     airport_name:
-        data: { source: osm, layer: aerodrome_label }
+        data: { source: osm, layer: transportation }
         filter:
-            - { class: international, $zoom: { min: 12 } }
-            - { class: regional, $zoom: { min: 13 } }
-            - $zoom: { min: 14 }
+            aeroway: aerodrome
+            any:
+                - { aerodrome: international, $zoom: { min: 12 } }
+                - { aerodrome: regional, $zoom: { min: 13 } }
+                - $zoom: { min: 14 }
         draw:
             text:
                 interactive: true
@@ -699,7 +709,7 @@ layers:
         filter:
             any:
                 - { class: [track, path], bicycle: [designated, yes] }
-                - { class: track, subclass: cycleway }
+                - { class: track, highway: cycleway }
                 - cycleway: true
                 - cycleway_right: true
                 - cycleway_left: true
@@ -716,7 +726,7 @@ layers:
             filter:
                 any:
                     - { class: [track, path], bicycle: [designated, yes] }
-                    - { class: track, subclass: cycleway }
+                    - { class: track, highway: cycleway }
                     - cycleway: [track, opposite_track]
                     - cycleway_left: [track, opposite_track]
                     - cycleway_right: [track, opposite_track]
@@ -814,7 +824,7 @@ layers:
 
 
     housenumber:
-        data: { source: osm, layer: housenumber}
+        data: { source: osm, layer: building }
         filter: { $zoom: { min: 19 } }
         #enabled: false
         draw:
@@ -830,13 +840,13 @@ layers:
 
 
     peaks:
-        data: { source: osm, layer: mountain_peak }
+        data: { source: osm, layer: poi }
         enabled: global.show_trails
         filter:
+            class: [peak, volcano]
             rank: 1.0  # only the highest peak in each tile
             ele_ft: true
             #$zoom: { max: 13 }
-            #class: [peak, volcano]  -- not present in carto DB
         draw:
             points:
                 texture: pois

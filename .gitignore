@@ -93,6 +93,16 @@ xcuserdata
 DerivedData
 *.xcuserstate
 
+### Qt Creator ###
+
+project.cflags
+project.config
+project.creator
+project.cxxflags
+project.files
+project.includes
+
+
 ### Intellij ###
 
 *.iml
@@ -147,6 +157,8 @@ platforms/android/*/obj
 # Android gradle
 platforms/android/demo/gradle
 platforms/android/demo/gradlew*
+app/android/gradle
+app/android/gradlew*
 
 # vim
 *.swp

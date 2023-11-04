@@ -121,6 +121,10 @@ bool Scene::load() {
     }
     LOGTO("<<< applyUpdates");
 
+#ifdef TANGRAM_DUMP_MERGED_SCENE
+    logMsg(YAML::Dump(m_config).c_str());
+#endif
+
     Importer::resolveSceneUrls(m_config, m_options.url);
 
     SceneLoader::applyGlobals(m_config, m_config);
