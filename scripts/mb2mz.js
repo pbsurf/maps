@@ -325,9 +325,10 @@ function walkFilter(mbfilter) {
 }
 
 // convert one whole Mapbox style to a Tangram style
-function walkStyleFile(mbstyle, customLogger) {
-    if (customLogger) logger = customLogger;
-    let scene = { sources: {}, scene: {}, styles: {}, layers: {} };
+function walkStyleFile(mbstyle, options) {
+    if (options.customLogger) logger = options.customLogger;
+    let scene = { global: {}, sources: {}, scene: {}, textures: {}, styles: {}, layers: {} };
+    if (options.globalColors) scene.global.color = {};
     scene.styles["lines-inlay"] = { base: 'lines', blend: 'inlay' };
     scene.styles["polygons-inlay"] = { base: 'polygons', blend: 'inlay' };
     mbstyle.layers.forEach((mblayer, order) => {
@@ -354,6 +355,25 @@ function walkStyleFile(mbstyle, customLogger) {
         // "ref" is deprecated in mapbox style spec; we'll treat as a sublayer
         if (mblayer.ref && !mblayer.type) mblayer.type = mbstyle.layers[mblayer.ref]
         let style = walkStyle(mblayer, order);
+
+        if (options.globalColors) {
+          if(style.draw.color) {
+            scene.global.color[mblayer.id] = style.draw.color;
+            style.draw.color = "global.color." + mblayer.id;
+          }
+          const font = style.draw.text ? style.draw.text.font : style.draw.font;
+          if(font) {
+            if(font.fill) {
+              scene.global.color[mblayer.id + "_text"] = font.fill;
+              font.fill = "global.color." + mblayer.id + "_text";
+            }
+            if(font.stroke && font.stroke.color) {
+              scene.global.color[mblayer.id + "_halo"] = font.stroke.color;
+              font.stroke.color = "global.color." + mblayer.id + "_halo";
+            }
+          }
+        }
+
         if(style.blend || style.draw.dash) {
             scene.styles[mblayer.id] = style;
             layer.draw = { [mblayer.id]: {} };

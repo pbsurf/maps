@@ -305,6 +305,9 @@ bool TextStyleBuilder::addFeature(const Feature& _feat, const DrawRule& _rule) {
     if (numLabels == m_labels.size()) {
         // Drop quads when no label was added
         m_quads.resize(quadsStart);
+    //} else if (m_labels.size() - numLabels > 10) {
+    //    LOGW("Created %d (+%d) text labels for %s %s", m_labels.size() - numLabels, numLabels,
+    //         _feat.props.getAsString("class").c_str(), _feat.props.getAsString("name").c_str()); //_feat.props.toJson().c_str());
     }
     return true;
 }
@@ -313,16 +316,16 @@ bool TextStyleBuilder::addStraightTextLabels(const Line& _line, float _labelWidt
                                              const std::function<void(glm::vec2,glm::vec2)>& _onAddLabel) {
 
     // Size of pixel in tile coordinates
-    float pixelSize = 1.0/m_tileSize;
+    float pixelSize = 1.0f/m_tileSize;
 
     // Minimal length of line needed for the label
     float minLength = _labelWidth * pixelSize;
 
     // Allow labels to appear later than tile's min-zoom
-    minLength *= 0.6;
+    minLength *= 0.6f;
 
     //float tolerance = pow(pixelScale * 2, 2);
-    float tolerance = pow(pixelSize * 1.5, 2);
+    float tolerance = powf(pixelSize * 1.5f, 2);
     float sqDirLimit = powf(1.99f, 2);
 
     for (size_t i = 0; i < _line.size() - 1; i++) {
@@ -388,15 +391,17 @@ bool TextStyleBuilder::addStraightTextLabels(const Line& _line, float _labelWidt
     return false;
 }
 
+//#define TANGRAM_NEW_CURVED_LABELS
+
 void TextStyleBuilder::addCurvedTextLabels(const Line& _line, const TextStyle::Parameters& _params,
                                            const LabelAttributes& _attributes, const DrawRule& _rule) {
 
     // Size of pixel in tile coordinates
-    const float pixelSize = 1.0/m_tileSize;
+    const float pixelSize = 1.0f/m_tileSize;
     // length of line needed for the label
     const float labelLength = _attributes.width * pixelSize;
     // Allow labels to appear later than tile's min-zoom
-    const float minLength = labelLength * 0.6;
+    const float minLength = labelLength * 0.6f;
 
     // Chord length for minimal ~120 degree inner angles (squared)
     // sin(60)*2
@@ -406,7 +411,7 @@ void TextStyleBuilder::addCurvedTextLabels(const Line& _line, const TextStyle::P
 
     // Minimal ~10 degree counts as change of direction
     // cross(dir1,dir2) < sin(10)
-    const float flipTolerance = 0.17;
+    const float flipTolerance = 0.17f;
 
     LineSampler<std::vector<glm::vec3>> sampler;
 
@@ -422,8 +427,15 @@ void TextStyleBuilder::addCurvedTextLabels(const Line& _line, const TextStyle::P
 
     std::vector<LineRange> ranges;
 
-    for (size_t i = 0; i < _line.size()-1; i++) {
+    //LOGW("Total length: %f pixels", sampler.sumLength()/pixelSize);
 
+    for (size_t i = 0; i < _line.size()-1; i++) {
+#ifdef TANGRAM_NEW_CURVED_LABELS
+        // only process labels starting in this tile
+        const auto& p0 = sampler.point(i);
+        const float tol = 0.0005f;
+        if(p0.x < -tol || p0.x > 1+tol || p0.y < -tol || p0.y > 1+tol) continue;  // !_params.keepTileEdges
+#endif
         int flips = 0;
         float lastAngle = 0;
         float sumAngle = 0;
@@ -474,6 +486,26 @@ void TextStyleBuilder::addCurvedTextLabels(const Line& _line, const TextStyle::P
                 }
             }
 
+#ifdef TANGRAM_NEW_CURVED_LABELS
+            float length = sampler.point(j).z - sampler.point(i).z;
+            if (length > labelLength || (length > minLength && splitLine)) {
+                // label candidate spacing to avoid excessive number of candidates; not related to repeat_distance!
+                const float labelPeriod = 30 * pixelSize;
+                int seg = int(sampler.point(i).z/labelPeriod);
+                int segprev = ranges.empty() ? seg+1 : int(sampler.point(ranges.back().start).z/labelPeriod);
+                if (seg == segprev) {
+                    if (ranges.back().sumAngle <= sumAngle)
+                      break;  // discard current placement
+                    ranges.pop_back();  // discard last placement
+                }
+                ranges.push_back(LineRange{i, j+1, flips, sumAngle});
+                break;
+            } else if (splitLine) {
+                break;
+            } else {
+                dir1 = dir2;
+            }
+#else
             if (splitLine) {
                 float length = sampler.point(j).z - sampler.point(i).z;
                 if (length > minLength) {
@@ -486,8 +518,9 @@ void TextStyleBuilder::addCurvedTextLabels(const Line& _line, const TextStyle::P
             } else {
                 dir1 = dir2;
             }
+#endif
         }
-
+#ifndef TANGRAM_NEW_CURVED_LABELS
         // Add segment from 'i' unless line got split.
         if (lastBreak == 0) {
             float length = sampler.sumLength() - sampler.point(i).z;
@@ -495,6 +528,7 @@ void TextStyleBuilder::addCurvedTextLabels(const Line& _line, const TextStyle::P
                 ranges.push_back(LineRange{i, _line.size(), flips, sumAngle});
             }
         }
+#endif
     }
 
     for (auto& range : ranges) {
@@ -502,7 +536,7 @@ void TextStyleBuilder::addCurvedTextLabels(const Line& _line, const TextStyle::P
         glm::vec2 rotation;
         float startLen = sampler.point(range.start).z;
         float length = (sampler.point(range.end-1).z - startLen);
-        float mid = startLen + length * 0.5;
+        float mid = startLen + length * 0.5f;
 
         sampler.sample(mid, center, rotation);
         size_t offset = sampler.curSegment();
@@ -554,7 +588,11 @@ void TextStyleBuilder::addLineTextLabels(const Feature& _feat, const TextStyle::
             line.size() > 2 && !_params.hasComplexShaping &&
             // TODO: support line offset for curved labels
             _params.labelOptions.offset == glm::vec2(0)) {
+            //size_t n0 = m_labels.size();
             addCurvedTextLabels(line, _params, _attributes, _rule);
+            //if(m_labels.size() > n0)
+            //  LOGW("Created %d curved labels for %s %s", m_labels.size() - n0,
+            //     _feat.props.getAsString("class").c_str(), _feat.props.getAsString("name").c_str());
         }
     }
 }

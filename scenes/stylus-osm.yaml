@@ -1,9 +1,11 @@
 # adaption of tangram default scene.yaml to Stylus Labs vector tile schema
-# - OpenMapTiles schema omits some important information, unnecessarily groups OSM tags, uses too many layers, etc.
+# - OpenMapTiles schema omits some important information, unnecessarily groups OSM tags, uses too many layers
+#  resulting in larger tiles due to duplicated data, etc.; Shortbread schema has even more layers
 # - don't seem to be many services using mapzen schema (except HERE)
-# - no one uses mapbox schema except mapbox?
-# - trying to create schema that works for multiple schema (w/ some globals) isn't practical
 # - mapzen walkabout style is nice, but way too big - nearly 10K lines
+# - no one uses mapbox schema except mapbox?
+# - trying to create scene file that works for multiple schema isn't practical (either w/ globals or stacking yaml files)
+
 import:
     - raster-contour.yaml
     #- markers.yaml
@@ -318,8 +320,7 @@ layers:
         enabled: global.show_polygons
         filter:
             class: [national_park, protected_area, nature_reserve]
-        #    - { $zoom: { min: 16 } }
-        #    #- { area: { min: 500px2 } }
+            #any: [ { $zoom: { min: 16 } }, { area: { min: 500px2 } } ]
         draw:
             polygons:
                 style: terrain
@@ -344,9 +345,7 @@ layers:
         filter:
             name: true
             $geometry: [polygon, point]
-            any:
-                - $zoom: { min: 17 }
-                - area: { min: 500px2 }
+            any: [ { $zoom: { min: 17 } }, { area: { min: 500px2 } } ]
         draw:
             text:
                 #interactive: true
@@ -396,7 +395,7 @@ layers:
 
     transportation:
         data: { source: osm, layer: transportation }
-        filter: { not: { class: [transit, route] } }
+        filter: { not: { class: [transit, route, aeroway] } }
         draw:
             lines:
                 style: unlit-lines
@@ -534,6 +533,7 @@ layers:
         filter:
             #function() { const s = feature.maxspeed.split(" "); return parseInt(s[0]) >= (s[1] == "mph" ? 50 : 80); }
             ref: true
+            not: { class: [transit, route, aeroway] }
             any:
                 - { class: motorway, $zoom: { min: 5 } }
                 - { class: [trunk, primary], $zoom: { min: 10 } }
@@ -567,7 +567,7 @@ layers:
         data: { source: osm, layer: transportation }
         filter:
             name: true
-            not: { class: [rail, aeroway] }
+            not: { class: [rail, aeroway, route] }
         draw:
             text:
                 #interactive: true
@@ -754,13 +754,13 @@ layers:
             draw: { lines: { style: dashed-bike, color: '#008800' } }
 
     transit:
-        data: { source: osm, layer: transportation }
+        data: { source: osm, layer: transit }
         filter:
             $zoom: {min: 12}
             any:
-                - class: transit
-                - { class: route, route: [train, light_rail, subway, tram, monorail] }
-                - { class: route, route: [bus, trolleybus], $zoom: {min: 14} }
+                #- class: transit
+                - { route: [train, light_rail, subway, tram, monorail] }
+                - { route: [bus, trolleybus], $zoom: {min: 14} }
         enabled: global.show_transit
         draw:
             lines:
@@ -784,12 +784,12 @@ layers:
                         width: 3
                     size: 14px
         secondary:
-            filter: { class: route, route: [light_rail, tram, monorail] }
+            filter: { route: [light_rail, tram, monorail] }
             draw:
                 lines: { width: [[13, 2px], [14, 3px]] }
                 text: { priority: global.priority_transit_ref_tram }
         bus:
-            filter: { class: route, route: [bus, trolleybus] }
+            filter: { route: [bus, trolleybus] }
             draw:
                 lines: { width: [[14, 1px], [16, 2px]] }
                 text: { priority: global.priority_transit_ref_bus }
@@ -844,7 +844,7 @@ layers:
         enabled: global.show_trails
         filter:
             class: [peak, volcano]
-            rank: 1.0  # only the highest peak in each tile
+            #rank: 1.0  # only the highest peak in each tile
             ele_ft: true
             #$zoom: { max: 13 }
         draw:
@@ -854,6 +854,7 @@ layers:
                 size: 14px
                 interactive: true
                 collide: true
+                priority: function() { return 30 + (1 - ele_ft/30000); }
                 transition: { show: { time: 0s }, hide: { time: 1s } }
                 text:
                     interactive: true

@@ -410,9 +410,9 @@ void PointStyleBuilder::labelPointsPlacing(const Line& _line, const glm::vec4& _
     if (_line.size() < 2) { return; }
 
     auto isOutsideTile = [](const Point& p) {
-        float tolerance = 0.0005;
-        float tile_min = 0.0 + tolerance;
-        float tile_max = 1.0 - tolerance;
+        float tolerance = 0.0005f;
+        float tile_min = 0.0f + tolerance;
+        float tile_max = 1.0f - tolerance;
         return ((p.x < tile_min) || (p.x > tile_max) ||
                 (p.y < tile_min) || (p.y > tile_max));
     };
@@ -470,20 +470,22 @@ void PointStyleBuilder::labelPointsPlacing(const Line& _line, const glm::vec4& _
 
             int numLabels = std::max(std::floor(lineLength / spacing), 1.0f);
             float remainderLength = lineLength - (numLabels - 1) * spacing;
-            float distance = 0.5 * remainderLength;
+            float distance = 0.5f * remainderLength;
             glm::vec2 p, r;
             sampler.advance(distance, p, r);
             do {
 
-                if (sampler.lengthToPrevSegment() < minLineLength*0.5 ||
-                    sampler.lengthToNextSegment() < minLineLength*0.5) {
+                if (sampler.lengthToPrevSegment() < minLineLength*0.5f ||
+                    sampler.lengthToNextSegment() < minLineLength*0.5f) {
                     continue;
                 }
                 if (params.autoAngle) {
                     params.labelOptions.angle = RAD_TO_DEG * atan2(r.x, r.y);
                 }
 
-                addLabel({p.x, p.y}, _uvsQuad, _texture, params, _rule);
+                if (params.keepTileEdges || !isOutsideTile(p)) {
+                    addLabel({p.x, p.y}, _uvsQuad, _texture, params, _rule);
+                }
 
             } while (sampler.advance(spacing, p, r));
         }
@@ -579,6 +581,10 @@ bool PointStyleBuilder::addFeature(const Feature& _feat, const DrawRule& _rule) 
     }
 
     size_t iconsCount = m_labels.size() - iconsStart;
+
+    //if(iconsCount > 10)
+    //  LOGW("Created %d (+%d) icons for %s %s", iconsCount, iconsStart,
+    //     _feat.props.getAsString("class").c_str(), _feat.props.getAsString("name").c_str());
 
     bool textVisible = true;
     _rule.get(StyleParamKey::text_visible, textVisible);

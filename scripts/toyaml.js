@@ -1,4 +1,5 @@
 // simple script to dump JS object as YAML
+// based on https://github.com/jeffsu/json2yaml
 
 function dumpYaml(obj, options)
 {

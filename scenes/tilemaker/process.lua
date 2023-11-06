@@ -209,6 +209,10 @@ poiClassRanks   = { hospital=1, railway=2, bus=3, attraction=4, harbor=5, colleg
 waterClasses    = Set { "river", "riverbank", "stream", "canal", "drain", "ditch", "dock" }
 waterwayClasses = Set { "stream", "river", "canal", "drain", "ditch" }
 
+transitRoutes = { bus = 14, train = 8, tram = 12, trolleybus = 14, share_taxi = 12, subway = 12, light_rail = 12 }
+otherRoutes = { road = 8, ferry = 9, bicycle = 10, hiking = 10, foot = 12, mtb = 10, piste = 12, ski = 12 }
+--ignoredRoutes = Set { "power", "railway", "detour", "tracks", "horse", "emergency_access", "snowmobile", "historic", "running", "fitness_trail" }
+
 -- Scan relations for use in ways
 
 function relation_scan_function(relation)
@@ -224,10 +228,24 @@ end
 
 function relation_function(relation)
   if relation:Find("type")=="route" then
-    relation:Layer("transportation", false)
-    relation:MinZoom(12)
+    local route = relation:Find("route")
+    if route == "ferry" then
+      relation:Layer("transportation", false)
+      relation:Attribute("class", "ferry")
+      relation:MinZoom(9)
+      SetNameAttributes(relation, 12)
+      return
+    elseif transitRoutes[route] then
+      relation:Layer("transit", false)
+      relation:MinZoom(transitRoutes[route])
+    elseif otherRoutes[route] then
+      relation:Layer("transportation", false)
+      relation:MinZoom(otherRoutes[route])
+    else
+      return
+    end
     relation:Attribute("class", "route")
-    relation:Attribute("route", relation:Find("route"))
+    relation:Attribute("route", route)
     relation:Attribute("name", relation:Find("name"))
     relation:Attribute("ref", relation:Find("ref"))
     relation:Attribute("network", relation:Find("network"))
@@ -476,14 +494,11 @@ function way_function(way)
   if route=="ferry" then
     way:Layer("transportation", false)
     way:Attribute("class", "ferry")
+    --way:Attribute("route", route)
     SetZOrder(way)
     way:MinZoom(9)
     SetBrunnelAttributes(way)
-
-    --way:Layer("transportation_name", false)
     SetNameAttributes(way, 12)
-    --way:MinZoom(12)
-    --way:Attribute("class", "ferry")
   end
 
   -- 'Aeroway'
