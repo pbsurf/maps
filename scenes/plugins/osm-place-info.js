@@ -69,112 +69,148 @@ function to12H(hm)
   return (h > 12 ? h - 12 : h) + hm.slice(-3) + (h >= 12 ? " PM" : " AM");
 }
 
+function wikiDataCb(_content, _error)
+{
+  if(!_content) {
+    if(_error.substr(-3) != "410") {
+      notifyError("place", "Wikidata place info error");
+    }
+    return;
+  }
+  const content = JSON.parse(_content);
+  const entities = content["entities"] || {};
+  const data = entities[Object.keys(entities)[0]];
+  if(!data) return;
+
+  try {
+    const url = data["sitelinks"]["enwiki"]["url"];
+    const title = data["sitelinks"]["enwiki"]["title"];
+    addPlaceInfo("wikipedia", "Wikipedia", "<a href='" + url + "'><text>" + title + "</text></a>");
+  } catch(e) {}
+
+  try {
+    const addr = data["claims"]["P6375"][0]["mainsnak"]["datavalue"]["value"]["text"];
+    addPlaceInfo("road", "Address", addr);
+  } catch(e) {}
+}
+
+function osmPlaceInfoCb(_content, _error)
+{
+  if(!_content) {
+    if(_error.substr(-3) != "410") {
+      notifyError("place", "OpenStreetMap place info error");
+    }
+    return;
+  }
+  const content = JSON.parse(_content);
+  //console.log(content);
+  //try {
+  const tags = content["elements"][0]["tags"];
+  //} catch (err) { return; }
+
+  // start a wikidata request if needed
+  if(tags["wikidata"]) {
+    const wdurl = "https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=claims|sitelinks/urls&sitefilter=enwiki&ids=" + tags["wikidata"];
+    httpRequest(wdurl, wikiDataCb);
+  }
+
+  if(tags["cuisine"]) {
+    const s = tags["cuisine"].replace("_", " ").replace(";", ", ");
+    addPlaceInfo("food", "Cuisine", s[0].toUpperCase() + s.slice(1));
+  }
+  //tags["takeaway"] (yes, no, only)
+  //tags["outdoor_seating"] (yes, no)
+
+  // we'll assume wikidata has address if present
+  if(tags["addr:street"] && !tags["wikidata"]) {
+    const hnum = tags["addr:housenumber"];
+    const city = tags["addr:city"];
+    const state = tags["addr:state"] || tags["addr:province"];
+    const zip = tags["addr:postcode"];
+    const addr = (hnum ? (hnum + " ") : "") + tags["addr:street"] + (city ? "\n" + city : "")
+        + (state ? ", " + state : "") + (zip ? " " + zip : "");
+    addPlaceInfo("road", "Address", addr);
+  }
+  const url = tags["website"];
+  if(url) {
+    const shorturl = url.split("://").slice(-1)[0];
+    addPlaceInfo("globe", "Website", "<a href='" + url + "'><text>" + shorturl + "</text></a>");
+  }
+  if(tags["phone"]) {
+    addPlaceInfo("phone", "Phone", "<a href='tel:" + tags["phone"] + "'><text>" + tags["phone"] + "</text></a>");
+  }
+
+  if(tags["opening_hours"]) {
+    //console.log(tags["opening_hours"]);
+    if(tags["opening_hours"] == "24/7") {
+      addPlaceInfo("clock", "Hours", "Open 24 hours");
+    } else if(tags["opening_hours"] == "sunrise-sunset") {
+      addPlaceInfo("clock", "Hours", "Open sunrise to sunset");
+    } else {
+      const hours = parseOpeningHours(tags["opening_hours"]);
+      if(!hours) {
+        addPlaceInfo("clock", "Hours", tags["opening_hours"]);
+      } else {
+        //console.log(hours);
+        const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+        const now = new Date();
+        // change from Sunday = 0 to Monday = 0
+        const today = (now.getDay() + 6)%7;
+        const nowhm = ("0" + now.getHours()).slice(-2) + ":" + now.getMinutes();
+
+        var state = "";
+        const yd = hours[(today+6)%7];
+        if(yd.length) {
+          const ydopen = yd.slice(-1)[0][0];
+          const ydclose = yd.slice(-1)[0][1];
+          const nowhm24 = (24 + now.getHours()) + ":" + now.getMinutes();
+          if((ydclose < ydopen && nowhm < ydclose) || nowhm24 < ydclose) {
+            state = "Open until " + to12H(ydclose);
+          }
+        }
+        if(!state) {
+          for(var jj = 0; jj < hours[today].length; jj++) {
+            const h = hours[today][jj];
+            if(nowhm < h[0]) {
+              state = "Closed until " + to12H(h[0]);
+              break;
+            } else if (nowhm < h[1]) {
+              state = "Open until " + to12H(h[1]);
+              break;
+            }
+          }
+        }
+        if(!state) {
+          for (var ii = 1; ii < 7; ii++) {
+            if(hours[(today+ii)%7].length) {
+              const day = ii == 1 ? "tomorrow" : days[(today+ii)%7];
+              state = "Closed until " + day + " " + to12H(hours[(today+ii)%7][0][0]);
+              break;
+            }
+          }
+        }
+
+        var daily = [];
+        // TODO: use \t for alignment!
+        for (var ii = 0; ii < hours.length; ii++) {
+          var t = [];
+          for (var jj = 0; jj < hours[ii].length; jj++) {
+            t.push( to12H(hours[ii][jj][0]) + " - " + to12H(hours[ii][jj][1]) );
+          }
+          daily.push( days[ii] + "  " + (t.length ? t.join(", ") : "Closed") );
+        }
+
+        addPlaceInfo("clock", "Hours", state + "\r" + daily.join("\n"));
+      }
+    }
+  }
+}
+
 function osmPlaceInfo(osmid)
 {
   osmid = osmid.replace(":", "/");
   const url = "https://www.openstreetmap.org/api/0.6/" + osmid + ".json";
-  httpRequest(url, function(_content, _error) {
-    if(!_content) {
-      if(_error.substr(-3) != "410") {
-        notifyError("place", "OpenStreetMap place info error");
-      }
-      return;
-    }
-    const content = JSON.parse(_content);
-    //console.log(content);
-    //try {
-    const tags = content["elements"][0]["tags"];
-    //} catch (err) { return; }
-
-    if(tags["cuisine"]) {
-      const s = tags["cuisine"].replace("_", " ").replace(";", ", ");
-      addPlaceInfo("food", "Cuisine", s[0].toUpperCase() + s.slice(1));
-    }
-    //tags["takeaway"] (yes, no, only)
-    //tags["outdoor_seating"] (yes, no)
-    if(tags["addr:street"]) {
-      const hnum = tags["addr:housenumber"];
-      const city = tags["addr:city"];
-      const state = tags["addr:state"] || tags["addr:province"];
-      const zip = tags["addr:postcode"];
-      const addr = (hnum ? (hnum + " ") : "") + tags["addr:street"] + (city ? "\n" + city : "")
-          + (state ? ", " + state : "") + (zip ? " " + zip : "");
-      addPlaceInfo("road", "Address", addr);
-    }
-    const url = tags["website"];
-    if(url) {
-      const shorturl = url.split("://").slice(-1)[0];
-      addPlaceInfo("globe", "Website", "<a href='" + url + "'><text>" + shorturl + "</text></a>");
-    }
-    if(tags["phone"]) {
-      addPlaceInfo("phone", "Phone", "<a href='tel:" + tags["phone"] + "'><text>" + tags["phone"] + "</text></a>");
-    }
-
-    if(tags["opening_hours"]) {
-      //console.log(tags["opening_hours"]);
-      if(tags["opening_hours"] == "24/7") {
-        addPlaceInfo("clock", "Hours", "Open 24 hours");
-      } else if(tags["opening_hours"] == "sunrise-sunset") {
-        addPlaceInfo("clock", "Hours", "Open sunrise to sunset");
-      } else {
-        const hours = parseOpeningHours(tags["opening_hours"]);
-        if(!hours) {
-          addPlaceInfo("clock", "Hours", tags["opening_hours"]);
-        } else {
-          //console.log(hours);
-          const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-          const now = new Date();
-          // change from Sunday = 0 to Monday = 0
-          const today = (now.getDay() + 6)%7;
-          const nowhm = ("0" + now.getHours()).slice(-2) + ":" + now.getMinutes();
-
-          var state = "";
-          const yd = hours[(today+6)%7];
-          if(yd.length) {
-            const ydopen = yd.slice(-1)[0][0];
-            const ydclose = yd.slice(-1)[0][1];
-            const nowhm24 = (24 + now.getHours()) + ":" + now.getMinutes();
-            if((ydclose < ydopen && nowhm < ydclose) || nowhm24 < ydclose) {
-              state = "Open until " + to12H(ydclose);
-            }
-          }
-          if(!state) {
-            for(var jj = 0; jj < hours[today].length; jj++) {
-              const h = hours[today][jj];
-              if(nowhm < h[0]) {
-                state = "Closed until " + to12H(h[0]);
-                break;
-              } else if (nowhm < h[1]) {
-                state = "Open until " + to12H(h[1]);
-                break;
-              }
-            }
-          }
-          if(!state) {
-            for (var ii = 1; ii < 7; ii++) {
-              if(hours[(today+ii)%7].length) {
-                const day = ii == 1 ? "tomorrow" : days[(today+ii)%7];
-                state = "Closed until " + day + " " + to12H(hours[(today+ii)%7][0][0]);
-                break;
-              }
-            }
-          }
-
-          var daily = [];
-          // TODO: use \t for alignment!
-          for (var ii = 0; ii < hours.length; ii++) {
-            var t = [];
-            for (var jj = 0; jj < hours[ii].length; jj++) {
-              t.push( to12H(hours[ii][jj][0]) + " - " + to12H(hours[ii][jj][1]) );
-            }
-            daily.push( days[ii] + "  " + (t.length ? t.join(", ") : "Closed") );
-          }
-
-          addPlaceInfo("clock", "Hours", state + "\r" + daily.join("\n"));
-        }
-      }
-    }
-  });
+  httpRequest(url, osmPlaceInfoCb);
 }
 
 registerFunction("osmPlaceInfo", "place", "OpenStreetMap");

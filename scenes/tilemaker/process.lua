@@ -110,7 +110,9 @@ function node_function(node)
   -- Write 'poi'
   --local rank, class, subclass = GetPOIRank(node)
   --if rank then WritePOI(node,class,subclass,rank) end
-  NewWritePOI(node, "node", 0)
+  if NewWritePOI(node, 0) then
+    SetNameAttributesEx(node, "node")
+  end
 
   -- Write 'mountain_peak' and 'water_name'
   local natural = node:Find("natural")
@@ -233,7 +235,7 @@ function relation_function(relation)
       relation:Layer("transportation", false)
       relation:Attribute("class", "ferry")
       relation:MinZoom(9)
-      SetNameAttributes(relation, 12)
+      SetNameAttributesEx(relation, "relation", 12)
       return
     elseif transitRoutes[route] then
       relation:Layer("transit", false)
@@ -635,7 +637,8 @@ function way_function(way)
   end
 
   -- POIs ('poi' and 'poi_detail')
-  if NewWritePOI(way, "way", (write_name or write_area) and way:Area() or 0) then
+  if NewWritePOI(way, (write_name or write_area) and way:Area() or 0) then
+    SetNameAttributes(way)
     return
   end
 
@@ -670,7 +673,7 @@ end
 -- Common functions
 
 extraPoiTags = Set { "cuisine", "station" }
-function NewWritePOI(obj, osm_type, area)
+function NewWritePOI(obj, area)
   for k,lists in pairs(poiTags) do
     local val = obj:Find(k)
     if val ~= "" then
@@ -679,7 +682,7 @@ function NewWritePOI(obj, osm_type, area)
         if next(list) == nil or list[val] then
           obj:LayerAsCentroid("poi")
           obj:MinZoom(area > 0 and 12 or minzoom)
-          SetNameAttributesEx(obj, osm_type)
+          --SetNameAttributesEx(obj, osm_type)
           if area > 0 then obj:AttributeNumeric("area", area) end
           -- write value for all tags in poiTags (if present)
           for tag, _ in pairs(poiTags) do
@@ -725,7 +728,8 @@ function SetNameAttributesEx(obj, osm_type, minzoom)
 end
 
 function SetNameAttributes(obj, minzoom)
-  SetNameAttributesEx(obj, "way", minzoom)
+  local osm_type = way:Find("type") == "multipolygon" and "relation" or "way";
+  SetNameAttributesEx(obj, osm_type, minzoom)
 end
 
 -- Set ele and ele_ft on any object
