@@ -13,4 +13,4 @@ function nominatimSearch(query, bounds, flags)
   });
 }
 
-registerFunction("nominatimSearch", "search", "Nominatim Search");
+registerFunction("nominatimSearch", "search-unified", "Nominatim Search");

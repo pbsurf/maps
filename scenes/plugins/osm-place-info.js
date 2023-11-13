@@ -69,6 +69,8 @@ function to12H(hm)
   return (h > 12 ? h - 12 : h) + hm.slice(-3) + (h >= 12 ? " PM" : " AM");
 }
 
+const popIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 7a4 4 0 1 0 8 0a4 4 0 1 0-8 0M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2m1-17.87a4 4 0 0 1 0 7.75M21 21v-2a4 4 0 0 0-3-3.85"/></svg>';
+
 function wikiDataCb(_content, _error)
 {
   if(!_content) {
@@ -92,6 +94,17 @@ function wikiDataCb(_content, _error)
     const addr = data["claims"]["P6375"][0]["mainsnak"]["datavalue"]["value"]["text"];
     addPlaceInfo("road", "Address", addr);
   } catch(e) {}
+
+  try {
+    const pop = data["claims"]["P1082"];
+    for(var ii = 0; ii < pop.length; ii++) {
+      if(pop[ii]["rank"] == "preferred") {
+        const popval = Number(pop[ii]["mainsnak"]["datavalue"]["value"]["amount"]);
+        addPlaceInfo(popIcon, "Population", popval.toLocaleString());
+        break;
+      }
+    }
+  } catch(e) {}
 }
 
 function osmPlaceInfoCb(_content, _error)
@@ -109,9 +122,15 @@ function osmPlaceInfoCb(_content, _error)
   //} catch (err) { return; }
 
   // start a wikidata request if needed
-  if(tags["wikidata"]) {
-    const wdurl = "https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=claims|sitelinks/urls&sitefilter=enwiki&ids=" + tags["wikidata"];
+  const wikidata = tags["wikidata"];
+  if(wikidata) {
+    const wdurl = "https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=claims|sitelinks/urls&sitefilter=enwiki&ids=" + wikidata;
     httpRequest(wdurl, wikiDataCb);
+  }
+
+  if(tags["population"] && !wikidata) {
+    // " (" + tags["population:date"] + ")"
+    addPlaceInfo(popIcon, "Population", Number(tags["population"]).toLocaleString());
   }
 
   if(tags["cuisine"]) {
@@ -122,7 +141,7 @@ function osmPlaceInfoCb(_content, _error)
   //tags["outdoor_seating"] (yes, no)
 
   // we'll assume wikidata has address if present
-  if(tags["addr:street"] && !tags["wikidata"]) {
+  if(tags["addr:street"] && !wikidata) {
     const hnum = tags["addr:housenumber"];
     const city = tags["addr:city"];
     const state = tags["addr:state"] || tags["addr:province"];
@@ -131,11 +150,19 @@ function osmPlaceInfoCb(_content, _error)
         + (state ? ", " + state : "") + (zip ? " " + zip : "");
     addPlaceInfo("road", "Address", addr);
   }
+
   const url = tags["website"];
   if(url) {
     const shorturl = url.split("://").slice(-1)[0];
     addPlaceInfo("globe", "Website", "<a href='" + url + "'><text>" + shorturl + "</text></a>");
   }
+
+  if(tags["wikipedia"] && !wikidata) {
+    const wikiurl = "https://wikipedia.org/wiki/" + encodeURI(tags["wikipedia"]);
+    const title = tags["wikipedia"].substr(3);
+    addPlaceInfo("wikipedia", "Wikipedia", "<a href='" + wikiurl + "'><text>" + title + "</text></a>");
+  }
+
   if(tags["phone"]) {
     addPlaceInfo("phone", "Phone", "<a href='tel:" + tags["phone"] + "'><text>" + tags["phone"] + "</text></a>");
   }

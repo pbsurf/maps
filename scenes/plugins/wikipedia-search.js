@@ -17,10 +17,10 @@ function wikipediaSearch(query, bounds, flags)
   if(radkm <= 10) {
     // much faster than sparql query but limited to 10km radius
     const url = "https://en.wikipedia.org/w/api.php?action=query&format=json&list=geosearch&gslimit=500&gsradius="
-        + (radkm*1000).toFixed(0) + "&gscoord=" + [lat, lng].join('|');
+        + (radkm*1000).toFixed(0) + "&gscoord=" + lat + '|' + lng;
 
-    httpRequest(url, "", function(_content, _error) {
-      if(!_content) { notifyError("search", "Wikipedia Search error"); return; }
+    httpRequest(url, function(_content, _error) {
+      if(!_content) { notifyError("search", "Wikipedia Search error: " + _error); return; }
       const content = JSON.parse(_content);
       const data = (content["query"] || {})["geosearch"] || [];
       if(data.length >= 500) { flags = flags | 0x8000; }  // MapSearch::MORE_RESULTS flag
@@ -55,8 +55,8 @@ function wikipediaSearch(query, bounds, flags)
       'ORDER BY ASC(?dist)' +
       'LIMIT 1000"');
 
-    httpRequest(url, "", function(_content, _error) {
-      if(!_content) { notifyError("search", "Wikipedia Search error"); return; }
+    httpRequest(url, function(_content, _error) {
+      if(!_content) { notifyError("search", "Wikipedia Search error: " + _error); return; }
       const content = JSON.parse(_content);
       const data = (content["results"] || {})["bindings"] || [];
       if(data.length >= 1000) { flags = flags | 0x8000; }  // MapSearch::MORE_RESULTS flag
@@ -72,4 +72,4 @@ function wikipediaSearch(query, bounds, flags)
   }
 }
 
-registerFunction("wikipediaSearch", "search", "Wikipedia Search");
+registerFunction("wikipediaSearch", "search-unified-noquery-slow", "Wikipedia Search");

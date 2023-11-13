@@ -102,6 +102,7 @@ function node_function(node)
     node:Attribute("class", place)
     node:MinZoom(mz)
     if rank then node:AttributeNumeric("rank", rank) end
+    if pop then node:AttributeNumeric("population", pop) end
     if place=="country" then node:Attribute("iso_a2", node:Find("ISO3166-1:alpha2")) end
     SetNameAttributesEx(node, "node")
     return
@@ -728,7 +729,7 @@ function SetNameAttributesEx(obj, osm_type, minzoom)
 end
 
 function SetNameAttributes(obj, minzoom)
-  local osm_type = way:Find("type") == "multipolygon" and "relation" or "way";
+  local osm_type = obj:Find("type") == "multipolygon" and "relation" or "way";
   SetNameAttributesEx(obj, osm_type, minzoom)
 end
 
