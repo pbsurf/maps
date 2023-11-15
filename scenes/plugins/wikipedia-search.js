@@ -59,7 +59,7 @@ function wikipediaSearch(query, bounds, flags)
         const r = data[ii];
         const url_info = {"icon": "wikipedia", "title": "Wikipedia",
             "value": "<a href='" + r.url.value + "'><text>" + r.itemLabel.value + "</text></a>"};
-        const tags = {"name": r.itemLabel.value, "place_info": [url_info]};
+        const tags = {"name": r.itemLabel.value, "wiki": encodeURI(r.itemLabel.value), "place_info": [url_info]};
         const lnglat = r.lnglat.value.substr(6, r.lnglat.value.length-7).split(" ");  // parse WKT "Point(<lng> <lat>)"
         const lng = Number(lnglat[0]), lat = Number(lnglat[1]);
         if(ii == data.length - 1) { flags = flags | 0x4000; } // MapSearch::UPDATE_RESULTS flag

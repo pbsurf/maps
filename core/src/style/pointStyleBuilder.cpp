@@ -582,10 +582,6 @@ bool PointStyleBuilder::addFeature(const Feature& _feat, const DrawRule& _rule) 
 
     size_t iconsCount = m_labels.size() - iconsStart;
 
-    //if(iconsCount > 10)
-    //  LOGW("Created %d (+%d) icons for %s %s", iconsCount, iconsStart,
-    //     _feat.props.getAsString("class").c_str(), _feat.props.getAsString("name").c_str());
-
     bool textVisible = true;
     _rule.get(StyleParamKey::text_visible, textVisible);
 

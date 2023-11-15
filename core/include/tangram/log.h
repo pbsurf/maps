@@ -35,6 +35,13 @@ static constexpr const char * past_last_slash(const char * const str) {
 
 #define TANGRAM_MAX_BUFFER_LOG_SIZE 99999
 
+#if LOG_LEVEL >= 4
+#define LOGV(fmt, ...) \
+do { Tangram::logMsg("VERBOSE %s:%d: " fmt "\n", __FILENAME__, __LINE__, ## __VA_ARGS__); } while(0)
+#else
+#define LOGV(fmt, ...)
+#endif
+
 #if LOG_LEVEL >= 3
 #define LOGD(fmt, ...) \
 do { Tangram::logMsg("DEBUG %s:%d: " fmt "\n", __FILENAME__, __LINE__, ## __VA_ARGS__); } while(0)

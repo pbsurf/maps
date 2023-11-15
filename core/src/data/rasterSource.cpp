@@ -170,7 +170,7 @@ std::shared_ptr<RasterTileTask> RasterSource::createRasterTask(TileID _tileId, b
         auto texture = texIt->second.lock();
 
         if (texture) {
-            LOGD("%d - reuse %s", m_textures->size(), id.toString().c_str());
+            LOGV("%d - reuse %s", m_textures->size(), id.toString().c_str());
 
             task->raster = std::make_unique<Raster>(id, texture);
             // No more loading needed.
@@ -194,7 +194,7 @@ std::shared_ptr<Texture> RasterSource::cacheTexture(const TileID& _tileId, std::
     auto& textureEntry = (*m_textures)[id];
     auto texture = textureEntry.lock();
     if (texture) {
-        LOGD("%d - drop duplicate %s", m_textures->size(), id.toString().c_str());
+        LOGV("%d - drop duplicate %s", m_textures->size(), id.toString().c_str());
         // The same texture has been loaded in the meantime: Reuse it and drop _texture..
         return texture;
     }
@@ -203,13 +203,13 @@ std::shared_ptr<Texture> RasterSource::cacheTexture(const TileID& _tileId, std::
                                        [c = std::weak_ptr<Cache>(m_textures), id](auto* t) {
                                            if (auto cache = c.lock()) {
                                                cache->erase(id);
-                                               LOGD("%d - remove %s", cache->size(), id.toString().c_str());
+                                               LOGV("%d - remove %s", cache->size(), id.toString().c_str());
                                            }
                                            delete t;
                                        });
     // Add to cache
     textureEntry = texture;
-    LOGD("%d - added %s", m_textures->size(), id.toString().c_str());
+    LOGV("%d - added %s", m_textures->size(), id.toString().c_str());
 
     return texture;
 }

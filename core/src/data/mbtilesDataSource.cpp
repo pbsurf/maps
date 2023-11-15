@@ -213,7 +213,7 @@ bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb
 
             if (!tileData->empty()) {
                 task.rawTileData = std::move(tileData);
-                LOGD("loaded tile: %s, %d bytes", tileId.toString().c_str(), task.rawTileData->size());
+                LOGV("loaded tile: %s, %d bytes", tileId.toString().c_str(), task.rawTileData->size());
 
                 _cb.func(_task);
 
@@ -229,7 +229,7 @@ bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb
                     m_platform.requestRender();
                 }
             } else {
-                LOGD("missing tile: %s, %d", _task->tileId().toString().c_str());
+                LOGD("missing tile: %s", _task->tileId().toString().c_str());
                 _cb.func(_task);  // added 2022-09-27 ... were doing this in loadNextSource, why not here?
             }
         });
@@ -274,13 +274,13 @@ bool MBTilesDataSource::loadNextSource(std::shared_ptr<TileTask> _task, TileTask
 
                 getTileData(_task->tileId(), *task.rawTileData, task.offlineId);
 
-                LOGD("loaded tile: %s, %d", _task->tileId().toString().c_str(), task.rawTileData->size());
+                LOGV("loaded tile: %s, %d", _task->tileId().toString().c_str(), task.rawTileData->size());
 
                 _cb.func(_task);
 
             });
         } else {
-            LOGD("missing tile: %s, %d", _task->tileId().toString().c_str());
+            LOGD("missing tile: %s", _task->tileId().toString().c_str());
             _cb.func(_task);
         }
     }};
@@ -612,10 +612,13 @@ void MBTilesDataSource::storeTileData(const TileID& _tileId, const std::vector<c
 void MBTilesDataSource::deleteOfflineMap(int offlineId, bool delTiles) {
     try {
         if (delTiles) {
+            int totchanges = m_db->getTotalChanges();
             auto& stmt = m_queries->delOfflineTiles;
             stmt.bind(1, offlineId);
             stmt.exec();
             stmt.reset();
+            if (m_db->getTotalChanges() - totchanges > 32)
+                m_db->exec("VACUUM;");
         }
         auto& stmt = m_queries->delOffline;
         stmt.bind(1, offlineId);

@@ -305,9 +305,6 @@ bool TextStyleBuilder::addFeature(const Feature& _feat, const DrawRule& _rule) {
     if (numLabels == m_labels.size()) {
         // Drop quads when no label was added
         m_quads.resize(quadsStart);
-    //} else if (m_labels.size() - numLabels > 10) {
-    //    LOGW("Created %d (+%d) text labels for %s %s", m_labels.size() - numLabels, numLabels,
-    //         _feat.props.getAsString("class").c_str(), _feat.props.getAsString("name").c_str()); //_feat.props.toJson().c_str());
     }
     return true;
 }
@@ -426,8 +423,6 @@ void TextStyleBuilder::addCurvedTextLabels(const Line& _line, const TextStyle::P
     };
 
     std::vector<LineRange> ranges;
-
-    //LOGW("Total length: %f pixels", sampler.sumLength()/pixelSize);
 
     for (size_t i = 0; i < _line.size()-1; i++) {
 #ifdef TANGRAM_NEW_CURVED_LABELS
@@ -588,11 +583,7 @@ void TextStyleBuilder::addLineTextLabels(const Feature& _feat, const TextStyle::
             line.size() > 2 && !_params.hasComplexShaping &&
             // TODO: support line offset for curved labels
             _params.labelOptions.offset == glm::vec2(0)) {
-            //size_t n0 = m_labels.size();
             addCurvedTextLabels(line, _params, _attributes, _rule);
-            //if(m_labels.size() > n0)
-            //  LOGW("Created %d curved labels for %s %s", m_labels.size() - n0,
-            //     _feat.props.getAsString("class").c_str(), _feat.props.getAsString("name").c_str());
         }
     }
 }

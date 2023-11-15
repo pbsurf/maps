@@ -233,11 +233,27 @@ function osmPlaceInfoCb(_content, _error)
   }
 }
 
+function wikiExtractCb(_content, _error)
+{
+  if(!_content) {
+    if(_error) { notifyError("place", "Wikipedia extract error: " + _error); }
+    return;
+  }
+  const content = JSON.parse(_content);
+  const res = content["query"]["pages"];
+  const extract = res[Object.keys(res)[0]]["extract"];  // key is page id even if querying by title
+  addPlaceInfo("", "Summary", "<text class='wrap-text' font-size='12'>" + extract + "</text>");
+}
+
 function osmPlaceInfo(osmid)
 {
-  osmid = osmid.replace(":", "/");
-  const url = "https://www.openstreetmap.org/api/0.6/" + osmid + ".json";
-  httpRequest(url, osmPlaceInfoCb);
+  if(osmid.startsWith("wiki:")) {
+    const url = "https://en.wikipedia.org/w/api.php?format=json&action=query&prop=extracts&exintro&explaintext&redirects=1&titles=" + osmid.substr(5);
+    httpRequest(url, wikiExtractCb);
+  } else {
+    const url = "https://www.openstreetmap.org/api/0.6/" + osmid.replace(":", "/") + ".json";
+    httpRequest(url, osmPlaceInfoCb);
+  }
 }
 
 registerFunction("osmPlaceInfo", "place", "OpenStreetMap");
