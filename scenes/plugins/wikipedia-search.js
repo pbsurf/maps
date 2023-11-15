@@ -30,32 +30,27 @@ function wikipediaSearch(query, bounds, flags)
         const url_info = {"icon": "wikipedia", "title": "Wikipedia",
             "value": "<a href='" + url + "'><text>" + r.title + "</text></a>"};
         const tags = {"name": r.title, "place_info": [url_info]};
+        if(ii == data.length - 1) { flags = flags | 0x4000; } // MapSearch::UPDATE_RESULTS flag
         addSearchResult(ii, r.lat, r.lon, data.length-ii, flags, tags);
       }
     });
   } else {
-    const wikiGeoSparql = 'https://query.wikidata.org/sparql?query=' + encodeURI(
-      'SELECT DISTINCT ?item ?itemLabel ?lng ?lat ?dist ?url' +
-      'WHERE {' +
-      '  ?url schema:about ?item;' +
-      '       schema:inLanguage "en" .' +
+    // some wikidata entries have multiple entries for P625 (coordinates); GROUP_CONCAT instead of SAMPLE
+    //  breaks ordering by dist; queries attempting to extract numerical lng, lat timed out
+    const url = 'https://query.wikidata.org/sparql?query=' + encodeURI(
+      'SELECT ?item ?itemLabel (SAMPLE(?where) AS ?lnglat) (SAMPLE(?dists) AS ?dist) ?url WHERE {' +
+      '  ?url schema:about ?item; schema:inLanguage "en" .' +
       '  FILTER (STRSTARTS(str(?url), "https://en.wikipedia.org/")).' +
       '  SERVICE wikibase:around {' +
       '      ?item wdt:P625 ?where .' +
       '      bd:serviceParam wikibase:center "Point(' + lng + ' ' + lat + ')"^^geo:wktLiteral.' +
       '      bd:serviceParam wikibase:radius "' + radkm + '" . ' +
-      '      bd:serviceParam wikibase:distance ?dist.' +
+      '      bd:serviceParam wikibase:distance ?dists.' +
       '  }' +
-      '  ?item p:P625 ?lnglat.' +
-      '  ?lnglat psv:P625 ?lnglat_node.' +
-      '  ?lnglat_node wikibase:geoLongitude ?lng.' +
-      '  ?lnglat_node wikibase:geoLatitude ?lat.' +
       '  SERVICE wikibase:label { bd:serviceParam wikibase:language "en" . }' +
-      '}' +
-      'ORDER BY ASC(?dist)' +
-      'LIMIT 1000"');
+      '} GROUP BY ?item ?itemLabel ?url ORDER BY ASC(?dist) LIMIT 1000');
 
-    httpRequest(url, function(_content, _error) {
+    httpRequest(url, "Accept:	application/sparql-results+json", function(_content, _error) {
       if(!_content) { notifyError("search", "Wikipedia Search error: " + _error); return; }
       const content = JSON.parse(_content);
       const data = (content["results"] || {})["bindings"] || [];
@@ -65,7 +60,9 @@ function wikipediaSearch(query, bounds, flags)
         const url_info = {"icon": "wikipedia", "title": "Wikipedia",
             "value": "<a href='" + r.url.value + "'><text>" + r.itemLabel.value + "</text></a>"};
         const tags = {"name": r.itemLabel.value, "place_info": [url_info]};
-        const lng = Number(r.lng.value), lat = Number(r.lat.value);
+        const lnglat = r.lnglat.value.substr(6, r.lnglat.value.length-7).split(" ");  // parse WKT "Point(<lng> <lat>)"
+        const lng = Number(lnglat[0]), lat = Number(lnglat[1]);
+        if(ii == data.length - 1) { flags = flags | 0x4000; } // MapSearch::UPDATE_RESULTS flag
         addSearchResult(ii, lat, lng, radkm - Number(r.dist.value), flags, tags);
       }
     });

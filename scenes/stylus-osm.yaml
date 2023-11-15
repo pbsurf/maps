@@ -73,7 +73,7 @@ global:
         #runway_16: '#fff'
         #runway_casing: orange
 
-    # priorities for colliding objects (points and text) - float in tangram (docs incorrectly say integer)
+    # priorities for colliding objects (points and text; lower value wins) - float in tangram (docs incorrectly say integer)
     priority_boundary: 0
     priority_continent: 8
     priority_place: 9
@@ -88,9 +88,9 @@ global:
     priority_road_tertiary: 50
     priority_road_minor: 60
     # transit line labels
-    priority_transit_ref: 100
-    priority_transit_ref_tram: 200
-    priority_transit_ref_bus: 300
+    priority_transit_ref: 19
+    priority_transit_ref_tram: 24
+    priority_transit_ref_bus: 29
     # transit stops
     priority_bus_stop: 20  # bus stops only shown when show_transit = true
     priority_station_transit: 5 # transit station priority when show_transit = true
