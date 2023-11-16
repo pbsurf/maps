@@ -213,7 +213,7 @@ waterClasses    = Set { "river", "riverbank", "stream", "canal", "drain", "ditch
 waterwayClasses = Set { "stream", "river", "canal", "drain", "ditch" }
 
 transitRoutes = { bus = 14, train = 8, tram = 12, trolleybus = 14, share_taxi = 12, subway = 12, light_rail = 12 }
-otherRoutes = { road = 8, ferry = 9, bicycle = 10, hiking = 10, foot = 12, mtb = 10, piste = 12, ski = 12 }
+otherRoutes = { road = 8, ferry = 9, bicycle = 10, hiking = 10, foot = 12, mtb = 10, ski = 12 }  --piste = 12,
 --ignoredRoutes = Set { "power", "railway", "detour", "tracks", "horse", "emergency_access", "snowmobile", "historic", "running", "fitness_trail" }
 
 -- Scan relations for use in ways
@@ -283,6 +283,8 @@ function way_function(way)
   local housenumber = way:Find("addr:housenumber")
   local write_name = false
   local construction = way:Find("construction")
+  local piste_diff = way:Find("piste:difficulty")
+  local aerialway = way:Find("aerialway")
 
   -- Miscellaneous preprocessing
   if way:Find("disused") == "yes" then return end
@@ -498,10 +500,26 @@ function way_function(way)
     way:Layer("transportation", false)
     way:Attribute("class", "ferry")
     --way:Attribute("route", route)
-    SetZOrder(way)
+    --SetZOrder(way)
     way:MinZoom(9)
     SetBrunnelAttributes(way)
     SetNameAttributes(way, 12)
+  end
+
+  if piste_diff~="" then
+    way:Layer("transportation", isClosed)
+    way:Attribute("class", "piste")
+    way:Attribute("difficulty", piste_diff)
+    way:MinZoom(10)
+    SetNameAttributes(way, 14)
+  end
+
+  if aerialway~="" then
+    way:Layer("transportation", false)
+    way:Attribute("class", "aerialway")
+    way:Attribute("aerialway", aerialway)
+    way:MinZoom(10)
+    SetNameAttributes(way, 14)
   end
 
   -- 'Aeroway'

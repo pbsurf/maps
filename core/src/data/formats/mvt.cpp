@@ -218,7 +218,7 @@ Feature Mvt::getFeature(ParserContext& _ctx, protobuf::message _featureIn) {
     return feature;
 }
 
-#define TANGRAM_DUMP_MVT_STATS
+//#define TANGRAM_DUMP_MVT_STATS
 
 Layer Mvt::getLayer(ParserContext& _ctx, protobuf::message _layerIn) {
 

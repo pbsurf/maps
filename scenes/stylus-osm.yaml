@@ -43,6 +43,7 @@ global:
         path: '#fff'
         transit: '#EB322F'
         rail: [0.588,0.671,0.698]
+        pier: [0.993,0.993,0.993]
         ferry: '#8db3ce'
         runway_13: '#C7CADC'  #'#FFE4B5'
         taxiway: '#BCBCCC'
@@ -66,12 +67,29 @@ global:
         park_halo: white
         housenumber: [0.30,0.30,0.30]  #"#d2b17d"
         housenumber_halo: [0.913,0.925,0.933]  #rgba(38,38,38,0.15)
+        piste_name: black
+        piste_halo: white
+        piste:
+            novice: '#2FB439'  #[0.367,0.750,0.622]
+            easy: '#2F76B4'  #[0.367,0.750,0.622]
+            intermediate: '#F54141'  #[0.420,0.678,0.863]
+            advanced: '#2E2E2E'  #[0.450,0.450,0.450]
+            expert: '#2E2E2E'  #[0.450,0.450,0.450]
+            freeride: '#FFA500'
         #urban_7: lightgrey
         #urban_9: [.88, .88, .88]
         #motorway_5: '#F89595'
         #motorway_7: '#D16768'
         #runway_16: '#fff'
         #runway_casing: orange
+
+    piste_color_fn: function() { return global.color.piste[feature.difficulty] || 'white'; }
+    piste_symbols: { easy: '●', intermediate: '■', advanced: '◆', expert: '◆◆' }
+    piste_name_fn: |
+        function() {
+            const sym = global.piste_symbols[feature.difficulty] || '';
+            return feature.name ? (sym + ' ' + feature.name) : sym;
+        }
 
     # priorities for colliding objects (points and text; lower value wins) - float in tangram (docs incorrectly say integer)
     priority_boundary: 0
@@ -396,7 +414,7 @@ layers:
             lines:
                 style: unlit-lines
                 color: global.color.road
-                width: 12
+                width: 0
                 order: 40
                 outline:
                     visible: global.show_polygons
@@ -461,8 +479,6 @@ layers:
                     style: dashed-path
                     color: global.color.path
                     width: [[14, 0px], [15, 1px], [18, 3px]]
-                    outline:
-                        width: 0
             steps:
                 filter: { highway: steps }
                 draw: { lines: { style: dashed-steps, width: [[14, 0px], [15, 3px], [18, 6px]] } }
@@ -481,8 +497,6 @@ layers:
                     style: dashed-track
                     color: global.color.path
                     width: [[14, 1px], [15, 2px], [18, 4px]]
-                    outline:
-                        width: 0
 
         # unpaved road: dashed w/ outline?  track: same as unpaved road if motor_vehicle: yes, otherwise like path
         rail:
@@ -499,6 +513,13 @@ layers:
                 filter: { not: { railway: [rail, light_rail, narrow_gauge, tram, funicular] } }
                 draw: { lines: { visible: false } }
 
+        pier:
+            filter: { class: pier }
+            draw:
+                lines:
+                    color: global.color.pier
+                    width: [[13, 0px], [14, 0.5px],[15, 1.5px], [16, 2.5px],[17, 3px],[18, 3m]]
+
         ferry:
             filter: { class: ferry }
             draw:
@@ -506,8 +527,48 @@ layers:
                     style: dashed-path
                     color: global.color.ferry
                     width: [[14, 1px], [18, 2px]]
-                    outline:
-                        width: 0
+
+        aerialway:
+            filter: { class: aerialway }
+            draw:
+                lines:
+                    color: global.color.aerialway
+                    width: [[14, 0.5px], [15, 1.0px], [16, 2m]]
+            gondola:
+                filter: { aerialway: [gondola, cable_car] }
+                draw: { lines: { width: [[12, 0.5px], [13, 0.5px], [14, 1.75px], [15, 2.5px], [16, 2.5px], [18, 3m]] } }
+            chair_lift:
+                filter: { aerialway: chair_lift }
+                draw: { lines: { width: [[12, 0.5px], [13, 0.5px], [14, 1.75px], [15, 2.5px], [16, 2.5px], [18, 3m]] } }
+
+        piste:
+            filter: { class: piste, $zoom: { min: 10 } }
+            piste_areas:
+                filter: { $geometry: polygon, $zoom: { min: 13 } }
+                draw:
+                    polygons:
+                        visible: global.show_polygons
+                        style: terrain
+                        order: 1
+                        color: global.piste_color_fn
+            piste_lines:
+                filter: { $geometry: line }
+                draw:
+                    lines:
+                        color: global.piste_color_fn
+                        width: [[10,0px],[11,1px],[12,1.25px],[13,2px],[18,3m]]
+                        outline:
+                            color: global.color.piste_halo
+                            width: [[13, 0px], [14, 2px]]
+                    text:
+                        #visible: global.show_trails
+                        text_source: global.piste_name_fn
+                        font:
+                            family: Open Sans
+                            fill: global.piste_color_fn
+                            stroke: { color: global.color.piste_halo, width: 3 }
+                            size: 12px
+
         road-icons:
             arrows:
                 # oneway arrows and shields are distinct groups!
@@ -563,7 +624,7 @@ layers:
         data: { source: osm, layer: transportation }
         filter:
             name: true
-            not: { class: [rail, aeroway, route] }
+            not: { class: [rail, aeroway, route, piste] }
         draw:
             text:
                 #interactive: true

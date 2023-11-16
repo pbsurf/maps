@@ -410,9 +410,10 @@ bool MBTilesDataSource::testSchema(SQLite::Database& db) {
         if (query.executeStep()) {
             std::string compression = query.getColumn(0);
 
-            if (compression == "identity") {
+            if (compression == "undefined" || compression == "unknown") {}
+            else if (compression == "identity" || compression == "none") {
                 m_schemaOptions.compression = Compression::identity;
-            } else if (compression == "deflate") {
+            } else if (compression == "deflate" || compression == "gzip") {
                 m_schemaOptions.compression = Compression::deflate;
             } else {
                 LOGE("Unsupported MBTiles tile compression: %s", compression.c_str());
