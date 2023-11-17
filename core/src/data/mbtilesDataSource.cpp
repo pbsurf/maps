@@ -6,7 +6,7 @@
 #include "platform.h"
 #include "util/url.h"
 
-#include <SQLiteCpp/Database.h>
+#include "sqlitepp.h"
 #include "hash-library/md5.cpp"
 
 
@@ -73,101 +73,53 @@ CREATE VIEW IF NOT EXISTS tiles AS
 
 COMMIT;)SQL_ESC";
 
-/* We have no use for GridUTF stuff
-CREATE TABLE IF NOT EXISTS grid_key (
-    grid_id TEXT,
-    key_name TEXT
-);
-
-CREATE TABLE IF NOT EXISTS keymap (
-    key_name TEXT,
-    key_json TEXT
-);
-
-CREATE TABLE IF NOT EXISTS grid_utfgrid (
-    grid_id TEXT,
-    grid_utfgrid BLOB
-);
-
--- CREATE TABLE IF NOT EXISTS geocoder_data (
---     type TEXT,
---     shard INTEGER,
---     data BLOB
--- );
-
-CREATE UNIQUE INDEX IF NOT EXISTS grid_key_lookup ON grid_key (grid_id, key_name);
-CREATE UNIQUE INDEX IF NOT EXISTS keymap_lookup ON keymap (key_name);
-CREATE UNIQUE INDEX IF NOT EXISTS grid_utfgrid_lookup ON grid_utfgrid (grid_id);
-CREATE INDEX IF NOT EXISTS map_grid_id ON map (grid_id);
--- CREATE INDEX IF NOT EXISTS geocoder_type_index ON geocoder_data (type);
--- CREATE UNIQUE INDEX IF NOT EXISTS geocoder_shard_index ON geocoder_data (type, shard);
-
-CREATE VIEW IF NOT EXISTS grids AS
-    SELECT
-        map.zoom_level AS zoom_level,
-        map.tile_column AS tile_column,
-        map.tile_row AS tile_row,
-        grid_utfgrid.grid_utfgrid AS grid
-    FROM map
-    JOIN grid_utfgrid ON grid_utfgrid.grid_id = map.grid_id;
-
-CREATE VIEW IF NOT EXISTS grid_data AS
-    SELECT
-        map.zoom_level AS zoom_level,
-        map.tile_column AS tile_column,
-        map.tile_row AS tile_row,
-        keymap.key_name AS key_name,
-        keymap.key_json AS key_json
-    FROM map
-    JOIN grid_key ON map.grid_id = grid_key.grid_id
-    JOIN keymap ON grid_key.key_name = keymap.key_name;
-*/
 
 struct MBTilesQueries {
-    // SELECT statement from tiles view
-    SQLite::Statement getTileData;
-
-    // REPLACE INTO statement in map table
-    SQLite::Statement putMap;
-
-    // REPLACE INTO statement in images table
-    SQLite::Statement putImage;
-
+    SQLiteStmt getTileData;  // SELECT statement from tiles view
+    SQLiteStmt putMap = nullptr;  // REPLACE INTO statement in map table
+    SQLiteStmt putImage = nullptr;  // REPLACE INTO statement in images table
     // caching and offline maps
-    SQLite::Statement getOffline;
-    SQLite::Statement putOffline;
-    SQLite::Statement delOffline;
-    SQLite::Statement delOfflineTiles;
-    SQLite::Statement delOldTiles;
-    SQLite::Statement getTileSizes;
-    SQLite::Statement getOfflineSize;
-    SQLite::Statement putLastAccess;
+    SQLiteStmt getOffline = nullptr;
+    SQLiteStmt putOffline = nullptr;
+    SQLiteStmt delOffline = nullptr;
+    SQLiteStmt delOfflineTiles = nullptr;
+    SQLiteStmt delOldTiles = nullptr;
+    SQLiteStmt getTileSizes = nullptr;
+    SQLiteStmt getOfflineSize = nullptr;
+    SQLiteStmt putLastAccess = nullptr;
 
-    MBTilesQueries(SQLite::Database& _db, bool _cache) :
-        getTileData(_db, _cache ?
-            "SELECT tile_data, images.tile_id FROM images JOIN map ON images.tile_id = map.tile_id WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;" :
-            "SELECT tile_data FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;"),
-        putMap(_db, _cache ? "REPLACE INTO map (zoom_level, tile_column, tile_row, tile_id) VALUES (?, ?, ?, ?);" : ";" ),
-        putImage(_db, _cache ? "REPLACE INTO images (tile_id, tile_data) VALUES (?, ?);" : ";"),
-        getOffline(_db, _cache ? "SELECT 1,tile_id FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;" : ";"),
-        putOffline(_db, _cache ? "REPLACE INTO offline_tiles (tile_id, offline_id) VALUES (?, ?);" : ";"),
-        delOffline(_db, _cache ? "DELETE FROM offline_tiles WHERE offline_id = ?;" : ";"),
-        // note that rows in maps and tile_last_access will be deleted by trigger
-        // a few potential alternatives are:
-        // - omit "WHERE offline_id = ?1" ... seems like this might be slower though
-        // - SELECT tile_id FROM offline_tiles GROUP BY tile_id HAVING MAX(offline_id) = ? AND MIN(offline_id) = ?
-        // - SELECT tile_id FROM offline_tiles EXCEPT SELECT tile_id FROM offline_tiles WHERE offline_id <> ?;
-        delOfflineTiles(_db, _cache ? "DELETE FROM images WHERE tile_id IN (SELECT tile_id FROM offline_tiles"
-            " WHERE offline_id = ?1 AND tile_id NOT IN (SELECT tile_id FROM offline_tiles WHERE offline_id <> ?1));" : ";"),
-        delOldTiles(_db, _cache ? "DELETE FROM images WHERE tile_id IN (SELECT tile_id FROM tile_last_access"
-            " WHERE last_access < ? AND tile_id NOT IN (SELECT tile_id FROM offline_tiles));" : ";"),
-        getTileSizes(_db, _cache ? "SELECT images.tile_id, ot.offline_id, tla.last_access, length(tile_data)"
-            " FROM images LEFT JOIN tile_last_access AS tla ON images.tile_id = tla.tile_id LEFT JOIN offline_tiles AS ot ON images.tile_id = ot.tile_id;" : ";"),
-        getOfflineSize(_db, _cache ? "SELECT sum(length(tile_data)) FROM images WHERE tile_id IN (SELECT tile_id FROM offline_tiles);" : ";"),
-        putLastAccess(_db, _cache ?  // CURRENT_TIMESTAMP is a string!
-            "REPLACE INTO tile_last_access (tile_id, last_access) VALUES (?, CAST(strftime('%s') AS INTEGER));" : ";") {}
-
+    struct tag_cache {};
+    MBTilesQueries(sqlite3* db);
+    MBTilesQueries(sqlite3* db, tag_cache);
 };
+
+MBTilesQueries::MBTilesQueries(sqlite3* db) :
+    getTileData(db, "SELECT tile_data FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;") {}
+
+MBTilesQueries::MBTilesQueries(sqlite3* db, tag_cache) :
+    getTileData(db, "SELECT tile_data, images.tile_id FROM images JOIN map ON images.tile_id ="
+        " map.tile_id WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;"),
+    putMap(db, "REPLACE INTO map (zoom_level, tile_column, tile_row, tile_id) VALUES (?, ?, ?, ?);"),
+    putImage(db, "REPLACE INTO images (tile_id, tile_data) VALUES (?, ?);"),
+    getOffline(db, "SELECT 1,tile_id FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;"),
+    putOffline(db, "REPLACE INTO offline_tiles (tile_id, offline_id) VALUES (?, ?);"),
+    delOffline(db, "DELETE FROM offline_tiles WHERE offline_id = ?;"),
+    // note that rows in maps and tile_last_access will be deleted by trigger
+    // a few potential alternatives are:
+    // - omit "WHERE offline_id = ?1" ... seems like this might be slower though
+    // - SELECT tile_id FROM offline_tiles GROUP BY tile_id HAVING MAX(offline_id) = ? AND MIN(offline_id) = ?
+    // - SELECT tile_id FROM offline_tiles EXCEPT SELECT tile_id FROM offline_tiles WHERE offline_id <> ?;
+    delOfflineTiles(db, "DELETE FROM images WHERE tile_id IN (SELECT tile_id FROM offline_tiles WHERE"
+        " offline_id = ?1 AND tile_id NOT IN (SELECT tile_id FROM offline_tiles WHERE offline_id <> ?1));"),
+    delOldTiles(db, "DELETE FROM images WHERE tile_id IN (SELECT tile_id FROM tile_last_access"
+        " WHERE last_access < ? AND tile_id NOT IN (SELECT tile_id FROM offline_tiles));"),
+    getTileSizes(db, "SELECT images.tile_id, ot.offline_id, tla.last_access, length(tile_data)"
+        " FROM images LEFT JOIN tile_last_access AS tla ON images.tile_id = tla.tile_id"
+        " LEFT JOIN offline_tiles AS ot ON images.tile_id = ot.tile_id;"),
+    getOfflineSize(db, "SELECT sum(length(tile_data)) FROM images WHERE tile_id IN"
+        " (SELECT tile_id FROM offline_tiles);"),
+    putLastAccess(db, "REPLACE INTO tile_last_access (tile_id, last_access) VALUES"
+        " (?, CAST(strftime('%s') AS INTEGER));") {}
 
 MBTilesDataSource::MBTilesDataSource(Platform& _platform, std::string _name, std::string _path,
                                      std::string _mime, bool _cache, bool _offlineFallback)
@@ -290,29 +242,24 @@ bool MBTilesDataSource::loadNextSource(std::shared_ptr<TileTask> _task, TileTask
 
 void MBTilesDataSource::openMBTiles() {
 
-    try {
-        auto mode = SQLite::OPEN_READONLY | SQLite::OPEN_FULLMUTEX;
-        if (m_cacheMode) {
-            // Need to explicitly open a SQLite DB with OPEN_READWRITE
-            // and OPEN_CREATE flags to make a file and write.
-            mode = SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE | SQLite::OPEN_FULLMUTEX;
-        }
+    auto mode = SQLITE_OPEN_FULLMUTEX;
+    mode |= m_cacheMode ? (SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE) : SQLITE_OPEN_READONLY;
 
-        auto url = Url(m_path);
-        auto path = url.path();
-        const char* vfs = "";
-        if (url.scheme() == "asset") {
-            vfs = "ndk-asset";
-            path.erase(path.begin()); // Remove leading '/'.
-        }
-        m_db = std::make_unique<SQLite::Database>(path, mode, 0, vfs);
-        LOG("SQLite database opened: %s", path.c_str());
+    auto url = Url(m_path);
+    auto path = url.path();
+    const char* vfs = "";
+    if (url.scheme() == "asset") {
+        vfs = "ndk-asset";
+        path.erase(path.begin()); // Remove leading '/'.
+    }
 
-    } catch (std::exception& e) {
-        LOGE("Unable to open SQLite database: %s - %s", m_path.c_str(), e.what());
+    m_db = std::make_unique<SQLiteDB>();
+    if (sqlite3_open_v2(path.c_str(), &m_db->db, mode, NULL) != SQLITE_OK) {
+        LOGE("Unable to open SQLite database: %s - %s", m_path.c_str(), m_db->errMsg());
         m_db.reset();
         return;
     }
+    LOG("SQLite database opened: %s", path.c_str());
 
     bool ok = testSchema(*m_db);
     if (ok) {
@@ -345,13 +292,8 @@ void MBTilesDataSource::openMBTiles() {
         return;
     }
 
-    try {
-        m_queries = std::make_unique<MBTilesQueries>(*m_db, m_cacheMode);
-    } catch (std::exception& e) {
-        LOGE("Unable to initialize queries: %s", e.what());
-        m_db.reset();
-        return;
-    }
+    m_queries = m_cacheMode ? std::make_unique<MBTilesQueries>(m_db->db, MBTilesQueries::tag_cache{})
+        : std::make_unique<MBTilesQueries>(m_db->db);
 }
 
 /**
@@ -361,125 +303,63 @@ void MBTilesDataSource::openMBTiles() {
  * @param _source A pointer to a the data source in which we will setup a db.
  * @return true if database contains MBTiles schema
  */
-bool MBTilesDataSource::testSchema(SQLite::Database& db) {
+bool MBTilesDataSource::testSchema(SQLiteDB& db) {
 
-    bool metadata = false, tiles = false, grids = false, grid_data = false;
+    bool metadata = false, tiles = false;  //, grids = false, grid_data = false;
 
-    try {
-        SQLite::Statement query(db, "SELECT name FROM sqlite_master WHERE type IN ('table', 'view')");
-        while (query.executeStep()) {
-            std::string name = query.getColumn(0);
-            // required
-            if (name == "metadata") metadata = true;
-            else if (name == "tiles") tiles = true;
-            // optional
-            else if (name == "grids") grids = true;
-            else if (name == "grid_data") grid_data = true;
-            // schema implementation specific
-            // else if (name == "map") map = true;
-            // else if (name == "images") images = true;
-            // else if (name == "grid_key") grid_key = true;
-            // else if (name == "keymap") keymap = true;
-            // else if (name == "grid_utfgrid") grid_utfgrid = true;
-            // else if (name == "geocoder_data") geocoder_data = true;
-        }
-    } catch (std::exception& e) {
-        LOGE("Unable to check schema of SQLite MBTiles database: %s", e.what());
-        return false;
-    }
-
+    db.stmt("SELECT name FROM sqlite_master WHERE type IN ('table', 'view')").exec([&](std::string name){
+        // required
+        if (name == "metadata") metadata = true;
+        else if (name == "tiles") tiles = true;
+        // optional
+        //else if (name == "grids") grids = true;
+        //else if (name == "grid_data") grid_data = true;
+    });
     if (!metadata || !tiles) {
         LOGW("Missing MBTiles tables");
         return false;
     }
 
-    try {
-        SQLite::Statement query(db, "SELECT value FROM metadata WHERE name = 'description';");
-        if (query.executeStep()) {
-            std::string description = query.getColumn(0);
-            if (description == "MBTiles tile container created by Tangram ES.") {
-                m_schemaOptions.isCache = true;
-            }
+    db.stmt("SELECT value FROM metadata WHERE name = 'description';").exec([&](std::string desc){
+        if (desc == "MBTiles tile container created by Tangram ES.") {
+            m_schemaOptions.isCache = true;
         }
-    } catch (std::exception& e) {
-        LOGE("TODO");
-    }
+    });
 
-    try {
-        SQLite::Statement query(db, "SELECT value FROM metadata WHERE name = 'compression';");
-        if (query.executeStep()) {
-            std::string compression = query.getColumn(0);
-
-            if (compression == "undefined" || compression == "unknown") {}
-            else if (compression == "identity" || compression == "none") {
-                m_schemaOptions.compression = Compression::identity;
-            } else if (compression == "deflate" || compression == "gzip") {
-                m_schemaOptions.compression = Compression::deflate;
-            } else {
-                LOGE("Unsupported MBTiles tile compression: %s", compression.c_str());
-                m_schemaOptions.compression = Compression::unsupported;
-            }
+    db.stmt("SELECT value FROM metadata WHERE name = 'compression';").exec([&](std::string cmpr){
+        if (cmpr == "undefined" || cmpr == "unknown") {}
+        else if (cmpr == "identity" || cmpr == "none") {
+            m_schemaOptions.compression = Compression::identity;
+        } else if (cmpr == "deflate" || cmpr == "gzip") {
+            m_schemaOptions.compression = Compression::deflate;
+        } else {
+            LOGE("Unsupported MBTiles tile compression: %s", cmpr.c_str());
+            m_schemaOptions.compression = Compression::unsupported;
         }
-    } catch (std::exception& e) {
-        LOGE("TODO");
-    }
-
-    if (grids && grid_data) {
-        m_schemaOptions.utfGrid = true;
-    }
+    });
 
     return true;
 }
 
-void MBTilesDataSource::initSchema(SQLite::Database& db, std::string _name, std::string _mimeType) {
+void MBTilesDataSource::initSchema(SQLiteDB& db, std::string _name, std::string _mimeType) {
 
     // Otherwise, we need to execute schema.sql to set up the db with the right schema.
-    try {
-        // Execute schema.
-        db.exec(SCHEMA);
-
-        // Fill in metadata table.
-        // https://github.com/pnorman/mbtiles-spec/blob/2.0/2.0/spec.md#content
-        // https://github.com/mapbox/mbtiles-spec/pull/46
-        SQLite::Statement stmt(db, "REPLACE INTO metadata (name, value) VALUES (?, ?);");
-
-        // name, type, version, description, format, compression
-        stmt.bind(1, "name");
-        stmt.bind(2, _name);
-        stmt.exec();
-        stmt.reset();
-
-        stmt.bind(1, "type");
-        stmt.bind(2, "baselayer");
-        stmt.exec();
-        stmt.reset();
-
-        stmt.bind(1, "version");
-        stmt.bind(2, 1);
-        stmt.exec();
-        stmt.reset();
-
-        stmt.bind(1, "description");
-        stmt.bind(2, "MBTiles tile container created by Tangram ES.");
-        stmt.exec();
-        stmt.reset();
-
-        stmt.bind(1, "format");
-        stmt.bind(2, _mimeType);
-        stmt.exec();
-        stmt.reset();
-
-        // Compression not yet implemented - no gain for raster tiles (png or jpg); gziping vector .mbtiles
-        //  gave around 40% size reduction
-        // http://www.iana.org/assignments/http-parameters/http-parameters.xhtml#content-coding
-        // identity means no compression
-        stmt.bind(1, "compression");
-        stmt.bind(2, "identity");
-        stmt.exec();
-
-    } catch (std::exception& e) {
-        LOGE("Unable to setup SQLite MBTiles database: %s", e.what());
-    }
+    db.exec(SCHEMA);
+    // Fill in metadata table.
+    // https://github.com/pnorman/mbtiles-spec/blob/2.0/2.0/spec.md#content
+    // https://github.com/mapbox/mbtiles-spec/pull/46
+    SQLiteStmt stmt = db.stmt("REPLACE INTO metadata (name, value) VALUES (?, ?);");
+    // name, type, version, description, format, compression
+    stmt.bind("name", _name).exec();
+    stmt.bind("type", "baselayer").exec();
+    stmt.bind("version", "1").exec();
+    stmt.bind("description", "MBTiles tile container created by Tangram ES.").exec();
+    stmt.bind("format", _mimeType).exec();
+    // Compression not yet implemented - no gain for raster tiles (png or jpg); gziping vector .mbtiles
+    //  gave around 40% size reduction
+    // http://www.iana.org/assignments/http-parameters/http-parameters.xhtml#content-coding
+    // identity means no compression
+    stmt.bind("compression", "identity").exec();
 }
 
 bool MBTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _data, int offlineId) {
@@ -488,73 +368,45 @@ bool MBTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _d
         LOGE("Offline tiles cannot be created: database is read-only!");
         return false;
     }
-    auto& stmt = offlineId > 0 ? m_queries->getOffline : m_queries->getTileData;
-    try {
-        // Google TMS to WMTS
-        // https://github.com/mapbox/node-mbtiles/blob/
-        // 4bbfaf991969ce01c31b95184c4f6d5485f717c3/lib/mbtiles.js#L149
-        int z = _tileId.z;
-        int y = (1 << z) - 1 - _tileId.y;
+    // MBTiles uses TMS (tile row incr. south to north) while TileID is WMTS (tile row incr. north to south)
+    int z = _tileId.z;
+    int y = (1 << z) - 1 - _tileId.y;
 
-        stmt.bind(1, z);
-        stmt.bind(2, _tileId.x);
-        stmt.bind(3, y);
-
-        if (stmt.executeStep()) {
-            if (offlineId) {
-                // if offlineId > 0, request was just to cache tile - caller does not need data
-                // offlineId < 0 to request tile data (e.g. for search indexing)
-                SQLite::Column column2 = stmt.getColumn(1);
-                auto& stmt2 = m_queries->putOffline;
-                stmt2.bind(1, column2.getText());
-                stmt2.bind(2, std::abs(offlineId));
-                stmt2.exec();
-                stmt2.reset();
-                if(offlineId > 0) {
-                  stmt.reset();  // reset both statements!
-                  _data.push_back('\0');  // make TileTask::hasData() true
-                  return true;
-                }
-            }
-
-            SQLite::Column column = stmt.getColumn(0);
-            const char* blob = (const char*) column.getBlob();
-            const int length = column.getBytes();
-
-            if ((m_schemaOptions.compression == Compression::undefined) ||
-                (m_schemaOptions.compression == Compression::deflate)) {
-
-                if (zlib_inflate(blob, length, _data) != 0) {
-                    if (m_schemaOptions.compression == Compression::undefined) {
-                        _data.resize(length);
-                        memcpy(_data.data(), blob, length);
-                    } else {
-                        LOGW("Invalid deflate compression");
-                    }
-                }
-            } else {
-                _data.resize(length);
-                memcpy(_data.data(), blob, length);
-            }
-            // update access time
-            if (m_cacheMode) {
-                auto& stmt2 = m_queries->putLastAccess;
-                stmt2.bind(1, stmt.getColumn(1).getText());
-                stmt2.exec();
-                stmt2.reset();
-            }
-            stmt.reset();
-            return true;
-        }
-
-    } catch (std::exception& e) {
-        LOGE("MBTiles SQLite get tile_data statement failed: %s", e.what());
+    // offlineId > 0 indicates request to set offline_id; not necessary to read data
+    if (offlineId > 0) {
+        _data.push_back('\0');  // make TileTask::hasData() true
+        return m_queries->getOffline.bind(z, _tileId.x, y).exec([&](int, const char* tileid){
+            m_queries->putOffline.bind(tileid, std::abs(offlineId)).exec();
+        });
     }
-    try {
-        stmt.reset();
-    } catch(...) {}
 
-    return false;
+    return m_queries->getTileData.bind(z, _tileId.x, y).exec([&](sqlite3_stmt* stmt){
+        const char* blob = (const char*) sqlite3_column_blob(stmt, 0);
+        const int length = sqlite3_column_bytes(stmt, 0);
+        std::string tileid = m_cacheMode ? (const char*)sqlite3_column_text(stmt, 1) : "";
+
+        if ((m_schemaOptions.compression == Compression::undefined) ||
+            (m_schemaOptions.compression == Compression::deflate)) {
+
+            if (zlib_inflate(blob, length, _data) != 0) {
+                if (m_schemaOptions.compression == Compression::undefined) {
+                    _data.resize(length);
+                    memcpy(_data.data(), blob, length);
+                } else {
+                    LOGW("Invalid deflate compression");
+                }
+            }
+        } else {
+            _data.resize(length);
+            memcpy(_data.data(), blob, length);
+        }
+        if (offlineId) {
+            m_queries->putOffline.bind(tileid, std::abs(offlineId)).exec();
+        }
+        if (m_cacheMode) {
+            m_queries->putLastAccess.bind(tileid).exec();
+        }
+    });
 }
 
 void MBTilesDataSource::storeTileData(const TileID& _tileId, const std::vector<char>& _data, int offlineId) {
@@ -572,110 +424,47 @@ void MBTilesDataSource::storeTileData(const TileID& _tileId, const std::vector<c
     MD5 md5;
     std::string md5id = md5(data, size);
 
-    try {
-        auto& stmt = m_queries->putMap;
-        stmt.bind(1, z);
-        stmt.bind(2, _tileId.x);
-        stmt.bind(3, y);
-        stmt.bind(4, md5id);
-        stmt.exec();
+    m_queries->putMap.bind(z, _tileId.x, y, md5id).exec();
+    sqlite3_bind_text(m_queries->putImage.stmt, 1, md5id.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_blob(m_queries->putImage.stmt, 2, data, size, SQLITE_STATIC);
+    m_queries->putImage.exec();
 
-        stmt.reset();
-
-    } catch (std::exception& e) {
-        LOGE("MBTiles SQLite put map statement failed: %s", e.what());
-    }
-
-    try {
-        auto& stmt = m_queries->putImage;
-        stmt.bind(1, md5id);
-        stmt.bind(2, data, size);
-        stmt.exec();
-        stmt.reset();
-        m_platform.notifyStorage(size, 0);  //offlineId ? size : 0);
-    } catch (std::exception& e) {
-        LOGE("MBTiles SQLite put image statement failed: %s", e.what());
-    }
-
+    m_platform.notifyStorage(size, 0);  //offlineId ? size : 0);
     if (offlineId) {
-        try {
-            auto& stmt = m_queries->putOffline;
-            stmt.bind(1, md5id);
-            stmt.bind(2, std::abs(offlineId));
-            stmt.exec();
-            stmt.reset();
-        } catch (std::exception& e) {
-            LOGE("MBTiles SQLite offline id statement failed: %s", e.what());
-        }
+        m_queries->putOffline.bind(md5id, std::abs(offlineId)).exec();
     }
 }
 
 void MBTilesDataSource::deleteOfflineMap(int offlineId, bool delTiles) {
-    try {
-        if (delTiles) {
-            int totchanges = m_db->getTotalChanges();
-            auto& stmt = m_queries->delOfflineTiles;
-            stmt.bind(1, offlineId);
-            stmt.exec();
-            stmt.reset();
-            if (m_db->getTotalChanges() - totchanges > 32)
-                m_db->exec("VACUUM;");
-        }
-        auto& stmt = m_queries->delOffline;
-        stmt.bind(1, offlineId);
-        stmt.exec();
-        stmt.reset();
-    } catch (std::exception& e) {
-        LOGE("MBTiles SQLite offline tile delete statement failed: %s", e.what());
+    if (delTiles) {
+        int totchanges = m_db->totalChanges();
+        m_queries->delOfflineTiles.bind(offlineId).exec();
+        if (m_db->totalChanges() - totchanges > 32)
+            m_db->exec("VACUUM;");
     }
+    m_queries->delOffline.bind(offlineId).exec();
 }
 
 void MBTilesDataSource::deleteOldTiles(int cutoff) {
-    try {
-        int totchanges = m_db->getTotalChanges();
-        auto& stmt = m_queries->delOldTiles;
-        stmt.bind(1, cutoff);
-        stmt.exec();
-        stmt.reset();
-        if (m_db->getTotalChanges() - totchanges > 32)  // SqliteCpp doesn't wrap sqlite3_changes()
-            m_db->exec("VACUUM;");
-    } catch (std::exception& e) {
-        LOGE("MBTiles SQLite old tile delete statement failed: %s", e.what());
-    }
+    int totchanges = m_db->totalChanges();
+    m_queries->delOldTiles.bind(cutoff).exec();
+    if (m_db->totalChanges() - totchanges > 32)  // SqliteCpp doesn't wrap sqlite3_changes()
+        m_db->exec("VACUUM;");
 }
 
 void MBTilesDataSource::getTileSizes(std::function<void(int, int, int)> cb) {
-    try {
-        auto& stmt = m_queries->getTileSizes;
-        while (stmt.executeStep()) {
-            //const char* tile_id = stmt.getColumn(0).getText();  -- tile_id not needed
-            int offline_id = stmt.getColumn(1).getInt();
-            int timestamp = stmt.getColumn(2).getInt();
-            int size = stmt.getColumn(3).getInt();
-            cb(offline_id, timestamp, size);
-        }
-        stmt.reset();
-    } catch (std::exception& e) {
-        LOGE("MBTiles SQLite get tile sizes statement failed: %s", e.what());
-    }
+    m_queries->getTileSizes.exec([&](const char*, int ofl_id, int ts, int size){ cb(ofl_id, ts, size); });
 }
 
 int64_t MBTilesDataSource::getOfflineSize() {
-  int64_t size = 0;
-  try {
-      auto& stmt = m_queries->getOfflineSize;
-      if (stmt.executeStep())
-          size = stmt.getColumn(0).getInt64();
-      stmt.reset();
-  } catch (std::exception& e) {
-      LOGE("MBTiles SQLite get offline size statement failed: %s", e.what());
-  }
-  return size;
+    int64_t size = 0;
+    m_queries->getOfflineSize.exec([&](int64_t s){ size = s; });
+    return size;
 }
 
 sqlite3* MBTilesDataSource::dbHandle()
 {
-  return m_db->getHandle();
+  return m_db->db;
 }
 
 }

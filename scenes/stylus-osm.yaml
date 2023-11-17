@@ -67,6 +67,9 @@ global:
         park_halo: white
         housenumber: [0.30,0.30,0.30]  #"#d2b17d"
         housenumber_halo: [0.913,0.925,0.933]  #rgba(38,38,38,0.15)
+        aerialway: '#777'
+        aerialway_name: black
+        aerialway_halo: white
         piste_name: black
         piste_halo: white
         piste:
@@ -534,12 +537,31 @@ layers:
                 lines:
                     color: global.color.aerialway
                     width: [[14, 0.5px], [15, 1.0px], [16, 2m]]
+                points:
+                    color: global.color.aerialway
+                    size: [[14, 1.25px], [15, 3.0px], [16, 4m]]
+                    placement: spaced
+                    placement_spacing: 30px
             gondola:
-                filter: { aerialway: [gondola, cable_car] }
-                draw: { lines: { width: [[12, 0.5px], [13, 0.5px], [14, 1.75px], [15, 2.5px], [16, 2.5px], [18, 3m]] } }
+                filter: { aerialway: [gondola, cable_car, mixed_lift] }
+                draw:
+                    lines: { width: [[12, 0.5px], [13, 0.5px], [14, 1.75px], [15, 2.5px], [16, 2.5px], [18, 3m]] }
+                    points: { size: [[12, 1px], [13, 1px], [14, 3.5px], [15, 5px], [16, 5px], [18, 6m]] }
             chair_lift:
                 filter: { aerialway: chair_lift }
-                draw: { lines: { width: [[12, 0.5px], [13, 0.5px], [14, 1.75px], [15, 2.5px], [16, 2.5px], [18, 3m]] } }
+                draw:
+                    lines: { width: [[12, 0.5px], [13, 0.5px], [14, 1.75px], [15, 2.5px], [16, 2.5px], [18, 3m]] }
+                    points: { size: [[12, 1px], [13, 1px], [14, 3.5px], [15, 5px], [16, 5px], [18, 6m]] }
+            aerialway_label:
+                filter: { $zoom: { min: 14 } }
+                draw:
+                    text:
+                        text_source: name
+                        font:
+                            family: Open Sans
+                            fill: global.color.aerialway_name
+                            stroke: { color: global.color.aerialway_halo, width: 3 }
+                            size: 12px
 
         piste:
             filter: { class: piste, $zoom: { min: 10 } }

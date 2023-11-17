@@ -2,11 +2,8 @@
 
 #include "data/tileSource.h"
 
-namespace SQLite {
-class Database;
-}
-
 struct sqlite3;
+class SQLiteDB;
 
 namespace Tangram {
 
@@ -39,8 +36,8 @@ private:
     bool loadNextSource(std::shared_ptr<TileTask> _task, TileTaskCb _cb);
 
     void openMBTiles();
-    bool testSchema(SQLite::Database& db);
-    void initSchema(SQLite::Database& db, std::string _name, std::string _mimeType);
+    bool testSchema(SQLiteDB& db);  //SQLite::Database& db);
+    void initSchema(SQLiteDB& db, std::string _name, std::string _mimeType);  //SQLite::Database& db
 
     std::string m_name;
 
@@ -55,7 +52,7 @@ private:
     bool m_offlineMode;
 
     // Pointer to SQLite DB of MBTiles store
-    std::unique_ptr<SQLite::Database> m_db;
+    std::unique_ptr<SQLiteDB> m_db;
     std::unique_ptr<MBTilesQueries> m_queries;
     std::unique_ptr<AsyncWorker> m_worker;
 
@@ -72,7 +69,7 @@ private:
     struct {
         Compression compression = Compression::undefined;
         bool isCache = false;
-        bool utfGrid = false;
+        //bool utfGrid = false;
     } m_schemaOptions;
 };
 
