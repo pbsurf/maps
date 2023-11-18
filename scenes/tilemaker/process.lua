@@ -13,7 +13,7 @@ preferred_language_attribute = "name"  --"name:latin"
 -- If OSM's name tag differs, then write it into this attribute (usually "name_int"):
 default_language_attribute = nil  --"name_int"
 -- Also write these languages if they differ - for example, { "de", "fr" }
-additional_languages = { }
+additional_languages = { "en" }
 --------
 
 -- Enter/exit Tilemaker
@@ -80,6 +80,7 @@ function node_function(node)
     local rank = nil
     local mz = 13
     local pop = tonumber(node:Find("population")) or 0
+    local placeCN = node:Find("place:CN")
 
     if     place == "continent"     then mz=0
     elseif place == "country"       then
@@ -94,6 +95,7 @@ function node_function(node)
     elseif place == "village"       then mz=10
     elseif place == "suburb"        then mz=11
     elseif place == "hamlet"        then mz=12
+    elseif place == "quarter"       then mz=12
     elseif place == "neighbourhood" then mz=13
     elseif place == "locality"      then mz=13
     end
@@ -104,6 +106,7 @@ function node_function(node)
     if rank then node:AttributeNumeric("rank", rank) end
     if pop then node:AttributeNumeric("population", pop) end
     if place=="country" then node:Attribute("iso_a2", node:Find("ISO3166-1:alpha2")) end
+    if placeCN ~= "" then node:Attribute("place_CN", placeCN) end
     SetNameAttributesEx(node, "node")
     return
   end
@@ -739,7 +742,7 @@ function SetNameAttributesEx(obj, osm_type, minzoom)
   for i,lang in ipairs(additional_languages) do
     iname = obj:Find("name:"..lang)
     if iname=="" then iname=name end
-    if iname~=main_written then obj:Attribute("name:"..lang, iname) end
+    if iname~=main_written then obj:Attribute("name_"..lang, iname) end
   end
   -- add OSM id
   obj:Attribute("osm_id", obj:Id())
@@ -759,7 +762,7 @@ function SetEleAttributes(obj)
     local feet = math.floor(meter * 3.2808399)
     obj:AttributeNumeric("ele", meter)
     obj:AttributeNumeric("ele_ft", feet)
-    end
+  end
 end
 
 function SetBrunnelAttributes(obj)

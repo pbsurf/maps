@@ -152,7 +152,7 @@ public:
 
     /// Used for FrameInfo debug
     TileManager* tileManager() const { return m_tileManager.get(); }
-
+    LabelManager* labelManager() const { return m_labelManager.get(); }
     MarkerManager* markerManager() const { return m_markerManager.get(); }
 
     const SceneError* errors() const {

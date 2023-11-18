@@ -37,12 +37,12 @@ function fix_osm_bright(obj)
       else if(obj[key] == "name:latin name:nonlatin")
         obj[key] = "global.names_one_line";
     } else if(key == "family" && obj[key].length > 0) {
-      if(obj[key][0].startsWith("Noto Sans"))
-        obj[key] = "global.font_sans";
       if(obj[key][0].endsWith("Italic"))
         obj["style"] = "italic";
       if(obj[key][0].endsWith("Bold"))
         obj["weight"] = "bold";
+      if(obj[key][0].startsWith("Noto Sans"))
+        obj[key] = "global.font_sans";
     } else if(key == "sprite") {
       obj["texture"] = "osm-bright";
       var s = obj["sprite"];
@@ -60,6 +60,12 @@ let obj = processStyle('../../osm-bright-gl-style/style.json');
 fix_osm_bright(obj);
 // osm-bright.svg generated with `svgconcat icons/*.svg`
 obj.textures = { "osm-bright": { url: "img/osm-bright.svg", density: 2 } };
+obj.fonts = { "Noto Sans": [
+  { url: "fonts/NotoSans-Regular.ttf" },
+  { style: "italic", url: "fonts/NotoSans-Italic.ttf" },
+  { weight: 600, url: "fonts/NotoSans-SemiBold.ttf" }
+]}
+obj.global.font_sans = "Noto Sans";
 obj.global.latin_name = "function() { return feature['name:latin'] || feature.name_en || feature.name; }";
 obj.global.names_two_lines =
     "function() { const nl = feature['name:nonlatin']; return global.latin_name() + (nl ? '\n' + nl : ''); }";

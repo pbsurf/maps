@@ -449,8 +449,6 @@ void Scene::runTextureTasks() {
 
         LOG("Fetch texture %s", task.url.string().c_str());
 
-        // TODO remove weak_ptr - it should not be possible to get a callback
-        // after task was deleted.
         auto cb = [this, &task](UrlResponse&& response) {
             LOG("Received texture %s", task.url.string().c_str());
             if (response.error) {
@@ -512,8 +510,7 @@ void Scene::runFontTasks() {
         task.started = true;
 
         LOG("Fetch font %s", task.ft.uri.c_str());
-        // TODO remove weak_ptr - it should not be possible to get a callback
-        // after task was deleted.
+
         auto cb = [this, &task](UrlResponse&& response) {
              LOG("Received font: %s", task.ft.uri.c_str());
              task.response = std::move(response);

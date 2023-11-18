@@ -55,7 +55,8 @@ global:
         ferry_halo: white
         border: wheat
         border_country: [0.824, 0.651, 0.329, 1.00]
-        city_point: darkred
+        city_point: white
+        city_point_halo: black
         place_name: [0, 0, 0, .8]
         place_halo: white
         hood_name: rgba(136, 45, 23, 0.9)
@@ -67,7 +68,7 @@ global:
         park_halo: white
         housenumber: [0.30,0.30,0.30]  #"#d2b17d"
         housenumber_halo: [0.913,0.925,0.933]  #rgba(38,38,38,0.15)
-        aerialway: '#777'
+        aerialway: '#444'
         aerialway_name: black
         aerialway_halo: white
         piste_name: black
@@ -96,9 +97,8 @@ global:
 
     # priorities for colliding objects (points and text; lower value wins) - float in tangram (docs incorrectly say integer)
     priority_boundary: 0
-    priority_continent: 8
-    priority_place: 9
-    priority_neighborhood: 10
+    priority_continent: 6
+    priority_neighborhood: 15
     priority_park: 21
     priority_forest: 22
     # road labels
@@ -136,6 +136,9 @@ global:
     priority_poi_religion: function() { return '101.' + feature.osm_id.substring(feature.osm_id.length - 6); }
     priority_poi_parking: function() { return '102.' + feature.osm_id.substring(feature.osm_id.length - 6); }
 
+    priority_place: { country: 7, state: 8, province: 8, city: 9, town: 10, village: 11, suburb: 12, hamlet: 13 }
+    priority_place_fn: function() { return (global.priority_place[feature.class] || 14) + 100.0/(100 + (feature.population || 1)); }
+
     # if we want to easily add on top of various raster sources, have MapsSources set global._vector_order to
     #  layer number for vector source
     show_polygons: true  # function() { return !(global._vector_order > 0); }
@@ -163,14 +166,14 @@ global:
     # specify fields indexed for search
     search_data:
         - layer: poi
-          fields: name, amenity, leisure, shop, sport, tourism, cuisine
+          fields: name, name_en, amenity, leisure, shop, sport, tourism, cuisine
         - layer: place
-          fields: name
+          fields: name, name_en
 
 
 fonts:
-    Montserrat:
-        url: fonts/Montserrat-Regular.woff
+    #Montserrat:
+    #    url: fonts/Montserrat-Regular.woff
     Open Sans:
         - weight: 400
           url: fonts/OpenSans-Regular.woff
@@ -537,21 +540,24 @@ layers:
                 lines:
                     color: global.color.aerialway
                     width: [[14, 0.5px], [15, 1.0px], [16, 2m]]
+                # maybe use dashed line instead?
                 points:
                     color: global.color.aerialway
-                    size: [[14, 1.25px], [15, 3.0px], [16, 4m]]
+                    size: [[14, 1.25px], [15, 3px], [16, 3px]]
+                    collide: false
                     placement: spaced
-                    placement_spacing: 30px
+                    placement_spacing: 10px
+                    placement_min_length_ratio: 0
             gondola:
                 filter: { aerialway: [gondola, cable_car, mixed_lift] }
                 draw:
-                    lines: { width: [[12, 0.5px], [13, 0.5px], [14, 1.75px], [15, 2.5px], [16, 2.5px], [18, 3m]] }
-                    points: { size: [[12, 1px], [13, 1px], [14, 3.5px], [15, 5px], [16, 5px], [18, 6m]] }
+                    lines: { width: [[12, 1px], [13, 1px], [14, 2px], [15, 2.5px], [16, 2.5px]] }
+                    points: { size: [[12, 4px], [13, 4px], [14, 5px], [15, 7px], [16, 7px]] }
             chair_lift:
                 filter: { aerialway: chair_lift }
                 draw:
-                    lines: { width: [[12, 0.5px], [13, 0.5px], [14, 1.75px], [15, 2.5px], [16, 2.5px], [18, 3m]] }
-                    points: { size: [[12, 1px], [13, 1px], [14, 3.5px], [15, 5px], [16, 5px], [18, 6m]] }
+                    lines: { width: [[12, 1px], [13, 1px], [14, 2px], [15, 2.5px], [16, 2.5px]] }
+                    points: { size: [[12, 4px], [13, 4px], [14, 5px], [15, 7px], [16, 7px]] }
             aerialway_label:
                 filter: { $zoom: { min: 14 } }
                 draw:
@@ -567,9 +573,10 @@ layers:
             filter: { class: piste, $zoom: { min: 10 } }
             piste_areas:
                 filter: { $geometry: polygon, $zoom: { min: 13 } }
+                enabled: global.show_polygons
                 draw:
                     polygons:
-                        visible: global.show_polygons
+                        visible: global.show_trails
                         style: terrain
                         order: 1
                         color: global.piste_color_fn
@@ -583,7 +590,7 @@ layers:
                             color: global.color.piste_halo
                             width: [[13, 0px], [14, 2px]]
                     text:
-                        #visible: global.show_trails
+                        visible: global.show_trails
                         text_source: global.piste_name_fn
                         font:
                             family: Open Sans
@@ -646,7 +653,7 @@ layers:
         data: { source: osm, layer: transportation }
         filter:
             name: true
-            not: { class: [rail, aeroway, route, piste] }
+            not: { class: [rail, aeroway, route, piste, aerialway] }
         draw:
             text:
                 #interactive: true
@@ -933,11 +940,17 @@ layers:
                 size: 14px
                 interactive: true
                 collide: true
-                priority: function() { return 30 + (1 - ele_ft/30000); }
+                priority: function() { return 30 + (1 - feature.ele_ft/30000); }
                 transition: { show: { time: 0s }, hide: { time: 1s } }
                 text:
                     interactive: true
-                    text_source: 'function() { if(!feature.name) { return feature.ele_ft; }  const name = feature.name.length > 17 ? feature.name.substring(0, 17) + "…" : feature.name;  return name + "\n" + feature.ele_ft; }'
+                    text_source: |
+                        function() {
+                            const ele = global.metric_units ? feature.ele : feature.ele_ft;
+                            if(!feature.name) { return ele; }
+                            const name = feature.name.length > 17 ? feature.name.substring(0, 17) + "…" : feature.name;
+                            return name + "\n" + ele;
+                        }
                     text_wrap: 100
                     max_lines: 2
                     font:
@@ -1238,38 +1251,52 @@ layers:
                         stroke: { color: global.color.place_halo, width: 4 }
                         transform: uppercase
 
-        # city labels with points
+        # city labels with points - there may be some strange behavior due to proxy tiles w/ z < 9 when
+        #  tiles with z >= 9 are missing
         city-points:
             filter:
                 class: city
-                $zoom: { max: 11 }
-            visible: true
+                $zoom: { max: 9 }
             draw:
                 points:
-                    size: 8px
+                    size: 6px
                     color: global.color.city_point
+                    #collide: false
+                    interactive: true
+                    outline: { color: global.color.city_point_halo, width: 1px }
                     text:
-                        priority: global.priority_place
+                        priority: global.priority_place_fn
+                        #collide: true
+                        #optional: false
+                        interactive: true
                         font:
                             family: Open Sans
                             fill: global.color.place_name
                             stroke: { color: global.color.place_halo, width: 4 }
-                            transform: uppercase
+                            #transform: uppercase
                             weight: bold
-                            size: [[8, 11px], [12, 16px]]
+                            size: [[8, 10px], [12, 16px]]
+            city-100k:
+                filter: { population: { min: 100000, max: 500000 } }
+                draw: { points: { text: { font: { size: [[8, 12px], [12, 18px]] } } } }
+            city-500k:
+                filter: { population: { min: 500000 } }
+                draw: { points: { text: { font: { size: [[8, 14px], [12, 20px]] } } } }
+
 
         # places w/text-only labels (not accompanying point)
         text-only:
             draw:
                 text:
                     visible: false
-                    priority: global.priority_place
+                    interactive: true
+                    priority: global.priority_place_fn
                     font:
                         family: Open Sans
                         size: 12px
                         fill: global.color.place_name
                         stroke: { color: global.color.place_halo, width: 4 }
-                        transform: uppercase
+                        #transform: uppercase
 
             countries:
                 exclusive: true
@@ -1279,43 +1306,42 @@ layers:
                         - { population: { min: 100000000 } }
                         - { $zoom: { min: 5, max: 8 }, population: { min: 1000000 } }
                         # - population: { min: 10000000 }
-                draw:
-                    text:
-                        visible: true
-                        font:
-                            weight: bold
-                            size: [[6, 14px], [8, 20px]]
+                draw: { text: { visible: true, font: { weight: bold, size: [[6, 14px], [8, 20px]] } } }
 
             regions:
                 exclusive: true
                 filter:
                     class: [state, province]
                     $zoom: { min: 5, max: 9 }
-                draw:
-                    text:
-                        visible: true
-                        font:
-                            # weight: bold
-                            size: [[6, 12px], [8, 16px]]
-
+                draw: { text: { visible: true, font: { size: [[6, 12px], [8, 16px]] } } }
                 # use short name when available at low-zooms
                 short:
                     filter: { $zoom: { max: 7 } }
-                    draw:
-                        text:
-                            text_source: 'name:short'
+                    draw: { text: { text_source: 'name:short' } }
 
             cities:
                 exclusive: true
                 filter:
-                    class: city
-                    $zoom: { min: 11 } # show city point labels below z11
-                draw:
-                    text:
-                        visible: true
-                        font:
-                            weight: bold
-                            size: [[8, 11px], [12, 16px]]
+                    class: [city, town, village, suburb, hamlet]
+                    $zoom: { min: 9 } # show city point labels below z11
+                city:
+                    filter: { class: city, $zoom: { min: 9, max: 14 } }
+                    draw: { text: { visible: true, font: { weight: bold, size: [[8, 10px], [12, 16px]] } } }
+                    city-100k:
+                        filter: { population: { min: 100000, max: 500000 } }
+                        draw: { text: { font: { size: [[8, 12px], [12, 18px]] } } }
+                    city-500k:
+                        filter: { population: { min: 500000 } }
+                        draw: { text: { font: { size: [[8, 14px], [12, 20px]] } } }
+                town:
+                    filter: { class: town, $zoom: { min: 9, max: 14 } }
+                    draw: { text: { visible: true, font: { size: [[8, 10px], [12, 14px]] } } }
+                village:
+                    filter: { class: village, $zoom: { min: 10, max: 15 } }
+                    draw: { text: { visible: true, font: { size: [[8, 9px], [12, 12px]] } } }
+                hamlet:
+                    filter: { class: [suburb, hamlet], $zoom: { min: 13, max: 15 } }
+                    draw: { text: { visible: true, font: { size: [[8, 8px], [12, 10px]] } } }
 
             neighborhoods:
                 exclusive: true
@@ -1326,8 +1352,10 @@ layers:
                     text:
                         priority: global.priority_neighborhood
                         visible: true
+                        interactive: false
                         font:
                             size: [[13, 11px], [14, 11px], [15, 13px]]
                             style: italic
                             fill: global.color.hood_name
                             stroke: { color: global.color.hood_halo }
+                            transform: uppercase

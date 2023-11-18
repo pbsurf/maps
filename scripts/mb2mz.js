@@ -141,10 +141,10 @@ function walkStyle(mblayer, order) {
     Object.keys(mblayer.layout || {}).forEach(k => mbprops[k] = mblayer.layout[k]);
 
     // properties directly on the style object, not the draw object.
-    ///let style = walkProps(mbprops, {
-    ///    'line-dasharray':           [ 'dash', x => x.map(d => Math.max(d,0.1)), true ]
-    ///});
-    let style = {};
+    let style = walkProps(mbprops, {
+        'line-dasharray':           [ 'dash', x => x.map(d => Math.max(d,0.1)), true ]
+    });
+    //let style = {};
 
     // https://mapzen.com/documentation/tangram/Styles-Overview/#using-styles
     style.base = {line: 'lines', fill: 'polygons', 'fill-extrusion': 'polygons', circle: 'points',
@@ -153,6 +153,7 @@ function walkStyle(mblayer, order) {
         logger.error('Unrecognised layer type', mblayer.type);
     }
 
+    let fix_anchors = x => x.replace("top", "temp").replace("bottom", "top").replace("temp", "bottom").replace("left", "temp").replace("right", "left").replace("temp", "right");
     //let px = x => x + 'px';
     let px = x => Array.isArray(x) ? x.map(px) : x + 'px';
     let draw = walkProps(mbprops, {
@@ -172,10 +173,10 @@ function walkStyle(mblayer, order) {
         'fill-extrusion-color':       'color',
         'fill-extrusion-opacity':     'alpha',
 
-        'line-dasharray':           [ 'dash', x => x.map(d => Math.max(d,0.1)), true ],
+        //'line-dasharray':           [ 'dash', x => x.map(d => Math.max(d,0.1)), true ],
 
         'circle-radius':            [ 'size' , px ],
-        'icon-size':                [ 'size', px], // unconfirmed
+        'icon-size':                [ 'size', x => Number(x)*100 + '%'],
         'icon-image':                 'sprite',
         'icon-allow-overlap':       [ 'collide', x => !x ], // "collide" means "check for collisions"
         'icon-padding':             [ 'buffer', x => [x+'px', x+'px']],
@@ -197,7 +198,7 @@ function walkStyle(mblayer, order) {
         'text-max-width':             'text_wrap', // units: ems ~> characters
         'text-optional':              'optional',
         'text-offset':              [ 'offset', px ],
-        'text-anchor':                'anchor', // the values, `top-left` etc seem to map ok
+        'text-anchor':              [ 'anchor', fix_anchors ],
         'text-padding':             [ 'buffer', x => [x, x].map(px)],
         'text-allow-overlap':       [ 'collide', x => !x ],
         'text-rotation-alignment':  [ 'angle', x => x === 'viewport' ? 0 : 'auto'], // not sure if it applies
@@ -227,17 +228,20 @@ function walkStyle(mblayer, order) {
     }
 
     if(mblayer.type == "symbol") {
-      if(draw.sprite) {
-        style.base = "points";
-        if(!empty(drawText))
-          draw.text = drawText;
-      } else {
-        style.base = "text";
-        draw.repeat_distance = draw.placement_spacing;
-        delete draw.placement_spacing
-        delete draw.placement;
-        Object.assign(draw, drawText);
-      }
+        if(!empty(drawText) && !drawText.anchor) {
+            drawText.anchor = "center";  // mapbox default is center, different from tangram
+        }
+        if(draw.sprite) {
+            style.base = "points";
+            if(!empty(drawText))
+                draw.text = drawText;
+        } else {
+            style.base = "text";
+            draw.repeat_distance = draw.placement_spacing;
+            delete draw.placement_spacing
+            delete draw.placement;
+            Object.assign(draw, drawText);
+        }
     } else if(Object.keys(drawText).length > 0) {
         logger.warn(`[${mblayer.id}] Ignoring text properties set on non-symbol layer`);
     }
@@ -258,11 +262,11 @@ function walkStyle(mblayer, order) {
     }
 
     if(style.base == 'lines' || style.base == 'polygons')
-      draw.order = order;
+        draw.order = order;
 
     // for function or array of stops, Number() will return NaN and NaN != 1 is true
     if (draw.alpha && Number(draw.alpha) != 1) {
-        if(draw.dash)
+        if(style.dash)
             style.blend = 'inlay';
         else if(style.base == 'lines')
             draw.style = 'lines-inlay';
@@ -327,7 +331,7 @@ function walkFilter(mbfilter) {
 // convert one whole Mapbox style to a Tangram style
 function walkStyleFile(mbstyle, options) {
     if (options.customLogger) logger = options.customLogger;
-    let scene = { global: {}, sources: {}, scene: {}, textures: {}, styles: {}, layers: {} };
+    let scene = { global: {}, sources: {}, scene: {}, textures: {}, fonts: {}, styles: {}, layers: {} };
     if (options.globalColors) scene.global.color = {};
     scene.styles["lines-inlay"] = { base: 'lines', blend: 'inlay' };
     scene.styles["polygons-inlay"] = { base: 'polygons', blend: 'inlay' };
@@ -374,7 +378,7 @@ function walkStyleFile(mbstyle, options) {
           }
         }
 
-        if(style.blend || style.draw.dash) {
+        if(style.blend || style.dash) {
             scene.styles[mblayer.id] = style;
             layer.draw = { [mblayer.id]: {} };
         } else {

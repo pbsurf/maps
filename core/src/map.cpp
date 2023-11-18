@@ -341,6 +341,7 @@ void Map::render() {
         platform->setContinuousRendering(drawnAnimatedStyle);
     }
 
+    scene.labelManager()->drawDebug(renderState, view);
     FrameInfo::draw(renderState, view, *scene.tileManager());
 }
 
