@@ -250,7 +250,11 @@ bool StyleContext::evalStyle(FunctionID _id, StyleParamKey _key, StyleParam::Val
                 _val = value;
                 break;
             case StyleParamKey::extrude:
-                _val = value ? glm::vec2(NAN, NAN) : glm::vec2(0.0f, 0.0f);
+                if (value) {
+                    _val = StyleParam::TextSource({"min_height", "height"});
+                } else {
+                    _val = glm::vec2(0.0f, 0.0f);
+                }
                 break;
             default:
                 LOGW("Unused bool return type from Javascript style function for %d.", _key);

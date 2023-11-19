@@ -189,6 +189,8 @@ struct StyleParam {
 
     struct TextSource {
         std::vector<std::string> keys;
+        TextSource() {}
+        TextSource(std::vector<std::string>&& _keys) : keys(std::move(_keys)) {}
         bool operator==(const TextSource& _other) const {
             return keys == _other.keys;
         }

@@ -308,11 +308,8 @@ auto PolylineStyleBuilder<V>::parseRule(const DrawRule& _rule, const Properties&
     p.fill.cap = static_cast<CapTypes>(cap);
     p.fill.join = static_cast<JoinTypes>(join);
 
-    glm::vec2 extrude = glm::vec2(0);
-    _rule.get(StyleParamKey::extrude, extrude);
-
-    float height = getUpperExtrudeMeters(extrude, _props);
-    height *= m_tileUnitsPerMeter;
+    auto& extrude = _rule.findParameter(StyleParamKey::extrude);
+    float height = getUpperExtrudeMeters(extrude, _props) * m_tileUnitsPerMeter;
 
     p.fill.set(fill.width, fill.slope, height, fill.order);
     p.lineOn = !_rule.isOutlineOnly;

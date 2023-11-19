@@ -94,7 +94,6 @@ public:
     struct Parameters {
         uint32_t order = 0;
         uint32_t color = 0xffffffff;
-        glm::vec2 extrude;
         float height;
         float minHeight;
         uint32_t selectionColor = 0;
@@ -159,7 +158,6 @@ auto PolygonStyleBuilder<V>::parseRule(const DrawRule& _rule, const Properties& 
         p.color = Color(p.color).withAlpha(alpha).abgr;
     }
 
-    _rule.get(StyleParamKey::extrude, p.extrude);
     _rule.get(StyleParamKey::order, p.order);
     _rule.get(StyleParamKey::tile_edges, p.keepTileEdges);
 
@@ -167,7 +165,7 @@ auto PolygonStyleBuilder<V>::parseRule(const DrawRule& _rule, const Properties& 
         p.color <<= (m_zoom % 6);
     }
 
-    auto& extrude = p.extrude;
+    auto& extrude = _rule.findParameter(StyleParamKey::extrude);
     p.minHeight = getLowerExtrudeMeters(extrude, _props) * m_tileUnitsPerMeter;
     p.height = getUpperExtrudeMeters(extrude, _props) * m_tileUnitsPerMeter;
 

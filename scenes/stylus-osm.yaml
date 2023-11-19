@@ -11,7 +11,6 @@ import:
     #- markers.yaml
 
 global:
-    #feature_order: function () { return feature.sort_rank; }
     camera_settings: { type: isometric, axis: [-.2, .2] }
 
     color:
@@ -146,22 +145,13 @@ global:
     show_transit: false
     show_trails: false
     show_motorways: true
-    show_contours: 1
 
     gui_variables:
-        - name: show_polygons
-          label: Polygons
-        - name: show_bike
-          label: Bike
-        - name: show_transit
-          label: Transit
-        - name: show_trails
-          label: Hike
-        - name: show_motorways
-          label: Motorways
-        - name: u_exaggerate
-          style: terrain  # not hillshade!
-          label: Hillshade Exaggeration  # but in general, make gui_variables a map instead of an array so it can be merged!
+        show_polygons: { label: Polygons }
+        show_bike: { label: Bike }
+        show_transit: { label: Transit }
+        show_trails: { label: Hike }
+        show_motorways: { label: Motorways }
 
     # specify fields indexed for search
     search_data:

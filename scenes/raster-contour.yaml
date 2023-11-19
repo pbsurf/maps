@@ -23,11 +23,14 @@
 # - Carto SDK generates normals from elevation on CPU (also using Horn/Sobel)
 
 global:
-    #sdk_api_key: ''
+    contour_color: '#C56008'  #vec4(0.773,0.376,0.031,1.)
+
     gui_variables:
-        - name: u_exaggerate
-          style: hillshade
-          label: Hillshade Exaggeration
+        u_exaggerate:
+            style: hillshade
+            label: Hillshade Exaggeration
+        contour_color:
+            label: Contour Color
 
     __legend:
         slope_angle:
@@ -62,12 +65,6 @@ global:
 
 
 sources:
-    #normals:
-    #    type: Raster
-    #    url: https://elevation-tiles-prod.s3.amazonaws.com/normal/{z}/{x}/{y}.png
-    #    url_params:
-    #        api_key: global.sdk_api_key
-
     elevation:
         type: Raster
         url: https://tile.nextzen.org/tilezen/terrain/v1/256/terrarium/{z}/{x}/{y}.png
@@ -79,13 +76,6 @@ sources:
         filtering: nearest
         cache: terrarium
 
-    #osmand-raster:
-    #    type: Raster
-    #    url: https://tile.osmand.net/hd/{z}/{x}/{y}.png
-    #    #user-agent: OsmAnd~
-    #    rasters: [elevation]
-    #    cache: osmand-raster2x
-
 
 styles:
     hillshade:
@@ -94,8 +84,6 @@ styles:
         texcoords: true
         shaders:
             defines:
-                # orange/brown: #C56008
-                CONTOUR_COLOR: vec4(0.773,0.376,0.031,1.)
                 # not sure if there is any way to figure this out in shader
                 ELEVATION_MAX_ZOOM: 14.0
                 ELEVATION_INDEX: 0
@@ -103,6 +91,7 @@ styles:
                 SHOW_ANGLE: false
             uniforms:
                 u_exaggerate: 1.5
+                CONTOUR_COLOR: global.contour_color
                 u_min_slope_angle: 0.2618  # we could use stop-opacity="0" instead
                 u_slope_angle: |
                     data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="1">
@@ -228,8 +217,23 @@ styles:
 
 lights:
     # point1: { type: point, position: [0, 0, 200px], origin: ground }
-    light1: { type: directional, direction: [1, 1, -.9], diffuse: 0.8, ambient: 0.3 }
+    #light1: { type: directional, direction: [1, 1, -.9], diffuse: 0.8, ambient: 0.3 }
+    #light2: { type: directional, origin: world, direction: [1, 1, -1], diffuse: 0.3, ambient: 0.7 }
+    light2: { type: directional, origin: world, direction: [1, 1, -1], diffuse: 0.5, ambient: 0.7 }
 
+
+#osmand-raster:
+#    type: Raster
+#    url: https://tile.osmand.net/hd/{z}/{x}/{y}.png
+#    #user-agent: OsmAnd~
+#    rasters: [elevation]
+#    cache: osmand-raster2x
+
+#normals:
+#    type: Raster
+#    url: https://elevation-tiles-prod.s3.amazonaws.com/normal/{z}/{x}/{y}.png
+#    url_params:
+#        api_key: global.sdk_api_key
 
 #layers:
 #    earth:

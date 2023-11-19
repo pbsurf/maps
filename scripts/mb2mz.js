@@ -201,7 +201,7 @@ function walkStyle(mblayer, order) {
         'text-anchor':              [ 'anchor', fix_anchors ],
         'text-padding':             [ 'buffer', x => [x, x].map(px)],
         'text-allow-overlap':       [ 'collide', x => !x ],
-        'text-rotation-alignment':  [ 'angle', x => x === 'viewport' ? 0 : 'auto'], // not sure if it applies
+        //'text-rotation-alignment':  [ 'angle', x => x === 'viewport' ? 0 : 'auto'], // not sure if it applies
         'text-pitch-alignment':     [ 'flat', x => x === 'map' ],
         'text-justify':               'align'  // left, center, right
     });

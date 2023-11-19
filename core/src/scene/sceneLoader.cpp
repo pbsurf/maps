@@ -1299,7 +1299,7 @@ void SceneLoader::loadShaderConfig(const Node& _shaders, Style& _style, SceneTex
 bool SceneLoader::parseStyleUniforms(const Node& _value, StyleUniform& _styleUniform,
                                      SceneTextures& _textures) {
 
-    if (_value.IsScalar()) { // float, bool or string (texture)
+    if (_value.IsScalar()) { // float, bool or string (color or texture)
         double fValue;
         bool bValue;
 
@@ -1311,8 +1311,15 @@ bool SceneLoader::parseStyleUniforms(const Node& _value, StyleUniform& _styleUni
             _styleUniform.value = (bool)bValue;
         } else {
             const auto& strVal = _value.Scalar();
-            _styleUniform.type = "sampler2D";
-            _styleUniform.value = _textures.get(strVal);
+            bool validColor = false;
+            auto c = CSSColorParser::parse(strVal, validColor);
+            if (validColor) {
+                _styleUniform.type = "vec4";
+                _styleUniform.value = glm::vec4(c.r/255.f, c.g/255.f, c.b/255.f, c.a);
+            } else {
+                _styleUniform.type = "sampler2D";
+                _styleUniform.value = _textures.get(strVal);
+            }
         }
     } else if (_value.IsSequence()) {
         size_t size = _value.size();

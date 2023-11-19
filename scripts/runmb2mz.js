@@ -29,7 +29,15 @@ function saveYaml(obj, outname)
 function fix_osm_bright(obj)
 {
   for (var key in obj) {
-    if(key == "text_source") {
+    if(key.startsWith("landuse-") || key.startsWith("landcover-")) {
+      if(obj[key].draw && obj[key].draw.polygons) {
+        obj[key].enabled = "global.show_polygons";
+        //if(obj[key].draw.polygons.style == "polygons-inlay")
+        //  obj[key].draw.polygons.style = "global.earth_inlay_style";
+        //else
+          obj[key].draw.polygons.style = "global.earth_style";
+      }
+    } else if(key == "text_source") {
       if(obj[key] == "name:latin")
         obj[key] = "global.latin_name";
       else if(obj[key] == "name:latin\nname:nonlatin")
@@ -65,6 +73,13 @@ obj.fonts = { "Noto Sans": [
   { style: "italic", url: "fonts/NotoSans-Italic.ttf" },
   { weight: 600, url: "fonts/NotoSans-SemiBold.ttf" }
 ]}
+obj.layers.building.draw.extrusion = {
+  filter: { "$zoom": { min: 15 } },
+  draw: { polygons: { extrude: ["render_min_height", "render_height"] } }
+};
+obj.global.earth_style = "polygons"
+obj.global.elevation_sources = [];
+obj.global.show_polygons = "true";
 obj.global.font_sans = "Noto Sans";
 obj.global.latin_name = "function() { return feature['name:latin'] || feature.name_en || feature.name; }";
 obj.global.names_two_lines =
