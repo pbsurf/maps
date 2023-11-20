@@ -7,14 +7,36 @@
 
 stylus-osm:
     type: Vector
-    title: Stylus Labs OSM
+    title: Stylus Labs OSM Flat
     url: stylus-osm.yaml
 
 
 stylus-osm-dark:
-  type: Vector
-  title: Stylus Labs OSM Dark
-  url: stylus-osm-dark.yaml
+    type: Vector
+    title: Stylus Labs OSM Dark
+    layer: true
+    url: stylus-osm-dark.yaml
+
+
+stylus-osm-terrain:
+    type: Multi
+    title: Stylus Labs OSM
+    layers:
+        - source: stylus-osm
+        - source: hillshade
+    updates:
+        global.contour_color: "#B2B2B2"
+        styles.hillshade.shaders.defines.SHOW_CONTOURS: global.show_trails
+
+
+stylus-satellite:
+    type: Multi
+    title: Stylus Labs OSM + Bing Earth
+    layers:
+        - source: bing-earth
+        - source: stylus-osm-dark
+    updates:
+        global.show_polygons: false
 
 
 # not updated after 2017?
@@ -100,37 +122,36 @@ usgs-imagery:
 
 
 enable-contours:
-    type: Update
+    type: Multi
     title: Contours
+    layer: true
+    layers:
+        - source: hillshade
     updates:
         styles.hillshade.shaders.defines.SHOW_CONTOURS: true
+        global.gui_variables.contour_color: { label: Contour Color }
 
 
 enable-slope-angle:
-    type: Update
+    type: Multi
     title: Slope Angle
+    layer: true
+    layers:
+        - source: hillshade
     updates:
         styles.hillshade.shaders.defines.SHOW_ANGLE: true
 
 
-hillshade-vector:
+hillshade:
     type: Vector
-    title: Hillshading (for Vector)
+    title: Hillshading
     layer: true
     url: raster-contour.yaml
-    updates:
-        styles.hillshade.shaders.defines.ELEVATION_INDEX: 0
-        sources.osm.rasters: [elevation]
-        layers.earth.terrain.draw.hillshade: { color: white, order: 0 }
-        layers.landuse.draw.polygons.style: hillshade
-
-
-hillshade-raster:
-    type: Vector
-    title: Hillshading (for Raster)
-    layer: true
-    url: raster-contour.yaml
-    updates:
+    updates_vector:
+        global.elevation_sources: [elevation]
+        global.earth_style: hillshade
+        layers.earth: { data: { source: elevation }, draw: { hillshade: { color: white, order: 0 } } }
+    updates_raster:
         styles.hillshade.shaders.defines.ELEVATION_INDEX: 1
         sources.raster-0.rasters: [elevation]
         layers.raster-0.draw.group-0.style: hillshade
@@ -148,12 +169,3 @@ custom-1:
         layers.pois.enabled: false
         #- {key: +layers.pois.enabled, value: false}
 
-
-stylus-satellite:
-  type: Multi
-  title: Stylus Labs OSM + Bing Earth
-  layers:
-    - source: bing-earth
-    - source: stylus-osm-dark
-  updates:
-    global.show_polygons: false

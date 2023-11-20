@@ -3,19 +3,24 @@ global:
         tourism: { "viewpoint": "viewpoint", "camp_site": "campground", "information": "information",
           "museum": "museum", "hotel": "hotel", "motel": "hotel", "hostel": "hotel", "guest_house": "hotel",
           "bed_and_breakfast": "hotel", "chalet": "hotel", "alpine_hut": "hotel", "attraction": "attraction",
-          "artwork": "artwork", "gallery": "shop"
-        }
+          "artwork": "artwork", "gallery": "shop", "wikipedia": wikipedia }
         historic: { "monument": "artwork" }
         leisure: { "fitness_centre": "gym", "sports_centre": "gym", "park": "tree", "golf_course": "golf" }
-        amenity: { "parking": "parking", "bicycle_rental": "bike_shop", "university": "university", "school": "university", "college": "university", "kindergarten": "university", "restaurant": "restaurant", "fast_food": "restaurant", "food_court": "restaurant", "ice_cream": "restaurant", "cafe": "cafe", "pharmacy": "pharmacy", "bar": "bar", "pub": "bar", "nightclub": "bar", "library": "library", "cinema": "theatre", "theatre": "theatre", "concert_hall": "theatre", "arts_centre": "theatre", "place_of_worship": "church", "bank": "bank", "hospital": "hospital", "clinic": "doctor", "doctors": "doctor", "fuel": "fuel", "dentist": "dentist", "toilets": "toilet", "drinking_water": "drinking_water", "water_point": "drinking_water" }
+        amenity: { "parking": "parking", "bicycle_rental": "bike_shop", "university": "university",
+          "school": "university", "college": "university", "kindergarten": "university", "restaurant": "restaurant",
+          "fast_food": "restaurant", "food_court": "restaurant", "ice_cream": "restaurant", "cafe": "cafe",
+          "pharmacy": "pharmacy", "bar": "bar", "pub": "bar", "nightclub": "bar", "library": "library",
+          "cinema": "theatre", "theatre": "theatre", "concert_hall": "theatre", "arts_centre": "theatre",
+          "place_of_worship": "church", "bank": "bank", "hospital": "hospital", "clinic": "doctor",
+          "doctors": "doctor", "fuel": "fuel", "dentist": "dentist", "toilets": "toilet",
+          "drinking_water": "drinking_water", "water_point": "drinking_water" }
         shop: { "beverages": "cafe", "confectionery": "cafe", "bakery": "bakery", "pastry": "bakery",
           "supermarket": "grocery", "convenience": "convenience", "greengrocer": "convenience", "deli": "convenience",
-           "delicatessen": "convenience", "butcher": "convenience", "farm": "convenience", "alcohol": "liquor",
-           "wine": "liquor", "clothes": "clothes", "tailor": "clothes", "fashion_accessories": "clothes",
-           "shoes": "clothes", "fashion": "clothes", "hardware": "hardware", "doityourself": "hardware",
-           "bicycle": "bike_shop", "chemist": "pharmacy", "car_repair": "auto_repair", "laundry": "laundry",
-           "dry_cleaning": "laundry", "hairdresser": "scissor", "beauty": "scissor"
-        }
+          "delicatessen": "convenience", "butcher": "convenience", "farm": "convenience", "alcohol": "liquor",
+          "wine": "liquor", "clothes": "clothes", "tailor": "clothes", "fashion_accessories": "clothes",
+          "shoes": "clothes", "fashion": "clothes", "hardware": "hardware", "doityourself": "hardware",
+          "bicycle": "bike_shop", "chemist": "pharmacy", "car_repair": "auto_repair", "laundry": "laundry",
+          "dry_cleaning": "laundry", "hairdresser": "scissor", "beauty": "scissor" }
         railway: { "station": "train", "tram_stop": "tram" }
         station: { "light_rail": "tram" }
 

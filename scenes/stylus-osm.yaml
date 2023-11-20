@@ -6,11 +6,9 @@
 # - no one uses mapbox schema except mapbox?
 # - trying to create scene file that works for multiple schema isn't practical (either w/ globals or stacking yaml files)
 
-import:
-    - raster-contour.yaml
-    #- markers.yaml
-
 global:
+    earth_style: polygons
+    elevation_sources: []
     camera_settings: { type: isometric, axis: [-.2, .2] }
 
     color:
@@ -161,9 +159,20 @@ global:
           fields: name, name_en
 
 
+sources:
+    osm:
+        type: MVT
+        cache: stylus-osm
+        #url: file:///home/mwhite/maps/tilemaker/sf.mbtiles
+        #url: file:///home/mwhite/maps/sf.mbtiles  # maptiler 2017 extract
+        #url: file:///home/mwhite/maps/SanFrancisco-bbbike.mbtiles   # from bbbike.org, but no bike info!
+        #url: http://tiles.basemaps.cartocdn.com/vectortiles/carto.streets/v1/{z}/{x}/{y}.mvt
+        #url: https://6ug7hetxl9.execute-api.us-east-2.amazonaws.com/data/v3/{z}/{x}/{y}.pbf
+        max_zoom: 14
+        rasters: global.elevation_sources
+
+
 fonts:
-    #Montserrat:
-    #    url: fonts/Montserrat-Regular.woff
     Open Sans:
         - weight: 400
           url: fonts/OpenSans-Regular.woff
@@ -184,13 +193,8 @@ cameras:
 
 
 lights:
-    light1: { visible: false }
-    light2:
-        type: directional
-        origin: world
-        direction: [1, 1, -1]
-        diffuse: [.3, .3, .3, 1.]
-        ambient: [0.7, 0.7, 0.7, 1.]
+    light1: { type: directional, origin: world, direction: [1, 1, -1], diffuse: 0.5, ambient: 0.7 }
+    #light2: { type: directional, origin: world, direction: [1, 1, -1], diffuse: [.3, .3, .3, 1.], ambient: [0.7, 0.7, 0.7, 1.] }
 
 
 #textures:
@@ -242,35 +246,24 @@ styles:
                 alpha: 0.25
                 width: 1px
             interactive: true
-    terrain:
-        mix: hillshade
-        shaders:
-            defines:
-                CONTOUR_COLOR: vec4(0.7,0.7,0.7,1.)
-                SHOW_CONTOURS: global.show_trails
-                ELEVATION_INDEX: 0
+    #terrain:
+    #    mix: hillshade
+    #    shaders:
+    #        defines:
+    #            CONTOUR_COLOR: vec4(0.7,0.7,0.7,1.)
+    #            SHOW_CONTOURS: global.show_trails
+    #            ELEVATION_INDEX: 0
 
-sources:
-    osm:
-        type: MVT
-        cache: stylus-osm
-        #url: file:///home/mwhite/maps/tilemaker/sf.mbtiles
-        #url: file:///home/mwhite/maps/sf.mbtiles  # maptiler 2017 extract
-        #url: file:///home/mwhite/maps/SanFrancisco-bbbike.mbtiles   # from bbbike.org, but no bike info!
-        #url: http://tiles.basemaps.cartocdn.com/vectortiles/carto.streets/v1/{z}/{x}/{y}.mvt
-        #url: https://6ug7hetxl9.execute-api.us-east-2.amazonaws.com/data/v3/{z}/{x}/{y}.pbf
-        max_zoom: 14
-        rasters: [elevation]
 
 layers:
-    earth:
-        data: { source: elevation }
-        enabled: global.show_polygons
-        draw:
-            polygons:
-                style: terrain
-                color: global.color.earth
-                order: 0
+    #earth:
+    #    data: { source: elevation }
+    #    enabled: global.show_polygons
+    #    draw:
+    #        polygons:
+    #            style: global.earth_style
+    #            color: global.color.earth
+    #            order: 0
 
     landcover:
         data: { source: osm, layer: landuse }
@@ -279,7 +272,7 @@ layers:
         draw:
             polygons:
                 visible: false
-                style: terrain
+                style: global.earth_style
                 order: 3
                 color: global.color.landuse
         green:
@@ -309,7 +302,7 @@ layers:
         draw:
             polygons:
                 visible: false
-                style: terrain
+                style: global.earth_style
                 order: 1
                 color: global.color.landuse
         green:
@@ -333,7 +326,7 @@ layers:
             #any: [ { $zoom: { min: 16 } }, { area: { min: 500px2 } } ]
         draw:
             polygons:
-                style: terrain
+                style: global.earth_style
                 order: 1
                 color: global.color.parks
 
@@ -567,7 +560,7 @@ layers:
                 draw:
                     polygons:
                         visible: global.show_trails
-                        style: terrain
+                        style: global.earth_style
                         order: 1
                         color: global.piste_color_fn
             piste_lines:
@@ -737,7 +730,7 @@ layers:
             filter: { aeroway: aerodrome }
             draw:
                 polygons:
-                    style: terrain
+                    style: global.earth_style
                     order: 1
                     color: global.color.airport
 

@@ -181,7 +181,7 @@ function walkStyle(mblayer, order) {
         'icon-allow-overlap':       [ 'collide', x => !x ], // "collide" means "check for collisions"
         'icon-padding':             [ 'buffer', x => [x+'px', x+'px']],
         'icon-ignore-placement':    [ 'collide', x => !x ], // TODO check these subtleties
-        'icon-rotation-alignment':  [ 'flat', x => x === 'map'],
+        'icon-rotation-alignment':  [ 'angle', x => x === 'map' ? 'auto' : 0],
         'icon-color':                 'color',
         'icon-opacity':               'alpha',
         'icon-translate':           [ 'offset', px ],
@@ -331,7 +331,7 @@ function walkFilter(mbfilter) {
 // convert one whole Mapbox style to a Tangram style
 function walkStyleFile(mbstyle, options) {
     if (options.customLogger) logger = options.customLogger;
-    let scene = { global: {}, sources: {}, scene: {}, textures: {}, fonts: {}, styles: {}, layers: {} };
+    let scene = { global: {}, sources: {}, scene: {}, lights: {}, textures: {}, fonts: {}, styles: {}, layers: {} };
     if (options.globalColors) scene.global.color = {};
     scene.styles["lines-inlay"] = { base: 'lines', blend: 'inlay' };
     scene.styles["polygons-inlay"] = { base: 'polygons', blend: 'inlay' };

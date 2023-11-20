@@ -37,6 +37,11 @@ function fix_osm_bright(obj)
         //else
           obj[key].draw.polygons.style = "global.earth_style";
       }
+    } else if(key.startsWith("poi-level-")) {
+      if(obj[key].draw && obj[key].draw.points && obj[key].draw.points.text) {
+        obj[key].draw.points.interactive = true;
+        obj[key].draw.points.text.interactive = true;
+      }
     } else if(key == "text_source") {
       if(obj[key] == "name:latin")
         obj[key] = "global.latin_name";
@@ -58,7 +63,8 @@ function fix_osm_bright(obj)
       if(s.match(/\{\w+\}/)) {
         obj["sprite"] = "function() { return '" + s.replace(/\{(\w+)\}/g, "' + feature.$1 + '") + "'; }";
       }
-    } else if (obj[key] !== null && typeof(obj[key])=="object") {
+    }
+    if(obj[key] !== null && typeof(obj[key])=="object") {
       fix_osm_bright(obj[key]);
     }
   }
@@ -67,6 +73,7 @@ function fix_osm_bright(obj)
 let obj = processStyle('../../osm-bright-gl-style/style.json');
 fix_osm_bright(obj);
 // osm-bright.svg generated with `svgconcat icons/*.svg`
+obj.lights = { light1: { type: "directional", origin: "world", direction: [1, 1, -1], diffuse: 0.5, ambient: 0.7 } };
 obj.textures = { "osm-bright": { url: "img/osm-bright.svg", density: 2 } };
 obj.fonts = { "Noto Sans": [
   { url: "fonts/NotoSans-Regular.ttf" },

@@ -198,10 +198,8 @@ void TileManager::setTileSources(const std::vector<std::shared_ptr<TileSource>>&
         if (!source->generateGeometry()) { continue; }
 
         if (std::find_if(m_tileSets.begin(), m_tileSets.end(),
-                         [&](const TileSet& a) {
-                             return a.source->name() == source->name();
-                         }) == m_tileSets.end()) {
-            LOGW("add source %s", source->name().c_str());
+            [&](const TileSet& a) { return a.source->name() == source->name(); }) == m_tileSets.end()) {
+            LOG("add source %s", source->name().c_str());
             m_tileSets.push_back({ source, false });
         } else {
             LOGW("Duplicate named datasource (not added): %s", source->name().c_str());

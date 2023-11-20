@@ -29,8 +29,8 @@ global:
         u_exaggerate:
             style: hillshade
             label: Hillshade Exaggeration
-        contour_color:
-            label: Contour Color
+        #contour_color:
+        #    label: Contour Color
 
     __legend:
         slope_angle:
@@ -219,7 +219,7 @@ lights:
     # point1: { type: point, position: [0, 0, 200px], origin: ground }
     #light1: { type: directional, direction: [1, 1, -.9], diffuse: 0.8, ambient: 0.3 }
     #light2: { type: directional, origin: world, direction: [1, 1, -1], diffuse: 0.3, ambient: 0.7 }
-    light2: { type: directional, origin: world, direction: [1, 1, -1], diffuse: 0.5, ambient: 0.7 }
+    light1: { type: directional, origin: world, direction: [1, 1, -1], diffuse: 0.4, ambient: 0.7 }
 
 
 #osmand-raster:
