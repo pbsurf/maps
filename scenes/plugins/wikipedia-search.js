@@ -29,6 +29,7 @@ function wikipediaSearch(query, bounds, flags)
         const url = "https://en.wikipedia.org/?curid=" + r.pageid;
         const url_info = {"icon": "wikipedia", "title": "Wikipedia",
             "value": "<a href='" + url + "'><text>" + r.title + "</text></a>"};
+        // tourism=wikipedia is hack to show wikipedia icon marker for results
         const tags = {"name": r.title, "wiki": encodeURI(r.title), "place_info": [url_info], "tourism": "wikipedia"};
         if(ii == data.length - 1) { flags = flags | 0x4000; } // MapSearch::UPDATE_RESULTS flag
         addSearchResult(ii, r.lat, r.lon, data.length-ii, flags, tags);
