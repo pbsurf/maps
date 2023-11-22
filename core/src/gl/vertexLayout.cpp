@@ -59,7 +59,7 @@ void VertexLayout::enable(const fastmap<std::string, GLuint>& _locations, size_t
             continue;
         }
 
-        GLint location = it->second;;
+        GLint location = it->second;
 
         if (location != -1) {
             void* offset = ((unsigned char*) attrib.offset) + _byteOffset;

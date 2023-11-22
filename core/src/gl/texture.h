@@ -32,7 +32,7 @@ enum class TextureWrap : GLenum {
 };
 
 enum class PixelFormat : GLenum {
-    ALPHA = GL_ALPHA,
+    ALPHA = GL_RED,  //GL_ALPHA,  -- GL 3 doesn't allow GL_ALPHA as texture format
     LUMINANCE = GL_LUMINANCE,
     LUMINANCE_ALPHA = GL_LUMINANCE_ALPHA,
     RGB = GL_RGB,

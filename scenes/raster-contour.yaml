@@ -72,7 +72,7 @@ sources:
         url_params:
             api_key: global.sdk_api_key
         max_zoom: 14
-        #zoom_offset: -1  -- negative zoom_offset not supported
+        zoom_offset: -1
         filtering: nearest
         cache: terrarium
 
@@ -81,7 +81,7 @@ styles:
     hillshade:
         base: polygons
         raster: custom
-        texcoords: true
+        #texcoords: true
         shaders:
             defines:
                 # not sure if there is any way to figure this out in shader
@@ -90,9 +90,10 @@ styles:
                 SHOW_CONTOURS: false
                 SHOW_ANGLE: false
             uniforms:
-                u_exaggerate: 1.5
+                u_exaggerate: 4.5
                 CONTOUR_COLOR: global.contour_color
                 u_min_slope_angle: 0.2618  # we could use stop-opacity="0" instead
+                # some more colormaps: https://www.fabiocrameri.ch/
                 u_slope_angle: |
                     data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="1">
                       <defs>
@@ -107,12 +108,34 @@ styles:
                       </defs>
                       <rect x="0" y="0" width="32" height="1" fill="url(#grad)" />
                     </svg>
-                # data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAC0AAAABCAYAAABKdCfXAAAAOUlEQVR4nJ3IoRHAIBAAwY1FJyJpg/47CC1gkZQA9iOIQOzczB2GceJC7N9LDSV40R7kj+5WWaJvmRsvHRKfpO7RAAAAAElFTkSuQmCC
-                # some more colormaps: https://www.fabiocrameri.ch/
                 # https://github.com/der-stefan/OpenTopoMap/blob/master/mapnik/relief_color_text_file.txt
-                u_terrain_color: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADMAAAABCAYAAABzE5aMAAAAU0lEQVR4nGMUrGD+b67lxBAgo8vgL6PD8OvzZ4ZfXz4z/P78meHXl09w/q/PEPz7y2eGX58/wcX+/WNi+PeXCSv9F4c4nObgIArz8/Mz8PHxEaQBkIhP/pBqnoYAAAAASUVORK5CYII=
-                # this colormap is based on matplotlib terrain colormap
-                # data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAYAAAABCAYAAAD9yd/wAAAAJElEQVR4nAEZAOb/ADMzmf8Amf//AMxm////mf+AXFT//////7WBEIg9mVbsAAAAAElFTkSuQmCC
+                # - stop offset in meters/10000
+                u_terrain_color: |
+                    data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="51" height="1">
+                      <defs>
+                        <linearGradient id="grad" x1="0" x2="1.98">
+                          <stop offset="0.0000" stop-color="rgb( 17, 120,   3)" />
+                          <stop offset="0.0100" stop-color="rgb( 72, 162,  69)" />
+                          <stop offset="0.0300" stop-color="rgb(231, 218, 158)" />
+                          <stop offset="0.1500" stop-color="rgb(161,  67,   0)" />
+                          <stop offset="0.3000" stop-color="rgb(130,  30,  30)" />
+                          <stop offset="0.4000" stop-color="rgb(110, 110, 110)" />
+                          <stop offset="0.5000" stop-color="rgb(255, 255, 255)" />
+                          <stop offset="0.6000" stop-color="rgb(255, 255, 255)" />
+                        </linearGradient>
+                      </defs>
+                      <rect x="0" y="0" width="51" height="1" fill="url(#grad)" />
+                    </svg>
+
+            blocks_disabled:
+                # for testing
+                color: |
+                    vec2 uv = currentRasterUV(ELEVATION_INDEX);
+                    if(uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0)
+                      color = vec4(100.0*(uv.x - 1.0), 100.0*(0.0 - uv.x), 0.0, 1.0);  //discard;
+                    else
+                      discard;  //color = vec4(uv.x, uv.y, 0.0, 1.0);
+
             blocks:
                 global: |
                     #ifdef TANGRAM_FRAGMENT_SHADER
@@ -124,9 +147,18 @@ styles:
 
                 normal: |
                     // Using 9 texel patch, estimate 1st and 2nd deriv to smooth elevation and normal
+                    vec2 st = currentRasterUV(ELEVATION_INDEX);
+                    // polygons are not clipped to tile, so prevent drawing outside of tile where no elevation data
+                    // this creates seams between raster tiles when MSAA enabled - if we end up keeping MSAA we
+                    //  can create a separate style for raster tiles
+                    if(st.x < 0.0 || st.x > 1.0 || st.y < 0.0 || st.y > 1.0)
+                      discard;
                     vec2 texwh = rasterPixelSize(ELEVATION_INDEX);
                     vec2 duv = 1./texwh;
-                    vec2 ij = currentRasterUV(ELEVATION_INDEX) * texwh;
+                    vec2 ij = st * texwh;
+                    // this fixes seams on raster tiles, but adds seams in polygons!
+                    //if(ij.x < -0.5 || ij.x > texwh.x+0.5 || ij.y < -0.5 || ij.y > texwh.y+0.5)
+                    //  discard;
                     vec2 cen_ij = floor(ij) + 0.5;
                     vec2 uv = cen_ij*duv;
                     float h00 = getElevation(u_rasters[ELEVATION_INDEX], uv - duv);
@@ -216,10 +248,14 @@ styles:
 
 
 lights:
-    # point1: { type: point, position: [0, 0, 200px], origin: ground }
+    #point1: { type: point, position: [0, 0, 200px], origin: ground }
     #light1: { type: directional, direction: [1, 1, -.9], diffuse: 0.8, ambient: 0.3 }
-    #light2: { type: directional, origin: world, direction: [1, 1, -1], diffuse: 0.3, ambient: 0.7 }
-    light1: { type: directional, origin: world, direction: [1, 1, -1], diffuse: 0.4, ambient: 0.7 }
+    #light1: { type: directional, origin: world, direction: [1, 1, -1], diffuse: 0.3, ambient: 0.7 }
+    # single light - use exaggeration ~ 1.5
+    #light1: { type: directional, origin: world, direction: [1, -1, -1], diffuse: 0.4, ambient: 0.7 }
+    # Google Terrain style lighting, where flat areas are brighter than slopes - use exaggeration ~ 4
+    light1: { type: directional, direction: [0, 0, -1], diffuse: 0.2, ambient: 0.35 }
+    light2: { type: directional, direction: [1, -1, -1], diffuse: 0.2, ambient: 0.35 }
 
 
 #osmand-raster:

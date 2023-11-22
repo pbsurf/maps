@@ -33,7 +33,7 @@ void main(void) {
         vec4 color;
         vec4 texColor = texture2D(u_tex, v_uv * u_uv_scale_factor);
 
-        color = vec4(v_color.rgb, texColor.a * v_alpha * v_color.a);
+        color = vec4(v_color.rgb, texColor.r * v_alpha * v_color.a);
 
         #pragma tangram: color
         #pragma tangram: filter

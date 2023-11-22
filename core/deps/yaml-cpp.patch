@@ -1,0 +1,13 @@
+diff --git a/src/emitterutils.cpp b/src/emitterutils.cpp
+index 7254ad4..b69b8a7 100644
+--- a/src/emitterutils.cpp
++++ b/src/emitterutils.cpp
+@@ -164,7 +164,7 @@ bool IsValidPlainScalar(const std::string& str, FlowType flowType,
+   }
+   // and check the end for plain whitespace (which can't be faithfully kept in a
+   // plain scalar)
+-  if (!str.empty() && *str.rbegin() == ' ') {
++  if (!str.empty() && (str.back() == ' ' || str.front() == '#')) {
+     return false;
+   }
+   // then check until something is disallowed

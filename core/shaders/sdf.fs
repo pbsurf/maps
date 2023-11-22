@@ -33,7 +33,7 @@ void main(void) {
 
     vec4 color = v_color;
 
-    float signed_distance = texture2D(u_tex, v_texcoords).a;
+    float signed_distance = texture2D(u_tex, v_texcoords).r;
 
     // - At the glyph outline alpha is 0.5
     //
