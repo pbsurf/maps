@@ -7,9 +7,11 @@
 # - trying to create scene file that works for multiple schema isn't practical (either w/ globals or stacking yaml files)
 
 global:
-    earth_style: polygons
-    elevation_sources: []
     camera_settings: { type: isometric, axis: [-.2, .2] }
+    # globals required for hillshading
+    earth_style: polygons
+    earth_color: '#E0E0E0'  #[.97, .955, .94] #'#f0ebeb'
+    elevation_sources: []
 
     color:
         background: [.97, .955, .94] #'#f0ebeb'
@@ -521,6 +523,7 @@ layers:
             filter: { class: aerialway }
             draw:
                 lines:
+                    order: 150  # aerialway would more often be over bridge vs under
                     color: global.color.aerialway
                     width: [[14, 0.5px], [15, 1.0px], [16, 2m]]
                 # maybe use dashed line instead?
@@ -567,6 +570,7 @@ layers:
                 filter: { $geometry: line }
                 draw:
                     lines:
+                        order: 65
                         color: global.piste_color_fn
                         width: [[10,0px],[11,1px],[12,1.25px],[13,2px],[18,3m]]
                         outline:

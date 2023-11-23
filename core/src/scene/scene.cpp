@@ -585,12 +585,20 @@ bool Scene::render(RenderState& _rs, View& _view) {
 void Scene::renderSelection(RenderState& _rs, View& _view, FrameBuffer& _selectionBuffer,
                             std::vector<SelectionQuery>& _selectionQueries) {
 
+    GLuint selectionVAO = 0;
+    if(Hardware::supportsVAOs) {  // bind VAO in case hardware requires it (GL 3)
+        GL::genVertexArrays(1, &selectionVAO);
+        GL::bindVertexArray(selectionVAO);
+    }
+
     for (const auto& style : m_styles) {
 
         style->drawSelectionFrame(_rs, _view,
                                   m_tileManager->getVisibleTiles(),
                                   m_markerManager->markers());
     }
+
+    if(selectionVAO) { GL::deleteVertexArrays(1, &selectionVAO); }
 
     std::vector<SelectionColorRead> colorCache;
     /// Resolve feature selection queries

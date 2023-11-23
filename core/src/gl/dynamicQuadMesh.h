@@ -23,8 +23,6 @@ public:
         : MeshBase(_vertexLayout, _drawMode, GL_DYNAMIC_DRAW) {
     }
 
-    ~DynamicQuadMesh() override { if (m_defaultVao && m_rs) m_rs->queueVAODeletion(1, &m_defaultVao); }
-
     bool draw(RenderState& rs, ShaderProgram& _shader, bool _useVao = true) override;
 
     bool drawRange(RenderState& rs, ShaderProgram& shader, size_t vertexPos, size_t vertexCount);
@@ -59,7 +57,6 @@ private:
 
     std::vector<T> m_vertices;
     Vao m_vaos;
-    GLuint m_defaultVao = 0;
 };
 
 template<class T>
@@ -85,34 +82,21 @@ bool DynamicQuadMesh<T>::draw(RenderState& rs, ShaderProgram& shader, bool useVa
     // Enable shader program
     if (!shader.use(rs)) { return false; }
 
-    useVao = true;  //&= Hardware::supportsVAOs;
-    if (useVao) {
-      if (!m_defaultVao) {
-        rs.vertexBuffer(0);
-        rs.indexBuffer(0);
-        GL::genVertexArrays(1, &m_defaultVao);
-      }
-      GL::bindVertexArray(m_defaultVao);
-    }
-
-    //rs.vertexBuffer(m_glVertexBuffer);
-    //rs.indexBuffer(rs.getQuadIndexBuffer());
-
-#ifdef DYNAMIC_MESH_VAOS
-    if (useVao) {
-        // Capture vao state for a default vertex offset of 0/0
-        if (!m_vaos.isInitialized()) {
-            VertexOffsets vertexOffsets;
-            vertexOffsets.emplace_back(0, 0);
-            m_vaos.initialize(rs, shader, vertexOffsets, *m_vertexLayout,
-                              m_glVertexBuffer, rs.getQuadIndexBuffer());
-        }
-    }
-#endif
-
     const size_t verticesIndexed = RenderState::MAX_QUAD_VERTICES;
     size_t vertexPos = 0;
     const size_t vertexBatchEnd = m_nVertices;
+
+    useVao &= Hardware::supportsVAOs;
+    if (useVao) {
+        // Capture vao state for a default vertex offset of 0/0
+        if (!m_vaos.isInitialized()) {
+            m_vaos.initialize(rs, shader, {{0,0}}, *m_vertexLayout, m_glVertexBuffer, rs.getQuadIndexBuffer());
+        }
+        m_vaos.bind(0);
+    } else {
+        rs.indexBuffer(rs.getQuadIndexBuffer());
+    }
+    rs.vertexBuffer(m_glVertexBuffer);  // if(!useVao || m_nVertices > verticesIndexed)
 
     // Draw vertices in batches until the end of the mesh.
     while (vertexPos < m_nVertices) {
@@ -124,39 +108,19 @@ bool DynamicQuadMesh<T>::draw(RenderState& rs, ShaderProgram& shader, bool useVa
         size_t verticesInBatch = std::min(vertexBatchEnd - vertexPos, verticesIndexed);
 
         // Set up and draw the batch.
-#ifdef DYNAMIC_MESH_VAOS
-        if (useVao && vertexPos == 0) {
-            // Use vao only for first batch of offsets, other vertices can use a
-            // different stride so just reuse the vertex layout with a different
-            // byte offset instead
-            m_vaos.bind(0);
-        } else
-#endif
-        {
-            rs.vertexBuffer(m_glVertexBuffer);
-            rs.indexBuffer(rs.getQuadIndexBuffer());
-
-            size_t byteOffset = vertexPos * m_vertexLayout->getStride();
-            m_vertexLayout->enable(rs, shader, byteOffset);
-        }
+        size_t byteOffset = vertexPos * m_vertexLayout->getStride();
+        m_vertexLayout->enable(rs, shader, byteOffset);  //if(!useVao || byteOffset > 0)
 
         size_t elementsInBatch = verticesInBatch * 6 / 4;
         GL::drawElements(m_drawMode, elementsInBatch, GL_UNSIGNED_SHORT, 0);
-
-#ifdef DYNAMIC_MESH_VAOS
-        if (useVao && vertexPos == 0) {
-            m_vaos.unbind();
-        }
-#endif
 
         // Update counters.
         vertexPos += verticesInBatch;
     }
 
     if (useVao) {
-      GL::bindVertexArray(0);
-      GL::deleteVertexArrays(1, &m_defaultVao);
-      m_defaultVao = 0;
+        //if(m_nVertices > verticesIndexed) m_vertexLayout->enable(rs, shader, 0);
+        m_vaos.unbind();
     }
 
     return true;
@@ -171,23 +135,22 @@ bool DynamicQuadMesh<T>::drawRange(RenderState& rs, ShaderProgram& shader,
     // Enable shader program
     if (!shader.use(rs)) { return false; }
 
-    // GL 3 requires use of VAO!
-    bool useVao = true; // Hardware::supportsVAOs;
+    // GL 3 requires use of VAO!  drawRange() not used for selection frame, so no need for useVaos param
+    bool useVao = Hardware::supportsVAOs;
     if (useVao) {
-      if (!m_defaultVao) {
-        rs.vertexBuffer(0);  // make sure buffers get associated with VAO
-        rs.indexBuffer(0);
-        GL::genVertexArrays(1, &m_defaultVao);
-      }
-      GL::bindVertexArray(m_defaultVao);
+        // Capture vao state for a default vertex offset of 0/0
+        if (!m_vaos.isInitialized()) {
+            m_vaos.initialize(rs, shader, {{0,0}}, *m_vertexLayout, m_glVertexBuffer, rs.getQuadIndexBuffer());
+        }
+        m_vaos.bind(0);
+    } else {
+        rs.indexBuffer(rs.getQuadIndexBuffer());
     }
+    // vertex buffer must be bound for call to glVertexAttribPointer in enable()
+    rs.vertexBuffer(m_glVertexBuffer);
 
     const size_t verticesIndexed = RenderState::MAX_QUAD_VERTICES;
     const size_t vertexBatchEnd = vertexPos + vertexCount;
-
-    // Set up and draw the batch.
-    rs.vertexBuffer(m_glVertexBuffer);
-    rs.indexBuffer(rs.getQuadIndexBuffer());
 
     // Draw vertices in batches until the end of the mesh.
     while (vertexPos < vertexBatchEnd) {
@@ -207,9 +170,7 @@ bool DynamicQuadMesh<T>::drawRange(RenderState& rs, ShaderProgram& shader,
     }
 
     if (useVao) {
-      GL::bindVertexArray(0);
-      GL::deleteVertexArrays(1, &m_defaultVao);
-      m_defaultVao = 0;
+        m_vaos.unbind();
     }
 
     return true;

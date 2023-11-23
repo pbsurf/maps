@@ -27,13 +27,4 @@ colors: ["#1abc9c","#16a085","#2ecc71","#27ae60","#3498db","#2980b9","#9b59b6","
 # for debugging
 num_tile_workers: 2
 
-debug:
-#  draw_all_labels: true
-#  freeze_tiles: false
-#  proxy_colors: false
-#  tile_bounds: false
-#  tile_infos: false
-#  labels: false
-#  tangram_infos: false
-#  tangram_stats: false
-#  selection_buffer: false
+msaa_samples: 2
