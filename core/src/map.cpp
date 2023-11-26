@@ -944,10 +944,9 @@ void Map::runAsyncTask(std::function<void()> _task) {
 }
 
 void Map::onMemoryWarning() {
-
+    if(!impl->scene) return;
     impl->scene->tileManager()->clearTileSets(true);
-
-    if (impl->scene && impl->scene->fontContext()) {
+    if (impl->scene->fontContext()) {
         impl->scene->fontContext()->releaseFonts();
     }
 }

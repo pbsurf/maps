@@ -918,7 +918,7 @@ layers:
         filter:
             class: [peak, volcano]
             #rank: 1.0  # only the highest peak in each tile
-            ele_ft: true
+            ele: true
             #$zoom: { max: 13 }
         draw:
             points:
@@ -927,16 +927,16 @@ layers:
                 size: 14px
                 interactive: true
                 collide: true
-                priority: function() { return 30 + (1 - feature.ele_ft/30000); }
+                priority: function() { return 30 + (1 - feature.ele/10000); }
                 transition: { show: { time: 0s }, hide: { time: 1s } }
                 text:
                     interactive: true
                     text_source: |
                         function() {
-                            const ele = global.metric_units ? feature.ele : feature.ele_ft;
-                            if(!feature.name) { return ele; }
+                            const ele = global.metric_units ? feature.ele : feature.ele*3.2808399;
+                            if(!feature.name) { return ele.toFixed(0); }
                             const name = feature.name.length > 17 ? feature.name.substring(0, 17) + "…" : feature.name;
-                            return name + "\n" + ele;
+                            return name + "\n" + ele.toFixed(0);
                         }
                     text_wrap: 100
                     max_lines: 2

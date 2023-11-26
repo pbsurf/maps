@@ -759,9 +759,9 @@ function SetEleAttributes(obj)
     local ele = obj:Find("ele")
   if ele ~= "" then
     local meter = math.floor(tonumber(ele) or 0)
-    local feet = math.floor(meter * 3.2808399)
+    --local feet = math.floor(meter * 3.2808399)
     obj:AttributeNumeric("ele", meter)
-    obj:AttributeNumeric("ele_ft", feet)
+    --obj:AttributeNumeric("ele_ft", feet)
   end
 end
 

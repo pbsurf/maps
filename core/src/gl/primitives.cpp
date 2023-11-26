@@ -56,7 +56,7 @@ void init() {
 
 
         s_initialized = true;
-        GL::lineWidth(1.5f);
+        //GL::lineWidth(1.5f);  -- not supported in GL 3 core
     }
 }
 

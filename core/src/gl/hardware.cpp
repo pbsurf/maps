@@ -49,8 +49,7 @@ void loadExtensions() {
 
     if (s_glExtensions == NULL) {
         LOGW("glGetString( GL_EXTENSIONS ) returned NULL");
-        // we'll assume desktop GL 3
-        s_glExtensions = "vertex_array_object texture_non_power_of_two";  //return;
+        return;
     }
 
     supportsMapBuffer = isAvailable("mapbuffer");

@@ -10,6 +10,10 @@ GLenum GL::getError() {
 }
 
 const GLubyte* GL::getString(GLenum name) {
+#ifdef GL_VERSION_3_0
+    // technically, we should do glGetStringi instead
+    if(name == GL_EXTENSIONS) return (const GLubyte*)"vertex_array_object texture_non_power_of_two";
+#endif
     auto result = glGetString(name);
     GL_CHECK({});
     return result;
