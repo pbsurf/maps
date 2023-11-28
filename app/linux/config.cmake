@@ -36,15 +36,9 @@ find_package(CURL REQUIRED)
 add_executable(tangram
   platforms/linux/src/linuxPlatform.cpp
   platforms/common/platform_gl.cpp
-  platforms/common/imgui_impl_glfw.cpp
-  platforms/common/imgui_impl_opengl3.cpp
   platforms/common/urlClient.cpp
   platforms/common/linuxSystemFontHelper.cpp
-  platforms/common/glfwApp.cpp
-  platforms/linux/src/main.cpp
 )
-
-add_subdirectory(platforms/common/imgui)
 
 target_include_directories(tangram
   PRIVATE
@@ -57,9 +51,9 @@ target_include_directories(tangram
 #  investigate unexplained "undefined reference" errors)
 target_link_libraries(tangram
   PRIVATE
+  maps-app
   tangram-core
   glfw
-  imgui
   ${GLFW_LIBRARIES}
   ${OPENGL_LIBRARIES}
   ${FONTCONFIG_LDFLAGS}
@@ -81,12 +75,7 @@ target_compile_options(tangram
   -Wmissing-field-initializers
 )
 
-get_nextzen_api_key(NEXTZEN_API_KEY)
-target_compile_definitions(tangram
-  PRIVATE
-  NEXTZEN_API_KEY="${NEXTZEN_API_KEY}")
-
 # to be consistent w/ core
 target_compile_definitions(tangram PRIVATE GLM_FORCE_CTOR_INIT)
 
-add_resources(tangram "${PROJECT_SOURCE_DIR}/scenes" "res")
+#add_resources(tangram "${PROJECT_SOURCE_DIR}/scenes" "res")
