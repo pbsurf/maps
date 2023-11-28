@@ -11,7 +11,8 @@
 #include <sys/syscall.h>
 
 #if defined(TANGRAM_LINUX)
-#include <GLFW/glfw3.h>
+//#include <GLFW/glfw3.h>
+extern void TANGRAM_WakeEventLoop();
 #elif defined(TANGRAM_RPI)
 #include "context.h"
 #endif
@@ -46,7 +47,7 @@ void LinuxPlatform::shutdown() {
 
 void LinuxPlatform::requestRender() const {
     if (m_renderRequested || m_shutdown) { return; }
-    glfwPostEmptyEvent();
+    TANGRAM_WakeEventLoop();  //glfwPostEmptyEvent();
     m_renderRequested = true;
 }
 

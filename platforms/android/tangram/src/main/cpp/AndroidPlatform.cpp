@@ -25,6 +25,8 @@
 #include "sqlite3ndk.h"
 #endif
 
+extern void TANGRAM_WakeEventLoop();
+
 PFNGLBINDVERTEXARRAYOESPROC glBindVertexArrayOESEXT = 0;
 PFNGLDELETEVERTEXARRAYSOESPROC glDeleteVertexArraysOESEXT = 0;
 PFNGLGENVERTEXARRAYSOESPROC glGenVertexArraysOESEXT = 0;
@@ -107,9 +109,8 @@ std::string AndroidPlatform::fontPath(const std::string& family, const std::stri
 
 void AndroidPlatform::requestRender() const {
     if (m_renderRequested) { return; }
-    m_jniWorker.enqueue([&](JNIEnv *jniEnv) {
-        jniEnv->CallVoidMethod(m_mapController, requestRenderMethodID);
-    });
+    TANGRAM_WakeEventLoop();
+    //m_jniWorker.enqueue([&](JNIEnv *jniEnv) { jniEnv->CallVoidMethod(m_mapController, requestRenderMethodID); });
     m_renderRequested = true;
 }
 
