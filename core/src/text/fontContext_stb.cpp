@@ -39,7 +39,7 @@ constexpr int atlasFontPx = 32;
 FontContext::FontContext(Platform& _platform) :
     m_sdfRadius(SDF_WIDTH),
     m_platform(_platform) {
-  FONSparams params;
+  FONSparams params = {0};
   //params.flags = FONS_DELAY_LOAD;
   m_fons = fonsCreateInternal(&params);
   fonsResetAtlas(m_fons, GlyphTexture::size, GlyphTexture::size, atlasFontPx, atlasFontPx, atlasFontPx);
@@ -170,6 +170,7 @@ bool FontContext::layoutLine(TextStyle::Parameters& _params, int x, int y,
     const char* start, const char* end, std::vector<GlyphQuad>& _quads /*out*/)
 {
   if(start == end) return false;
+  FONSstate state;
   FONStextIter iter, prevIter;
   FONSquad q;
   float expand = 0.5f;  //state->fontBlur > 0 ? 0.5f + state->fontBlur : 0.5f;
@@ -178,16 +179,20 @@ bool FontContext::layoutLine(TextStyle::Parameters& _params, int x, int y,
   float dx = expand/scale, dy = expand/scale;
 
   int iw, ih;
+  fonsInitState(m_fons, &state);
+  fonsSetFont(&state, _params.font);
+  fonsSetSize(&state, _params.fontSize);  // _params.fontScale ?
+
   fonsGetAtlasSize(m_fons, &iw, &ih, NULL);
-  fonsTextIterInit(m_fons, &iter, x, y, start, end, FONS_GLYPH_BITMAP_REQUIRED);
+  fonsTextIterInit(&state, &iter, x, y, start, end, FONS_GLYPH_BITMAP_REQUIRED);
   prevIter = iter;
-  while (fonsTextIterNext(m_fons, &iter, &q)) {
+  while (fonsTextIterNext(&state, &iter, &q)) {
     if (iter.prevGlyphIndex == -1) { // can not retrieve glyph?
       if (addTexture() < 0)
         break;
       fonsGetAtlasSize(m_fons, &iw, &ih, NULL);
       iter = prevIter;
-      fonsTextIterNext(m_fons, &iter, &q); // try again
+      fonsTextIterNext(&state, &iter, &q); // try again
       if (iter.prevGlyphIndex == -1) // still can not find glyph?
         break;
     }
@@ -230,6 +235,7 @@ int FontContext::layoutMultiline(TextStyle::Parameters& _params, const std::stri
     TextLabelProperty::Align _align, std::vector<GlyphQuad>& _quads /*out*/)
 {
   //NVGstate* state = nvg__getState(ctx);
+  FONSstate state;
   FONStextIter iter;
   FONSquad q;
   //size_t nrows = 0;
@@ -254,8 +260,11 @@ int FontContext::layoutMultiline(TextStyle::Parameters& _params, const std::stri
   //if (state->fontId == FONS_INVALID) return 0;
   std::vector<NVGtextRow> rows;
 
-  fonsTextIterInit(m_fons, &iter, 0, 0, _text.c_str(), NULL, FONS_GLYPH_BITMAP_OPTIONAL);
-  while (fonsTextIterNext(m_fons, &iter, &q)) {
+  fonsInitState(m_fons, &state);
+  fonsSetFont(&state, _params.font);
+  fonsSetSize(&state, _params.fontSize);  // _params.fontScale ?
+  fonsTextIterInit(&state, &iter, 0, 0, _text.c_str(), NULL, FONS_GLYPH_BITMAP_OPTIONAL);
+  while (fonsTextIterNext(&state, &iter, &q)) {
     switch (iter.codepoint) {
       case 9:			// \t
       case 11:		// \v
@@ -388,7 +397,7 @@ int FontContext::layoutMultiline(TextStyle::Parameters& _params, const std::stri
 
   float x = 0, y = 0, lineh = 0;
   // non-stb FontContext uses bbox limits of row to determine height instead (?)
-  fonsVertMetrics(m_fons, NULL, NULL, &lineh);
+  fonsVertMetrics(&state, NULL, NULL, &lineh);
   for (auto& row : rows) {
     if(_align == TextLabelProperty::Align::right)
       x = breakRowWidth - row.width;
@@ -406,13 +415,7 @@ bool FontContext::layoutText(TextStyle::Parameters& _params /*in*/, const std::s
                              std::vector<GlyphQuad>& _quads /*out*/, std::bitset<max_textures>& _refs /*out*/,
                              glm::vec2& _size /*out*/, TextRange& _textRanges /*out*/) {
 
-    std::lock_guard<std::mutex> lock(m_fontMutex);
-
-    fonsSetFont(m_fons, _params.font);
-    fonsSetSize(m_fons, _params.fontSize);  // _params.fontScale ?
-    //fonsSetSpacing(m_fons, _params.lineSpacing);
-    //fonsSetBlur(ctx->fs, state->fontBlur*scale);
-    //fonsSetAlign(m_fons, 0);  // alignment only relevant for wrapped text, which we have to do ourselves
+    std::lock_guard<std::mutex> fontlock(m_fontMutex);
 
     size_t quadsStart = _quads.size();
 
@@ -461,7 +464,7 @@ bool FontContext::layoutText(TextStyle::Parameters& _params /*in*/, const std::s
     if(quadsStart == _quads.size())  return false;  // no glyphs
 
     {
-        std::lock_guard<std::mutex> lock(m_textureMutex);
+        std::lock_guard<std::mutex> texlock(m_textureMutex);
 
         isect2d::AABB<glm::vec2> aabb;
         for (size_t ii = quadsStart; ii < _quads.size(); ii += 4) {
