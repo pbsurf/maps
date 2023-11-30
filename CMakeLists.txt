@@ -17,7 +17,7 @@ option(TANGRAM_BUNDLE_TESTS "Compile all tests into a single binary" ON)
 option(TANGRAM_BUILD_BENCHMARKS "Build benchmarks" OFF)
 option(TANGRAM_DEV_MODE "For developers only: Don't omit the frame pointer" OFF)
 
-option(TANGRAM_USE_FONTCONTEXT_STB "Use fontstash and stb_truetype instead of harfbuzz-icu-freetype and alfons" OFF)
+option(TANGRAM_USE_FONTCONTEXT_STB "Use fontstash and stb_truetype instead of harfbuzz-icu-freetype and alfons" ON)
 
 include(CMakeDependentOption)
 # Allow choosing whether to use vcpkg for dependencies when vcpkg toolchain is present, otherwise force off.

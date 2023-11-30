@@ -66,12 +66,19 @@ void TextDisplay::deinit() {
 }
 
 void TextDisplay::log(const char* fmt, ...) {
-    static char text[99999];
+    //static char text[99999];
+    static std::vector<char> text(256);
 
     va_list args;
     va_start(args, fmt);
-    vsprintf(text, fmt, args);
+    int needed = vsnprintf(text.data(), text.size(), fmt, args);
     va_end(args);
+    if(needed > int(text.size())) {
+      text.resize(needed);
+      va_start(args, fmt);
+      vsnprintf(text.data(), text.size(), fmt, args);
+      va_end(args);
+    }
 
     {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -80,7 +87,7 @@ void TextDisplay::log(const char* fmt, ...) {
             m_log[i] = m_log[i - 1];
         }
 
-        m_log[0] = std::string(text);
+        m_log[0] = std::string(text.data());
     }
 }
 
