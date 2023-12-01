@@ -7,9 +7,6 @@
 #define SDF_WIDTH 6
 #define MIN_LINE_WIDTH 4
 
-#define FONTSTASH_IMPLEMENTATION
-// Note that we are hardcoding pixel scale of 2 here for now
-#define FONS_SDF_PIX_DIST (128.0f/SDF_WIDTH/2)
 #include "fontstash.h"
 
 namespace Tangram {
@@ -39,8 +36,11 @@ constexpr int atlasFontPx = 32;
 FontContext::FontContext(Platform& _platform) :
     m_sdfRadius(SDF_WIDTH),
     m_platform(_platform) {
-  FONSparams params = {0};
-  //params.flags = FONS_DELAY_LOAD;
+  FONSparams params;
+  params.flags = FONS_SDF | FONS_ZERO_TOPLEFT;  //FONS_DELAY_LOAD;
+  params.sdfPadding = 4;
+  params.sdfPixelDist = 128.0f/SDF_WIDTH/2;  // assumes pixel scale = 2
+
   m_fons = fonsCreateInternal(&params);
   fonsResetAtlas(m_fons, GlyphTexture::size, GlyphTexture::size, atlasFontPx, atlasFontPx, atlasFontPx);
   m_textures.push_back(std::make_unique<GlyphTexture>());
@@ -83,7 +83,7 @@ void FontContext::loadFonts() {
 // Synchronized on m_mutex in layoutText(), called on tile-worker threads
 void FontContext::flushTextTexture() {
 
-    std::lock_guard<std::mutex> lock(m_textureMutex);
+    //std::lock_guard<std::mutex> lock(m_textureMutex);
 
     int dirty[4];
     if(m_textures.empty()) return;
@@ -97,15 +97,15 @@ void FontContext::flushTextTexture() {
 
         // hardcoded for 256x256 textures
         int texidx = y >> 8;
-        y = y & 255;
+        int ytex = y & 255;
 
         unsigned char* texData = m_textures[texidx]->buffer();
-        unsigned char* dst = &texData[x + iw*y];
+        unsigned char* dst = &texData[x + iw*ytex];
         const unsigned char* src = &fonsData[x + iw*y];
         for (int jj = 0; jj < h; ++jj) {
             std::memcpy(dst + (jj * iw), src + (jj * iw), w);
         }
-        m_textures[texidx]->setRowsDirty(y, h);
+        m_textures[texidx]->setRowsDirty(ytex, h);
     }
 }
 
@@ -121,6 +121,7 @@ void FontContext::releaseAtlas(std::bitset<max_textures> _refs) {
 void FontContext::updateTextures(RenderState& rs) {
     std::lock_guard<std::mutex> lock(m_textureMutex);
 
+    flushTextTexture();
     for (auto& gt : m_textures) { gt->bind(rs, 0); }
 }
 
@@ -202,16 +203,20 @@ bool FontContext::layoutLine(TextStyle::Parameters& _params, int x, int y,
     //float qtqy = (q.t1 - q.t0)/(q.y1 - q.y0);
     //q.s0 -= qsqx*dx; q.s1 += qsqx*dx; q.t0 -= qtqy*dy; q.t1 += qtqy*dy;
     //q.x0 -= dx; q.x1 += dx; q.y0 -= dy; q.y1 += dy;
-    float texidxf;
-    q.t0 = modf(q.t0*(ih/256), &texidxf);
-    q.t1 = modf(q.t1*(ih/256), &texidxf);
-    _quads.push_back({size_t(texidxf),
-            {{glm::vec2{q.x0, q.y0} * pos_scale, {q.s0, q.t0}},
-             {glm::vec2{q.x0, q.y1} * pos_scale, {q.s0, q.t1}},
-             {glm::vec2{q.x1, q.y0} * pos_scale, {q.s1, q.t0}},
-             {glm::vec2{q.x1, q.y1} * pos_scale, {q.s1, q.t1}}}});
+
+    // tangram uses integers for position (coord * pos_scale) and tex coords (pixels)!
+    int x0 = int(q.x0 * pos_scale + 0.5f), y0 = int(q.y0 * pos_scale + 0.5f);
+    int x1 = int(q.x1 * pos_scale + 0.5f), y1 = int(q.y1 * pos_scale + 0.5f);
+    int s0 = int(q.s0 * iw), t1 = int(q.t1 * ih) & 255;
+    int s1 = int(q.s1 * iw), t0 = int(q.t0 * ih) & 255;
+    size_t texidx = size_t(q.t1*(ih/256));
+    _quads.push_back({texidx,
+            {{{x0, y0}, {s0, t0}},
+             {{x0, y1}, {s0, t1}},
+             {{x1, y0}, {s1, t0}},
+             {{x1, y1}, {s1, t1}}}});
   }
-  flushTextTexture();  // TODO: only do this once per frame
+  //flushTextTexture();  // TODO: only do this once per frame
   return true;
 }
 
@@ -467,9 +472,9 @@ bool FontContext::layoutText(TextStyle::Parameters& _params /*in*/, const std::s
         std::lock_guard<std::mutex> texlock(m_textureMutex);
 
         isect2d::AABB<glm::vec2> aabb;
-        for (size_t ii = quadsStart; ii < _quads.size(); ii += 4) {
-          aabb.include(_quads[ii].quad->pos.x, _quads[ii].quad->pos.y);
-          aabb.include(_quads[ii+3].quad->pos.x, _quads[ii+3].quad->pos.y);
+        for (auto it = _quads.begin() + quadsStart; it != _quads.end(); ++it) {
+          aabb.include(it->quad[0].pos.x, it->quad[0].pos.y);
+          aabb.include(it->quad[3].pos.x, it->quad[3].pos.y);  // 4th vertex is opposite 1st (!)
         }
 
         float width = aabb.max.x - aabb.min.x;

@@ -77,21 +77,10 @@ endif()
 
 
 if (TANGRAM_MBTILES_DATASOURCE)
-  ## SQLiteCpp ##
-  ###############
-  set(SQLITECPP_RUN_CPPLINT OFF CACHE BOOL "")
-  set(SQLITECPP_RUN_CPPCHECK OFF CACHE BOOL "")
   set(SQLITE_ENABLE_COLUMN_METADATA OFF CACHE BOOL "")
 
-  if (TANGRAM_USE_SYSTEM_SQLITE_LIBS)
-    set(SQLITECPP_INTERNAL_SQLITE OFF CACHE BOOL "")
-  endif()
+  add_subdirectory(sqlite3)
 
-  add_subdirectory(SQLiteCpp)
-
-  # Unleash the full power of sqlite!!
-  # Extensions aren't needed for MBTiles and aren't available in older versions of sqlite3.
-  #target_compile_definitions(SQLiteCpp PRIVATE SQLITE_OMIT_LOAD_EXTENSION)
   target_compile_definitions(sqlite3 PRIVATE SQLITE_ENABLE_FTS5)
 
   # needed for sqlite3 to work for ndk15c+ and android api level < 21

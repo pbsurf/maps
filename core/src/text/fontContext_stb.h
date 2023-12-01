@@ -3,6 +3,7 @@
 #include "gl/glyphTexture.h"
 #include "labels/textLabel.h"
 #include "style/textStyle.h"
+#include "util/fontDescription.h"
 
 #include <bitset>
 #include <mutex>
@@ -11,7 +12,7 @@ struct FONScontext;
 
 namespace Tangram {
 
-struct FontDescription {
+/*struct FontDescription {
     std::string uri;
     std::string alias;
 
@@ -29,7 +30,7 @@ struct FontDescription {
         if (weight == "bold") { return "700"; }
         return weight;
     }
-};
+};*/
 
 class FontContext {
 

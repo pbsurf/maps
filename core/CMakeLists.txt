@@ -219,7 +219,7 @@ target_include_directories(tangram-core
   deps/pbf
   deps/rapidjson
   deps/sdf
-  deps/SQLiteCpp
+  deps/sqlite3
   deps/stb
   deps/miniz
   deps/geojson-vt-cpp/geometry.hpp/include
@@ -245,6 +245,7 @@ target_link_libraries(tangram-core
 
 if(TANGRAM_USE_FONTCONTEXT_STB)
   target_compile_definitions(tangram-core PRIVATE FONTCONTEXT_STB=1)
+  target_include_directories(tangram-core PRIVATE ../app/styluslabs/nanovg-2/src)
 else()
   target_link_libraries(tangram-core PRIVATE alfons)
 endif()
@@ -266,7 +267,7 @@ endif()
 # Add MBTiles implementation.
 if(TANGRAM_MBTILES_DATASOURCE)
   target_sources(tangram-core PRIVATE src/data/mbtilesDataSource.cpp)
-  target_link_libraries(tangram-core PRIVATE SQLiteCpp sqlite3)
+  target_link_libraries(tangram-core PRIVATE sqlite3)
   target_compile_definitions(tangram-core PRIVATE TANGRAM_MBTILES_DATASOURCE=1)
 endif()
 
@@ -276,9 +277,7 @@ if(UNIX AND NOT APPLE)
 endif()
 
 if(TANGRAM_WARN_ON_RULE_CONFLICT)
-  target_compile_definitions(tangram-core
-    PRIVATE
-    TANGRAM_WARN_ON_RULE_CONFLICT)
+  target_compile_definitions(tangram-core PRIVATE TANGRAM_WARN_ON_RULE_CONFLICT)
 endif()
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
