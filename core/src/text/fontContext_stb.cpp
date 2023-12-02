@@ -216,204 +216,51 @@ bool FontContext::layoutLine(TextStyle::Parameters& _params, int x, int y,
              {{x1, y0}, {s1, t0}},
              {{x1, y1}, {s1, t1}}}});
   }
-  //flushTextTexture();  // TODO: only do this once per frame
   return true;
 }
-
-// multi-line (wrapped text)
-enum NVGcodepointType {
-  NVG_SPACE,
-  NVG_NEWLINE,
-  NVG_CHAR,
-  NVG_CJK_CHAR,
-};
-
-struct NVGtextRow {
-  const char* start;	// Pointer to the input text where the row starts.
-  const char* end;	// Pointer to the input text where the row ends (one past the last character).
-  const char* next;	// Pointer to the beginning of the next row.
-  float width;		// Logical width of the row.
-  float minx, maxx;	// Actual bounds of the row. Logical with and bounds can differ because of kerning and some parts over extending.
-};
 
 int FontContext::layoutMultiline(TextStyle::Parameters& _params, const std::string& _text,
     TextLabelProperty::Align _align, std::vector<GlyphQuad>& _quads /*out*/)
 {
-  //NVGstate* state = nvg__getState(ctx);
   FONSstate state;
-  FONStextIter iter;
-  FONSquad q;
-  //size_t nrows = 0;
-  float rowStartX = 0;
-  float rowWidth = 0;
-  float rowMinX = 0;
-  float rowMaxX = 0;
-  const char* rowStart = NULL;
-  const char* rowEnd = NULL;
-  const char* wordStart = NULL;
-  float wordStartX = 0;
-  float wordMinX = 0;
-  const char* breakEnd = NULL;
-  float breakWidth = 0;
-  float breakMaxX = 0;
-  int type = NVG_SPACE, ptype = NVG_SPACE;
-  unsigned int pcodepoint = 0;
-
-  int breakRowWidth = _params.maxLineWidth;
-  size_t maxRows = _params.maxLines;
-  if (maxRows == 0 || _text.empty()) return 0;
-  //if (state->fontId == FONS_INVALID) return 0;
-  std::vector<NVGtextRow> rows;
-
+  std::vector<FONStextRow> rows(_params.maxLines);
+  const char* start = _text.c_str();
+  const char* end = start + _text.size();
   fonsInitState(m_fons, &state);
   fonsSetFont(&state, _params.font);
   fonsSetSize(&state, _params.fontSize);  // _params.fontScale ?
-  fonsTextIterInit(&state, &iter, 0, 0, _text.c_str(), NULL, FONS_GLYPH_BITMAP_OPTIONAL);
-  while (fonsTextIterNext(&state, &iter, &q)) {
-    switch (iter.codepoint) {
-      case 9:			// \t
-      case 11:		// \v
-      case 12:		// \f
-      case 32:		// space
-      case 0x00a0:	// NBSP
-        type = NVG_SPACE;
-        break;
-      case 10:		// \n
-        type = pcodepoint == 13 ? NVG_SPACE : NVG_NEWLINE;
-        break;
-      case 13:		// \r
-        type = pcodepoint == 10 ? NVG_SPACE : NVG_NEWLINE;
-        break;
-      case 0x0085:	// NEL
-        type = NVG_NEWLINE;
-        break;
-      default:
-        if ((iter.codepoint >= 0x4E00 && iter.codepoint <= 0x9FFF) ||
-          (iter.codepoint >= 0x3000 && iter.codepoint <= 0x30FF) ||
-          (iter.codepoint >= 0xFF00 && iter.codepoint <= 0xFFEF) ||
-          (iter.codepoint >= 0x1100 && iter.codepoint <= 0x11FF) ||
-          (iter.codepoint >= 0x3130 && iter.codepoint <= 0x318F) ||
-          (iter.codepoint >= 0xAC00 && iter.codepoint <= 0xD7AF))
-          type = NVG_CJK_CHAR;
-        else
-          type = NVG_CHAR;
-        break;
-    }
+  // pass negative integer for line width to use max chars instead of max width
+  size_t nrows = fonsBreakLines(&state, start, end, -float(_params.maxLineWidth), rows.data(), rows.size());
+  if (!nrows) return 0;
+  rows.resize(nrows);
 
-    if (type == NVG_NEWLINE) {
-      // Always handle new lines.
-      rows.push_back({rowStart ? rowStart : iter.str, rowEnd ? rowEnd : iter.str, iter.next, rowWidth, rowMinX, rowMaxX});
-      if (rows.size() >= maxRows)
-        break;  //return rows.size();
-      // Set null break point
-      breakEnd = rowStart;
-      breakWidth = 0.0;
-      breakMaxX = 0.0;
-      // Indicate to skip the white space at the beginning of the row.
-      rowStart = NULL;
-      rowEnd = NULL;
-      rowWidth = 0;
-      rowMinX = rowMaxX = 0;
-    } else {
-      if (rowStart == NULL) {
-        // Skip white space until the beginning of the line
-        if (type == NVG_CHAR || type == NVG_CJK_CHAR) {
-          // The current char is the row so far
-          rowStartX = iter.x;
-          rowStart = iter.str;
-          rowEnd = iter.next;
-          rowWidth = iter.nextx - rowStartX; // q.x1 - rowStartX;
-          rowMinX = q.x0 - rowStartX;
-          rowMaxX = q.x1 - rowStartX;
-          wordStart = iter.str;
-          wordStartX = iter.x;
-          wordMinX = q.x0 - rowStartX;
-          // Set null break point
-          breakEnd = rowStart;
-          breakWidth = 0.0;
-          breakMaxX = 0.0;
-        }
-      } else {
-        float nextWidth = iter.nextx - rowStartX;
-
-        // track last non-white space character
-        if (type == NVG_CHAR || type == NVG_CJK_CHAR) {
-          rowEnd = iter.next;
-          rowWidth = iter.nextx - rowStartX;
-          rowMaxX = q.x1 - rowStartX;
-        }
-        // track last end of a word
-        if (((ptype == NVG_CHAR || ptype == NVG_CJK_CHAR) && type == NVG_SPACE) || type == NVG_CJK_CHAR) {
-          breakEnd = iter.str;
-          breakWidth = rowWidth;
-          breakMaxX = rowMaxX;
-        }
-        // track last beginning of a word
-        if ((ptype == NVG_SPACE && (type == NVG_CHAR || type == NVG_CJK_CHAR)) || type == NVG_CJK_CHAR) {
-          wordStart = iter.str;
-          wordStartX = iter.x;
-          wordMinX = q.x0 - rowStartX;
-        }
-
-        // Break to new line when a character is beyond break width.
-        if ((type == NVG_CHAR || type == NVG_CJK_CHAR) && nextWidth > breakRowWidth) {
-          // The run length is too long, need to break to new line.
-          if (breakEnd == rowStart) {
-            // The current word is longer than the row length, just break it from here.
-            rows.push_back({rowStart, iter.str, iter.str, rowWidth, rowMinX, rowMaxX});
-            if (rows.size() >= maxRows)
-              break;  //return rows.size();
-            rowStartX = iter.x;
-            rowStart = iter.str;
-            rowEnd = iter.next;
-            rowWidth = iter.nextx - rowStartX;
-            rowMinX = q.x0 - rowStartX;
-            rowMaxX = q.x1 - rowStartX;
-            wordStart = iter.str;
-            wordStartX = iter.x;
-            wordMinX = q.x0 - rowStartX;
-          } else {
-            // Break the line from the end of the last word, and start new line from the beginning of the new.
-            rows.push_back({rowStart, breakEnd, wordStart, breakWidth, rowMinX, breakMaxX});
-            if (rows.size() >= maxRows)
-              return rows.size();
-            rowStartX = wordStartX;
-            rowStart = wordStart;
-            rowEnd = iter.next;
-            rowWidth = iter.nextx - rowStartX;
-            rowMinX = wordMinX;
-            rowMaxX = q.x1 - rowStartX;
-            // No change to the word start
-          }
-          // Set null break point
-          breakEnd = rowStart;
-          breakWidth = 0.0;
-          breakMaxX = 0.0;
-        }
-      }
-    }
-    pcodepoint = iter.codepoint;
-    ptype = type;
-  }
-  // Break the line from the end of the last word, and start new line from the beginning of the new.
-  if (rowStart) {
-    rows.push_back({rowStart, rowEnd, _text.c_str() + _text.size(), rowWidth, rowMinX, rowMaxX});
+  float maxRowWidth = 0;
+  for (auto& row : rows) {
+    maxRowWidth = std::max(maxRowWidth, row.width);
   }
 
   float x = 0, y = 0, lineh = 0;
   // non-stb FontContext uses bbox limits of row to determine height instead (?)
   fonsVertMetrics(&state, NULL, NULL, &lineh);
-  for (auto& row : rows) {
-    if(_align == TextLabelProperty::Align::right)
-      x = breakRowWidth - row.width;
-    else if(_align == TextLabelProperty::Align::center)
-      x = breakRowWidth*0.5f - row.width*0.5f;
+  for (size_t ii = 0; ii < nrows; ++ii) {  //auto& row : rows) {
+    if (_align == TextLabelProperty::Align::right)
+      x = maxRowWidth - rows[ii].width;
+    else if (_align == TextLabelProperty::Align::center)
+      x = maxRowWidth*0.5f - rows[ii].width*0.5f;
     else
       x = 0;
-    layoutLine(_params, x, y, row.start, row.end, _quads);
+
+    if (ii == nrows - 1 && rows[ii].end < end) {
+      std::string lastRow(rows[ii].start, rows[ii].end);
+      lastRow.append("…");
+      layoutLine(_params, x, y, lastRow.c_str(), lastRow.c_str() + lastRow.size(), _quads);
+      break;
+    }
+
+    layoutLine(_params, x, y, rows[ii].start, rows[ii].end, _quads);
     y += lineh + _params.lineSpacing;
   }
-  return rows.size();
+  return nrows;
 }
 
 bool FontContext::layoutText(TextStyle::Parameters& _params /*in*/, const std::string& _text /*in*/,
@@ -466,7 +313,8 @@ bool FontContext::layoutText(TextStyle::Parameters& _params /*in*/, const std::s
         _textRanges[2] = Range(rangeEnd, 0);
     }
 
-    if(quadsStart == _quads.size())  return false;  // no glyphs
+    if(quadsStart == _quads.size())
+        return false;  // no glyphs
 
     {
         std::lock_guard<std::mutex> texlock(m_textureMutex);
@@ -482,8 +330,7 @@ bool FontContext::layoutText(TextStyle::Parameters& _params /*in*/, const std::s
         _size = glm::vec2(width, height);
 
         // Offset to center all glyphs around 0/0
-        glm::vec2 offset((aabb.min.x + width * 0.5) * TextVertex::position_scale,
-                         (aabb.min.y + height * 0.5) * TextVertex::position_scale);
+        glm::vec2 offset((aabb.min.x + width * 0.5),(aabb.min.y + height * 0.5));
 
         for (auto it = _quads.begin() + quadsStart; it != _quads.end(); ++it) {
 
