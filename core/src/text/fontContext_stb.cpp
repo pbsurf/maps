@@ -182,7 +182,7 @@ bool FontContext::layoutLine(TextStyle::Parameters& _params, int x, int y,
   int iw, ih;
   fonsInitState(m_fons, &state);
   fonsSetFont(&state, _params.font);
-  fonsSetSize(&state, _params.fontSize);  // _params.fontScale ?
+  fonsSetSize(&state, _params.fontSize * 3);  // _params.fontScale ?
 
   fonsGetAtlasSize(m_fons, &iw, &ih, NULL);
   fonsTextIterInit(&state, &iter, x, y, start, end, FONS_GLYPH_BITMAP_REQUIRED);
@@ -207,8 +207,8 @@ bool FontContext::layoutLine(TextStyle::Parameters& _params, int x, int y,
     // tangram uses integers for position (coord * pos_scale) and tex coords (pixels)!
     int x0 = int(q.x0 * pos_scale + 0.5f), y0 = int(q.y0 * pos_scale + 0.5f);
     int x1 = int(q.x1 * pos_scale + 0.5f), y1 = int(q.y1 * pos_scale + 0.5f);
-    int s0 = int(q.s0 * iw), t1 = int(q.t1 * ih) & 255;
-    int s1 = int(q.s1 * iw), t0 = int(q.t0 * ih) & 255;
+    int s0 = int(q.s0 * iw), t0 = int(q.t0 * ih) & 255;
+    int s1 = int(q.s1 * iw), t1 = int(q.t1 * ih) & 255;
     size_t texidx = size_t(q.t1*(ih/256));
     _quads.push_back({texidx,
             {{{x0, y0}, {s0, t0}},
@@ -228,7 +228,7 @@ int FontContext::layoutMultiline(TextStyle::Parameters& _params, const std::stri
   const char* end = start + _text.size();
   fonsInitState(m_fons, &state);
   fonsSetFont(&state, _params.font);
-  fonsSetSize(&state, _params.fontSize);  // _params.fontScale ?
+  fonsSetSize(&state, _params.fontSize * 3);  // _params.fontScale ?
   // pass negative integer for line width to use max chars instead of max width
   size_t nrows = fonsBreakLines(&state, start, end, -float(_params.maxLineWidth), rows.data(), rows.size());
   if (!nrows) return 0;
@@ -327,10 +327,10 @@ bool FontContext::layoutText(TextStyle::Parameters& _params /*in*/, const std::s
 
         float width = aabb.max.x - aabb.min.x;
         float height = aabb.max.y - aabb.min.y;
-        _size = glm::vec2(width, height);
+        _size = glm::vec2(width/TextVertex::position_scale, height/TextVertex::position_scale);
 
         // Offset to center all glyphs around 0/0
-        glm::vec2 offset((aabb.min.x + width * 0.5),(aabb.min.y + height * 0.5));
+        glm::vec2 offset(aabb.min.x + width/2, aabb.min.y + height/2);
 
         for (auto it = _quads.begin() + quadsStart; it != _quads.end(); ++it) {
 
