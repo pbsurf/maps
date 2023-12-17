@@ -5,7 +5,7 @@
 #include <memory>
 
 #define SDF_WIDTH 6
-#define MIN_LINE_WIDTH 4
+//#define MIN_LINE_WIDTH 4
 
 #include "fontstash.h"
 
@@ -16,7 +16,6 @@ namespace Tangram {
 // Getting rid of harfbuzz-icu-freetype saves about 3 MB in Release build (8.4 -> 5.6 MB)
 // - dropping sqlite (mbtiles) gets us to 4.2 MB
 
-// TODO:
 // options for texture management (after getting working in single 256x256 texture)
 // - add multi-texture support to fontstash
 // - get rid of 256x256 hardcoding
@@ -27,23 +26,22 @@ namespace Tangram {
 // - support multiple textures, and allow glyph size to be set per call
 // - split larger glyphs into multiple tiles
 
-// how to set sdf radius for fontstash?  compile time define for now
-// - should change to passing in params (on creation) since pixel scale can be changed at runtime!
-
+// - fontContext uses 3 discrete sizes and picks one closest to requested size; fontScale is set to ratio
+//  between requested and actual size
 //const std::vector<float> FontContext::s_fontRasterSizes = { 16, 28, 40 };
-constexpr int atlasFontPx = 32;
 
-FontContext::FontContext(Platform& _platform) :
-    m_sdfRadius(SDF_WIDTH),
-    m_platform(_platform) {
-  FONSparams params;
-  params.flags = FONS_SDF | FONS_ZERO_TOPLEFT;  //FONS_DELAY_LOAD;
-  params.sdfPadding = 4;
-  params.sdfPixelDist = 128.0f/SDF_WIDTH/2;  // assumes pixel scale = 2
+constexpr int atlasFontPx = 32;  // should be roughly 2x max font size (em size) used
 
-  m_fons = fonsCreateInternal(&params);
-  fonsResetAtlas(m_fons, GlyphTexture::size, GlyphTexture::size, atlasFontPx, atlasFontPx, atlasFontPx);
-  m_textures.push_back(std::make_unique<GlyphTexture>());
+FontContext::FontContext(Platform& _platform) : m_sdfRadius(SDF_WIDTH), m_platform(_platform) {
+    FONSparams params;
+    params.flags = FONS_SDF | FONS_ZERO_TOPLEFT;  //FONS_DELAY_LOAD;
+    params.sdfPadding = SDF_WIDTH * 2;  // assumes pixel scale = 2
+    params.sdfPixelDist = 128.0f/SDF_WIDTH/2;  // assumes pixel scale = 2
+    params.atlasBlockHeight = GlyphTexture::size;
+
+    m_fons = fonsCreateInternal(&params);
+    fonsResetAtlas(m_fons, GlyphTexture::size, GlyphTexture::size, atlasFontPx);
+    m_textures.push_back(std::make_unique<GlyphTexture>());
 }
 
 FontContext::~FontContext() {
@@ -67,7 +65,7 @@ void FontContext::loadFonts() {
             LOGD("Invalid fallback font");
             continue;
         }
-        int fontid = loadFontSource(nadded ? fn + "-" + std::to_string(nadded) : fn, fallback);
+        int fontid = loadFontSource(nadded ? fn + "-" + std::to_string(nadded) : fn + "_400_regular", fallback);
         if (fontid < 0) {
             LOGW("Error loading fallback font");
         } else {
@@ -82,30 +80,23 @@ void FontContext::loadFonts() {
 
 // Synchronized on m_mutex in layoutText(), called on tile-worker threads
 void FontContext::flushTextTexture() {
-
     //std::lock_guard<std::mutex> lock(m_textureMutex);
-
-    int dirty[4];
     if(m_textures.empty()) return;
-    if (fonsValidateTexture(m_fons, dirty)) {
-        int iw, ih;
-        auto fonsData = (const unsigned char*)fonsGetTextureData(m_fons, &iw, &ih);
-        int x = dirty[0];
-        int y = dirty[1];
-        int w = dirty[2] - dirty[0];
-        int h = dirty[3] - dirty[1];
-
-        // hardcoded for 256x256 textures
-        int texidx = y >> 8;
-        int ytex = y & 255;
-
+    int dirty[4];
+    if (!fonsValidateTexture(m_fons, dirty)) return;
+    int iw, ih;
+    auto fonsData = (const unsigned char*)fonsGetTextureData(m_fons, &iw, &ih);
+    int y0 = dirty[1], y1 = dirty[3];
+    int blockh = GlyphTexture::size;
+    int firsttex = y0/blockh, lasttex = (y1 - 1)/blockh;
+    for(int texidx = firsttex; texidx <= lasttex; ++texidx) {
+        int y0tex = std::max(0, y0 - blockh*texidx);
+        int y1tex = std::min(y1 - blockh*texidx, blockh);
         unsigned char* texData = m_textures[texidx]->buffer();
-        unsigned char* dst = &texData[x + iw*ytex];
-        const unsigned char* src = &fonsData[x + iw*y];
-        for (int jj = 0; jj < h; ++jj) {
-            std::memcpy(dst + (jj * iw), src + (jj * iw), w);
-        }
-        m_textures[texidx]->setRowsDirty(ytex, h);
+        unsigned char* dst = &texData[iw*y0tex];
+        const unsigned char* src = &fonsData[iw*y0tex + iw*blockh*texidx];
+        std::memcpy(dst, src, iw*(y1tex - y0tex));
+        m_textures[texidx]->setRowsDirty(y0tex, (y1tex - y0tex));
     }
 }
 
@@ -132,33 +123,16 @@ void FontContext::bindTexture(RenderState& rs, int _id, GLuint _unit) {
 }
 
 // Synchronized on m_mutex in layoutText(), called on tile-worker threads
-int FontContext::addTexture() {  //uint16_t width, uint16_t height) {
-    //static constexpr int MAX_TEXTURE_SIZE = 4096;
-
+int FontContext::addTexture() {
     std::lock_guard<std::mutex> lock(m_textureMutex);
-
     if (m_textures.size() == max_textures) {
         LOGE("Way too many glyph textures!");
         return -1;
     }
-
-    flushTextTexture();
+    //flushTextTexture();  -- not necessary since we are just expanding texture
 
     // 256x256 size for GlyphTexture is hardcoded in several places
     int iw = GlyphTexture::size, ih = GlyphTexture::size;
-    /*if (!m_textures.empty()) {
-        iw = m_textures.back()->width();
-        ih = m_textures.back()->height();
-        if (iw > ih)
-          ih = std::min(2*ih, MAX_TEXTURE_SIZE);
-        else
-          iw = std::min(2*iw, MAX_TEXTURE_SIZE);
-    }*/
-
-    // we could set atlas glyph size fairly small, then if larger glyph is needed, split into, e.g. 4 quads
-    // - or use a different texture for each size
-    // - fontContext uses 3 discrete sizes and picks one closest to requested size; fontScale is set to ratio between requested and actual size
-
     m_textures.push_back(std::make_unique<GlyphTexture>());  //ih, iw));
     fonsGetAtlasSize(m_fons, &iw, &ih, NULL);
     //fonsResetAtlas(m_fons, iw, ih, atlasFontPx, atlasFontPx, atlasFontPx);
@@ -166,101 +140,93 @@ int FontContext::addTexture() {  //uint16_t width, uint16_t height) {
     return m_textures.size() - 1;
 }
 
+bool FontContext::layoutLine(TextStyle::Parameters& _params, float x, float y,
+    const char* start, const char* end, std::vector<GlyphQuad>& _quads /*out*/) {
 
-bool FontContext::layoutLine(TextStyle::Parameters& _params, int x, int y,
-    const char* start, const char* end, std::vector<GlyphQuad>& _quads /*out*/)
-{
-  if(start == end) return false;
-  FONSstate state;
-  FONStextIter iter, prevIter;
-  FONSquad q;
-  float expand = 0.5f;  //state->fontBlur > 0 ? 0.5f + state->fontBlur : 0.5f;
-  float scale = _params.fontScale;
-  const float pos_scale = TextVertex::position_scale;
-  float dx = expand/scale, dy = expand/scale;
+    if(start == end) return false;
+    FONSstate state;
+    FONStextIter iter, prevIter;
+    FONSquad q;
+    const float pos_scale = TextVertex::position_scale;
 
-  int iw, ih;
-  fonsInitState(m_fons, &state);
-  fonsSetFont(&state, _params.font);
-  fonsSetSize(&state, _params.fontSize * 3);  // _params.fontScale ?
+    int iw, ih;
+    fonsInitState(m_fons, &state);
+    fonsSetFont(&state, _params.font - 1);
+    fonsSetSize(&state, fonsEmSizeToSize(&state, _params.fontSize));
+    fonsSetBlur(&state, _params.strokeWidth);  // pads quads by strokeWidth
 
-  fonsGetAtlasSize(m_fons, &iw, &ih, NULL);
-  fonsTextIterInit(&state, &iter, x, y, start, end, FONS_GLYPH_BITMAP_REQUIRED);
-  prevIter = iter;
-  while (fonsTextIterNext(&state, &iter, &q)) {
-    if (iter.prevGlyphIndex == -1) { // can not retrieve glyph?
-      if (addTexture() < 0)
-        break;
-      fonsGetAtlasSize(m_fons, &iw, &ih, NULL);
-      iter = prevIter;
-      fonsTextIterNext(&state, &iter, &q); // try again
-      if (iter.prevGlyphIndex == -1) // still can not find glyph?
-        break;
-    }
+    fonsGetAtlasSize(m_fons, &iw, &ih, NULL);
+    fonsTextIterInit(&state, &iter, x, y, start, end, FONS_GLYPH_BITMAP_REQUIRED);
     prevIter = iter;
-    // expand by half pixel - note that we must expand texture coords to match expansion of quad
-    //float qsqx = (q.s1 - q.s0)/(q.x1 - q.x0);
-    //float qtqy = (q.t1 - q.t0)/(q.y1 - q.y0);
-    //q.s0 -= qsqx*dx; q.s1 += qsqx*dx; q.t0 -= qtqy*dy; q.t1 += qtqy*dy;
-    //q.x0 -= dx; q.x1 += dx; q.y0 -= dy; q.y1 += dy;
+    while (fonsTextIterNext(&state, &iter, &q)) {
+        if (iter.prevGlyphIndex == -1) { // can not retrieve glyph?
+            if (addTexture() < 0) break;
+            fonsGetAtlasSize(m_fons, &iw, &ih, NULL);
+            iter = prevIter;
+            fonsTextIterNext(&state, &iter, &q); // try again
+            if (iter.prevGlyphIndex == -1) break; // still can not find glyph?
+        }
+        prevIter = iter;
 
-    // tangram uses integers for position (coord * pos_scale) and tex coords (pixels)!
-    int x0 = int(q.x0 * pos_scale + 0.5f), y0 = int(q.y0 * pos_scale + 0.5f);
-    int x1 = int(q.x1 * pos_scale + 0.5f), y1 = int(q.y1 * pos_scale + 0.5f);
-    int s0 = int(q.s0 * iw), t0 = int(q.t0 * ih) & 255;
-    int s1 = int(q.s1 * iw), t1 = int(q.t1 * ih) & 255;
-    size_t texidx = size_t(q.t1*(ih/256));
-    _quads.push_back({texidx,
-            {{{x0, y0}, {s0, t0}},
-             {{x0, y1}, {s0, t1}},
-             {{x1, y0}, {s1, t0}},
-             {{x1, y1}, {s1, t1}}}});
-  }
-  return true;
+        // tangram uses integers for position (coord * pos_scale) and tex coords (pixels)!
+        int x0 = int(q.x0 * pos_scale + 0.5f), y0 = int(q.y0 * pos_scale + 0.5f);
+        int x1 = int(q.x1 * pos_scale + 0.5f), y1 = int(q.y1 * pos_scale + 0.5f);
+        int texidx = int(q.t1*(ih/GlyphTexture::size));
+        int s0 = int(q.s0 * iw), t0 = int(q.t0 * ih) - texidx*GlyphTexture::size;
+        int s1 = int(q.s1 * iw), t1 = int(q.t1 * ih) - texidx*GlyphTexture::size;
+        _quads.push_back({size_t(texidx),
+                {{{x0, y0}, {s0, t0}},
+                 {{x0, y1}, {s0, t1}},
+                 {{x1, y0}, {s1, t0}},
+                 {{x1, y1}, {s1, t1}}}});
+    }
+    return true;
 }
 
 int FontContext::layoutMultiline(TextStyle::Parameters& _params, const std::string& _text,
-    TextLabelProperty::Align _align, std::vector<GlyphQuad>& _quads /*out*/)
-{
-  FONSstate state;
-  std::vector<FONStextRow> rows(_params.maxLines);
-  const char* start = _text.c_str();
-  const char* end = start + _text.size();
-  fonsInitState(m_fons, &state);
-  fonsSetFont(&state, _params.font);
-  fonsSetSize(&state, _params.fontSize * 3);  // _params.fontScale ?
-  // pass negative integer for line width to use max chars instead of max width
-  size_t nrows = fonsBreakLines(&state, start, end, -float(_params.maxLineWidth), rows.data(), rows.size());
-  if (!nrows) return 0;
-  rows.resize(nrows);
+    TextLabelProperty::Align _align, std::vector<GlyphQuad>& _quads /*out*/) {
 
-  float maxRowWidth = 0;
-  for (auto& row : rows) {
-    maxRowWidth = std::max(maxRowWidth, row.width);
-  }
+    FONSstate state;
+    std::vector<FONStextRow> rows(_params.maxLines > 0 ? _params.maxLines : 10);
+    const char* start = _text.c_str();
+    const char* end = start + _text.size();
+    fonsInitState(m_fons, &state);
+    fonsSetFont(&state, _params.font - 1);
+    fonsSetSize(&state, fonsEmSizeToSize(&state, _params.fontSize));
+    // pass negative integer for line width to use max chars instead of max width
+    size_t nrows = fonsBreakLines(&state, start, end, -float(_params.maxLineWidth), rows.data(), rows.size());
+    if (!nrows) return 0;
+    rows.resize(nrows);
 
-  float x = 0, y = 0, lineh = 0;
-  // non-stb FontContext uses bbox limits of row to determine height instead (?)
-  fonsVertMetrics(&state, NULL, NULL, &lineh);
-  for (size_t ii = 0; ii < nrows; ++ii) {  //auto& row : rows) {
-    if (_align == TextLabelProperty::Align::right)
-      x = maxRowWidth - rows[ii].width;
-    else if (_align == TextLabelProperty::Align::center)
-      x = maxRowWidth*0.5f - rows[ii].width*0.5f;
-    else
-      x = 0;
-
-    if (ii == nrows - 1 && rows[ii].end < end) {
-      std::string lastRow(rows[ii].start, rows[ii].end);
-      lastRow.append("…");
-      layoutLine(_params, x, y, lastRow.c_str(), lastRow.c_str() + lastRow.size(), _quads);
-      break;
+    float maxRowWidth = 0;
+    for (auto& row : rows) {
+        maxRowWidth = std::max(maxRowWidth, row.width);
     }
 
-    layoutLine(_params, x, y, rows[ii].start, rows[ii].end, _quads);
-    y += lineh + _params.lineSpacing;
-  }
-  return nrows;
+    float x = 0, y = 0;  //, lineh = 0;
+    // non-stb FontContext uses bbox limits of row to determine height instead (?)
+    //fonsVertMetrics(&state, NULL, NULL, &lineh);
+    for (size_t ii = 0; ii < nrows; ++ii) {  //auto& row : rows) {
+        if (_align == TextLabelProperty::Align::right) {
+            x = maxRowWidth - rows[ii].width;
+        } else if (_align == TextLabelProperty::Align::center) {
+            x = maxRowWidth*0.5f - rows[ii].width*0.5f;
+        } else {
+            x = 0;
+        }
+
+        if (ii == nrows - 1 && rows[ii].end < end) {
+            std::string lastRow(rows[ii].start, rows[ii].end);
+            lastRow.append("…");
+            layoutLine(_params, x, y, lastRow.c_str(), lastRow.c_str() + lastRow.size(), _quads);
+            break;
+        }
+
+        layoutLine(_params, x, y, rows[ii].start, rows[ii].end, _quads);
+        // -miny is ascent above baseline; should we also add rows[ii].maxy?
+        if (ii < nrows - 1) { y += -rows[ii+1].miny + _params.lineSpacing; }
+    }
+    return nrows;
 }
 
 bool FontContext::layoutText(TextStyle::Parameters& _params /*in*/, const std::string& _text /*in*/,
@@ -369,40 +335,42 @@ void FontContext::addFont(const FontDescription& _ft, std::vector<char>&& _sourc
 
 int FontContext::loadFontSource(const std::string& _name, const FontSourceHandle& _source)
 {
-  if(_source.tag == FontSourceHandle::FontPath) {
-      return fonsAddFont(m_fons, _name.c_str(), _source.fontPath.path().c_str());
-  }
-  if(_source.tag == FontSourceHandle::FontLoader) {
-      auto fontData = _source.fontLoader();
-      if (fontData.size() > 0) {
-        int font = fonsAddFontMem(m_fons, _name.c_str(), (unsigned char*)fontData.data(), fontData.size(), 0);
-        m_sources.push_back(std::move(fontData));
-        return font;
-      }
-  }
-  // switch to using FontSourceHandle::FontLoader for macOS/iOS - see appleFontFace.mm
-  //case FontSourceHandle::FontName:
-  return -1;
+    if(_source.tag == FontSourceHandle::FontPath) {
+        return fonsAddFont(m_fons, _name.c_str(), _source.fontPath.path().c_str());
+    }
+    if(_source.tag == FontSourceHandle::FontLoader) {
+        auto fontData = _source.fontLoader();
+        if (fontData.size() > 0) {
+            int font = fonsAddFontMem(m_fons, _name.c_str(), (unsigned char*)fontData.data(), fontData.size(), 0);
+            m_sources.push_back(std::move(fontData));
+            return font;
+        }
+    }
+    // switch to using FontSourceHandle::FontLoader for macOS/iOS - see appleFontFace.mm
+    //case FontSourceHandle::FontName:
+    return -1;
 }
 
 int FontContext::getFont(const std::string& _family, const std::string& _style,
                                                    const std::string& _weight, float _size) {
-  {
-    std::lock_guard<std::mutex> lock(m_fontMutex);
+    {
+        std::lock_guard<std::mutex> lock(m_fontMutex);
 
-    std::string alias = FontDescription::Alias(_family, _style, _weight);
-    int font = fonsGetFontByName(m_fons, alias.c_str());
-    if (font >= 0) return font;
+        std::string alias = FontDescription::Alias(_family, _style, _weight);
+        int font = fonsGetFontByName(m_fons, alias.c_str());
+        if (font >= 0) return font + 1;
 
-    auto systemFontHandle = m_platform.systemFont(_family, _weight, _style);
-    font = loadFontSource(alias, systemFontHandle);
-    if (font >= 0) return font;
-  }
-  if(_family != "default")
-    return getFont("default", _style, _weight, _size);
-  if(_weight != "normal" && _weight != "400")
-    return getFont("default", _style, "400", _size);
-  return 0;
+        auto systemFontHandle = m_platform.systemFont(_family, _weight, _style);
+        font = loadFontSource(alias, systemFontHandle);
+        if (font >= 0) return font + 1;
+    }
+    if(_family != "default")
+        return getFont("default", _style, _weight, _size);
+    if(_weight != "normal" && _weight != "400")
+        return getFont("default", _style, "400", _size);
+    if(_style != "regular")
+        return getFont("default", "regular", "400", _size);
+    return 0;
 }
 
 }

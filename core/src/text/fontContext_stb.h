@@ -12,31 +12,9 @@ struct FONScontext;
 
 namespace Tangram {
 
-/*struct FontDescription {
-    std::string uri;
-    std::string alias;
-
-    FontDescription(std::string family, std::string style, std::string weight, std::string uri)
-        : uri(uri) {
-        alias = Alias(family, style, weight);
-    }
-
-    static std::string Alias(const std::string& family, const std::string& style, const std::string& weight) {
-        return family + "_" + getNumericFontWeight(weight) + "_" + style;
-    }
-
-    static std::string getNumericFontWeight(const std::string& weight) {
-        if (weight == "normal") { return "400"; }
-        if (weight == "bold") { return "700"; }
-        return weight;
-    }
-};*/
-
 class FontContext {
 
 public:
-    //using AtlasID = size_t;
-    //using FontHandle = size_t;
     static constexpr int max_textures = 64;
 
     FontContext(Platform& _platform);
@@ -77,7 +55,7 @@ private:
     int loadFontSource(const std::string& _name, const FontSourceHandle& _source);
     int layoutMultiline(TextStyle::Parameters& _params, const std::string& _text,
         TextLabelProperty::Align _align, std::vector<GlyphQuad>& _quads);
-    bool layoutLine(TextStyle::Parameters& _params, int x, int y,
+    bool layoutLine(TextStyle::Parameters& _params, float x, float y,
         const char* start, const char* end, std::vector<GlyphQuad>& _quads);
 
     std::mutex m_fontMutex;
