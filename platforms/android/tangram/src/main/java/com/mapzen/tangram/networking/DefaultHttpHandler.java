@@ -19,6 +19,7 @@ import okhttp3.Call;
 import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
+import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
 
@@ -103,14 +104,14 @@ public class DefaultHttpHandler implements HttpHandler {
         // so add a default value to every request. Users can override this in configureRequest().
         builder.addHeader("User-Agent", "tangram");
         configureRequest(httpUrl, builder);
-        headers.lines().forEach(l -> {
-            String[] kv = l.split(':', 2);
+        for(String l : headers.split("\r\n")) {
+            String[] kv = l.split(":", 2);
             if (kv.length == 2) {
                 builder.addHeader(kv[0], kv[1]);
             }
-        });
-        if (payload != null && payload.length > 0) {
-            builder.post(payload);
+        }
+        if (payload != null && payload.length() > 0) {
+            builder.post(RequestBody.create(null, payload));
         }
         final Request request = builder.build();
         Call call = okClient.newCall(request);

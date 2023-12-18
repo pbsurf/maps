@@ -15,6 +15,10 @@
  * LOGS: Screen log, no LOG_LEVEL
  */
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+#endif
+
 //#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 // From: https://blog.galowicz.de/2016/02/20/short_file_macro/
 static constexpr const char * past_last_slash(const char * const str, const char * const last_slash) {

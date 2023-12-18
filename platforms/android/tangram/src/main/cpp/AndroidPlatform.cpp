@@ -54,7 +54,7 @@ void AndroidPlatform::jniOnLoad(JavaVM* javaVM, JNIEnv* jniEnv, const char* ctrl
     // JNI OnLoad is invoked once when the native library is loaded so this is a good place to cache
     // any method or class IDs that we'll need.
     jclass tangramClass = jniEnv->FindClass(ctrlClass);
-    startUrlRequestMID = jniEnv->GetMethodID(tangramClass, "startUrlRequest", "(Ljava/lang/String;Ljava/lang/String;J)V");
+    startUrlRequestMID = jniEnv->GetMethodID(tangramClass, "startUrlRequest", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)V");
     cancelUrlRequestMID = jniEnv->GetMethodID(tangramClass, "cancelUrlRequest", "(J)V");
     getFontFilePath = jniEnv->GetMethodID(tangramClass, "getFontFilePath", "(Ljava/lang/String;)Ljava/lang/String;");
     getFontFallbackFilePath = jniEnv->GetMethodID(tangramClass, "getFontFallbackFilePath", "(II)Ljava/lang/String;");
