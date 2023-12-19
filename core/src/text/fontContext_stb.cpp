@@ -67,7 +67,7 @@ void FontContext::loadFonts() {
         }
         int fontid = loadFontSource(nadded ? fn + "-" + std::to_string(nadded) : fn + "_400_regular", fallback);
         if (fontid < 0) {
-            LOGW("Error loading fallback font");
+            LOGW("Error loading fallback font %s", fallback.fontPath.string().c_str());
         } else {
             fonsAddFallbackFont(m_fons, -1, fontid);  // add as global fallback
             ++nadded;
