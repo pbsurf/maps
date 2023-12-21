@@ -133,7 +133,9 @@ bool Texture::upload(RenderState& _rs, GLuint _textureUnit) {
     }
 
     auto format = static_cast<GLenum>(m_options.pixelFormat);
-    GL::texImage2D(GL_TEXTURE_2D, 0, format, m_width, m_height, 0, format,
+    // desktop GL doesn't support GL_ALPHA, GLES doesn't support GL_RED, so have to use GL_R8
+    GLint intfmt = format == GL_RED ? GL_R8 : format;
+    GL::texImage2D(GL_TEXTURE_2D, 0, intfmt, m_width, m_height, 0, format,
                    GL_UNSIGNED_BYTE, m_buffer.get());
 
     if (m_buffer && m_options.generateMipmaps) {
