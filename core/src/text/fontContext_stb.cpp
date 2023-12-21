@@ -328,7 +328,8 @@ void FontContext::addFont(const FontDescription& _ft, std::vector<char>&& _sourc
     // NB: Synchronize for calls from download thread
     std::lock_guard<std::mutex> lock(m_fontMutex);
 
-    fonsAddFontMem(m_fons, _ft.alias.c_str(), (unsigned char*)_source.data(), _source.size(), 0);
+    int font = fonsAddFontMem(m_fons, _ft.alias.c_str(), (unsigned char*)_source.data(), _source.size(), 0);
+    if (font < 0) { LOGW("Error adding font %s", _ft.alias.c_str()); }
     // add _source to some list so it doesn't get freed
     m_sources.push_back(std::move(_source));
 }
