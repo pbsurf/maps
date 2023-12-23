@@ -31,8 +31,7 @@ void FontContext::setPixelScale(float _scale) {
     m_sdfRadius = SDF_WIDTH * _scale;
 }
 
-void FontContext::loadFonts() {
-    auto fallbacks = m_platform.systemFontFallbacksHandle();
+void FontContext::loadFonts(const std::vector<FontSourceHandle>& fallbacks) {
 
     for (size_t i = 0; i < s_fontRasterSizes.size(); i++) {
         m_font[i] = m_alfons.addFont("default", s_fontRasterSizes[i]);

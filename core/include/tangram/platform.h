@@ -115,6 +115,10 @@ public:
     std::function<void(void)> onUrlRequestsThreshold;
     std::function<void(int, int)> onNotifyStorage;
 
+    static char const* shutdown_message;
+    static char const* cancel_message;
+    static char const* offline_message;
+
 protected:
     // Platform implementation specific id for URL requests. This id is
     // interpreted differently for each platform type, so do not perform any

@@ -35,7 +35,7 @@ public:
     FontContext(Platform& _platform);
     virtual ~FontContext() {}
 
-    void loadFonts();
+    void loadFonts(const std::vector<FontSourceHandle>& fallbacks);
 
     /* Synchronized on m_mutex on tile-worker threads
      * Called from alfons when a texture atlas needs to be created

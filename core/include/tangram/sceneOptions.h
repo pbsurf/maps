@@ -1,6 +1,7 @@
 #pragma once
 
 #include "util/url.h"
+#include "platform.h"
 
 #include <functional>
 #include <string>
@@ -66,6 +67,9 @@ public:
 
     /// cache directory for tiles, fonts, etc
     std::string diskCacheDir;
+
+    /// global fallback fonts
+    std::vector<FontSourceHandle> fallbackFonts;
 
 private:
     static constexpr size_t CACHE_SIZE = 16 * (1024 * 1024);

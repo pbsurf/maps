@@ -9,8 +9,6 @@
 #endif
 #include <time.h>
 
-constexpr char const* requestCancelledError = "Request cancelled";
-
 namespace Tangram {
 
 struct CurlGlobals {
@@ -217,7 +215,7 @@ UrlClient::~UrlClient() {
         for (auto& request : m_requests) {
             if (request.callback) {
                 UrlResponse response;
-                response.error = requestCancelledError;
+                response.error = Platform::cancel_message;
                 request.callback(std::move(response));
             }
         }
@@ -296,7 +294,7 @@ void UrlClient::cancelRequest(UrlClient::RequestId _id) {
     // in case the callback makes further calls into this UrlClient.
     if (callback) {
         UrlResponse response;
-        response.error = requestCancelledError;
+        response.error = Platform::cancel_message;
         callback(std::move(response));
         return;
     }
@@ -490,7 +488,7 @@ void UrlClient::curlLoop() {
 
                 } else if (task.canceled) {
                     LOGD("Aborted request for url: %s", url);
-                    response.error = requestCancelledError;
+                    response.error = Platform::cancel_message;
 
                 } else {
                     LOGW("Failed with error %s for url: %s", task.curlErrorString, url);

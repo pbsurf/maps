@@ -10,11 +10,11 @@ std::chrono::time_point<std::chrono::system_clock> tangram_log_time_start, tangr
 std::mutex tangram_log_time_mutex;
 #endif
 
-constexpr char const* shutdown_message = "Shutting down";
-constexpr char const* cancel_message = "Request canceled";
-constexpr char const* offline_message = "Offline";
-
 namespace Tangram {
+
+char const* Platform::shutdown_message = "Shutting down";
+char const* Platform::cancel_message = "Request canceled";
+char const* Platform::offline_message = "Offline";
 
 Platform::Platform() : m_continuousRendering(false) {}
 

@@ -147,7 +147,8 @@ bool Scene::load() {
     }
 
     m_fontContext = std::make_unique<FontContext>(m_platform);
-    m_fontContext->loadFonts();
+    m_fontContext->loadFonts(m_options.fallbackFonts.empty() ?
+                             m_platform.systemFontFallbacksHandle() : m_options.fallbackFonts);
     LOGTO("<<< initFonts");
 
     SceneLoader::applyFonts(m_config["fonts"], m_fonts);
@@ -220,11 +221,8 @@ bool Scene::load() {
 
         /// Don't need to wait for textures when their size is known
         bool canBuildTiles = true;
-        int f = 0;
-        int t = 0;
 
         m_textures.tasks.remove_if([&](auto& task) {
-           if (!task.done) { t++; }
            if (!task.done && task.texture->width() == 0) {
                canBuildTiles = false;
            }
@@ -232,7 +230,6 @@ bool Scene::load() {
         });
 
         m_fonts.tasks.remove_if([&](auto& task) {
-            if (!task.done) { f++; }
             if (!task.done) {
                 canBuildTiles = false;
                 return false;

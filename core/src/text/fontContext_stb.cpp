@@ -55,8 +55,7 @@ void FontContext::setPixelScale(float _scale) {
     m_sdfRadius = SDF_WIDTH * _scale;
 }
 
-void FontContext::loadFonts() {
-    auto fallbacks = m_platform.systemFontFallbacksHandle();
+void FontContext::loadFonts(const std::vector<FontSourceHandle>& fallbacks) {
 
     std::string fn("default");
     int nadded = 0;

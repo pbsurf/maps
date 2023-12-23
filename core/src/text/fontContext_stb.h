@@ -20,7 +20,7 @@ public:
     FontContext(Platform& _platform);
     virtual ~FontContext();
 
-    void loadFonts();
+    void loadFonts(const std::vector<FontSourceHandle>& fallbacks);
     void releaseAtlas(std::bitset<max_textures> _refs);
 
     /* Update all textures batches, uploads the data to the GPU */
