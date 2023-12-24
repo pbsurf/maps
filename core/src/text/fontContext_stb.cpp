@@ -77,6 +77,13 @@ void FontContext::loadFonts(const std::vector<FontSourceHandle>& fallbacks) {
     }
 }
 
+void FontContext::releaseFonts()
+{
+  fonsResetAtlas(m_fons, GlyphTexture::size, GlyphTexture::size, atlasFontPx);
+  m_textures.clear();
+  m_atlasRefCount = {{0}};
+}
+
 // Synchronized on m_mutex in layoutText(), called on tile-worker threads
 void FontContext::flushTextTexture() {
     //std::lock_guard<std::mutex> lock(m_textureMutex);
@@ -134,7 +141,6 @@ int FontContext::addTexture() {
     int iw = GlyphTexture::size, ih = GlyphTexture::size;
     m_textures.push_back(std::make_unique<GlyphTexture>());  //ih, iw));
     fonsGetAtlasSize(m_fons, &iw, &ih, NULL);
-    //fonsResetAtlas(m_fons, iw, ih, atlasFontPx, atlasFontPx, atlasFontPx);
     fonsExpandAtlas(m_fons, iw, ih + GlyphTexture::size);
     return m_textures.size() - 1;
 }

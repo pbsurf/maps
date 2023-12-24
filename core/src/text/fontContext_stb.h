@@ -46,8 +46,8 @@ public:
 
     void setPixelScale(float _scale);
 
-    // only called in response to memory warning - do nothing for now
-    void releaseFonts() {}
+    // called for memory warning or almost out of GlyphTextures; tiles and markers must be rebuilt
+    void releaseFonts();
 
 private:
     int addTexture();
