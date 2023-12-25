@@ -14,8 +14,6 @@ public:
     explicit LinuxPlatform(UrlClient::Options urlClientOptions);
     ~LinuxPlatform() override;
     void shutdown() override;
-    void requestRender() const override;
-    bool notifyRender() const override;
     std::vector<FontSourceHandle> systemFontFallbacksHandle() const override;
     FontSourceHandle systemFont(const std::string& _name, const std::string& _weight,
                                 const std::string& _face) const override;
@@ -28,7 +26,6 @@ protected:
     FcConfig* m_fcConfig = nullptr;
 
     std::unique_ptr<UrlClient> m_urlClient;
-    mutable std::atomic_bool m_renderRequested{false};
 };
 
 } // namespace Tangram

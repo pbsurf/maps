@@ -79,10 +79,10 @@ public:
     virtual void shutdown();
 
     // Request that a new frame be rendered by the windowing system
-    virtual void requestRender() const = 0;
+    virtual void requestRender() const;
 
     // called when rendering frame, so impl can clear flag used to avoid duplicate render requests
-    virtual bool notifyRender() const = 0;
+    virtual bool notifyRender() const;
 
     // If called with 'true', the windowing system will re-draw frames continuously;
     // otherwise new frames will only be drawn when 'requestRender' is called.
@@ -148,6 +148,7 @@ protected:
     };
     std::unordered_map<UrlRequestHandle, UrlRequestEntry> m_urlCallbacks;
     std::atomic_uint_fast64_t m_urlRequestCount = {0};
+    mutable std::atomic_bool m_renderRequested{false};
 };
 
 } // namespace Tangram

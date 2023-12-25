@@ -12,7 +12,6 @@
 
 #if defined(TANGRAM_LINUX)
 //#include <GLFW/glfw3.h>
-extern void TANGRAM_WakeEventLoop();
 #elif defined(TANGRAM_RPI)
 #include "context.h"
 #endif
@@ -43,18 +42,6 @@ void LinuxPlatform::shutdown() {
     m_urlClient.reset();
 
     Platform::shutdown();
-}
-
-void LinuxPlatform::requestRender() const {
-    if (m_renderRequested || m_shutdown) { return; }
-    TANGRAM_WakeEventLoop();  //glfwPostEmptyEvent();
-    m_renderRequested = true;
-}
-
-bool LinuxPlatform::notifyRender() const {
-    if (!m_renderRequested) { return false; }
-    m_renderRequested = false;
-    return true;
 }
 
 std::vector<FontSourceHandle> LinuxPlatform::systemFontFallbacksHandle() const {

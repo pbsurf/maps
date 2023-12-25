@@ -10,6 +10,9 @@ std::chrono::time_point<std::chrono::system_clock> tangram_log_time_start, tangr
 std::mutex tangram_log_time_mutex;
 #endif
 
+// define this as an empty fn and override requestRender() and notifyRender() if different behavior needed
+extern void TANGRAM_WakeEventLoop();
+
 namespace Tangram {
 
 char const* Platform::shutdown_message = "Shutting down";
@@ -19,6 +22,16 @@ char const* Platform::offline_message = "Offline";
 Platform::Platform() : m_continuousRendering(false) {}
 
 Platform::~Platform() {}
+
+void Platform::requestRender() const {
+    if (!m_shutdown && !m_renderRequested.exchange(true)) {
+        TANGRAM_WakeEventLoop();
+    }
+}
+
+bool Platform::notifyRender() const {
+    return m_renderRequested.exchange(false);
+}
 
 void Platform::setContinuousRendering(bool _isContinuous) {
     m_continuousRendering = _isContinuous;
