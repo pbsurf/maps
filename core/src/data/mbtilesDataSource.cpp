@@ -155,6 +155,7 @@ bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb
     if (_task->rawSource == this->level) {
 
         m_worker->enqueue([this, _task, _cb](){
+            if (_task->isCanceled()) { return; }  // task may have been canceled while in queue
             TileID tileId = _task->tileId();
 
             auto& task = static_cast<BinaryTileTask&>(*_task);
@@ -247,14 +248,14 @@ void MBTilesDataSource::openMBTiles() {
 
     auto url = Url(m_path);
     auto path = url.path();
-    const char* vfs = "";
+    const char* vfs = NULL;
     if (url.scheme() == "asset") {
         vfs = "ndk-asset";
         path.erase(path.begin()); // Remove leading '/'.
     }
 
     m_db = std::make_unique<SQLiteDB>();
-    if (sqlite3_open_v2(path.c_str(), &m_db->db, mode, NULL) != SQLITE_OK) {
+    if (sqlite3_open_v2(path.c_str(), &m_db->db, mode, vfs) != SQLITE_OK) {
         LOGE("Unable to open SQLite database: %s - %s", m_path.c_str(), m_db->errMsg());
         m_db.reset();
         return;
