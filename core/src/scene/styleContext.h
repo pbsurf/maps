@@ -63,6 +63,9 @@ public:
     bool setFunctions(const std::vector<std::string>& functions);
     bool addFunction(const std::string& function);
     void setSceneGlobals(const YAML::Node& sceneGlobals);
+#ifdef TANGRAM_JS_TRACING
+    std::vector<size_t> m_callCounts;
+#endif
 
 private:
 
@@ -83,9 +86,6 @@ private:
     const Feature* m_feature = nullptr;
 
     std::unique_ptr<JSContext> m_jsContext;
-#ifdef DEBUG
-    std::vector<size_t> m_callCounts;
-#endif
 };
 
 }

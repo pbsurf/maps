@@ -263,6 +263,9 @@ bool MarkerManager::update(const View& _view, float _dt) {
 
     if (!m_scene.isReady()) { return false; }
 
+    // do this here instead of Scene::update so we don't print every time map is moved
+    LOGTInit(">>> update");
+
     if (!m_styleContext) {
         // First call to update after scene became ready
         // Initialize Stylecontext and StyleBuilders.
@@ -303,7 +306,15 @@ bool MarkerManager::update(const View& _view, float _dt) {
         marker->update(_dt, _view);
         easing |= marker->isEasing();
     }
-
+    LOGT("<<< update");
+#ifdef TANGRAM_JS_TRACING
+    if(rebuilt) {
+      for(size_t ii = 0; ii < m_functions.size(); ++ii) {
+        Tangram::logMsg("JS: %.3f us for %s", m_styleContext->m_callCounts[ii]/1000.0, m_functions[ii].c_str());
+        m_styleContext->m_callCounts[ii] = 0;
+      }
+    }
+#endif
     return rebuilt || easing || dirty;
 }
 

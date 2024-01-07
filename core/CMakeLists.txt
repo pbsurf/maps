@@ -241,7 +241,6 @@ target_link_libraries(tangram-core
   double-conversion
   miniz
 )
-#ZLIB::ZLIB
 
 if(TANGRAM_USE_FONTCONTEXT_STB)
   target_compile_definitions(tangram-core PRIVATE FONTCONTEXT_STB=1)

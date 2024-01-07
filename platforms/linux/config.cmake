@@ -81,12 +81,18 @@ target_compile_options(tangram
   -Wmissing-field-initializers
 )
 
-get_nextzen_api_key(NEXTZEN_API_KEY)
-target_compile_definitions(tangram
-  PRIVATE
-  NEXTZEN_API_KEY="${NEXTZEN_API_KEY}")
+# tracing
+if(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
+  target_compile_definitions(tangram-core PRIVATE TANGRAM_TRACING=1)
+  target_compile_definitions(tangram-core PRIVATE TANGRAM_JS_TRACING=1)
+endif()
+
+#get_nextzen_api_key(NEXTZEN_API_KEY)
+#target_compile_definitions(tangram
+#  PRIVATE
+#  NEXTZEN_API_KEY="${NEXTZEN_API_KEY}")
 
 # to be consistent w/ core
 target_compile_definitions(tangram PRIVATE GLM_FORCE_CTOR_INIT)
 
-add_resources(tangram "${PROJECT_SOURCE_DIR}/scenes" "res")
+#add_resources(tangram "${PROJECT_SOURCE_DIR}/scenes" "res")

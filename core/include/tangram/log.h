@@ -82,7 +82,7 @@ do { Tangram::logMsg("ERROR %s:%d: " fmt "\n", __FILENAME__, __LINE__, ## __VA_A
 #define LOGN(fmt, ...)
 #endif
 
-#if 0
+#ifdef TANGRAM_TRACING
 #include <mutex>
 #include <chrono>
 
