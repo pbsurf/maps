@@ -86,14 +86,17 @@ bool NetworkDataSource::loadTileData(std::shared_ptr<TileTask> task, TileTaskCb 
         m_urlSubdomainIndex = (m_urlSubdomainIndex + 1) % m_options.subdomains.size();
     }
 
-    LOGTInit(">>> %s", task->tileId().toString().c_str());
+    //LOGTInit(">>> %s", task->tileId().toString().c_str());
+    LOGTO(">>> Url request for %s %s", task->source()->name().c_str(), task->tileId().toString().c_str());
     UrlCallback onRequestFinish = [=](UrlResponse&& response) mutable {
         auto source = task->source();
         if (!source && !task->offlineId) {
             LOGW("URL Callback for deleted TileSource '%s'", url.string().c_str());
             return;
         }
-        LOGT("<<< %s -- canceled:%d", task->tileId().toString().c_str(), task->isCanceled());
+        //LOGT("<<< %s -- canceled:%d", task->tileId().toString().c_str(), task->isCanceled());
+        LOGTO("<<< Url request for %s %s%s", task->source()->name().c_str(), task->tileId().toString().c_str(),
+              task->isCanceled() ? " (canceled)" : "");
 
         if (task->isCanceled()) {
             return;

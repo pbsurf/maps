@@ -157,12 +157,15 @@ bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb
         m_worker->enqueue([this, _task, _cb](){
             if (_task->isCanceled()) { return; }  // task may have been canceled while in queue
             TileID tileId = _task->tileId();
+            LOGTO(">>> DB query for %s %s", _task->source()->name().c_str(), tileId.toString().c_str());
 
             auto& task = static_cast<BinaryTileTask&>(*_task);
             auto tileData = std::make_unique<std::vector<char>>();
             // RasterTileTask::hasData() doesn't check if rawTileData is empty - it probably should, but
             //  let's not set rawTileData to empty vector, to match NetworkDataSource behavior
             getTileData(tileId, *tileData, task.offlineId);
+            LOGTO("<<< DB query for %s %s%s", _task->source()->name().c_str(), tileId.toString().c_str(),
+                  tileData->empty() ? " (not found)" : "");
 
             if (!tileData->empty()) {
                 task.rawTileData = std::move(tileData);

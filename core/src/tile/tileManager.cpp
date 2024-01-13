@@ -549,7 +549,7 @@ void TileManager::loadTiles() {
 
         tileSet.source->loadTileData(entry.task, m_dataCallback);
 
-        LOGTO("Load Tile: %s", tileId.toString().c_str());
+        LOGTO("Load Tile: %s %s", tileSet.source->name().c_str(), tileId.toString().c_str());
 
     }
 
