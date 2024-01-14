@@ -79,8 +79,11 @@ void FontContext::loadFonts(const std::vector<FontSourceHandle>& fallbacks) {
 
 void FontContext::releaseFonts()
 {
+  std::lock_guard<std::mutex> fontlock(m_fontMutex);
+  std::lock_guard<std::mutex> texlock(m_textureMutex);
   fonsResetAtlas(m_fons, GlyphTexture::size, GlyphTexture::size, atlasFontPx);
   m_textures.clear();
+  m_textures.push_back(std::make_unique<GlyphTexture>());
   m_atlasRefCount = {{0}};
 }
 
