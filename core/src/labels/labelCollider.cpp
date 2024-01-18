@@ -5,6 +5,7 @@
 #include "labels/obbBuffer.h"
 #include "util/geom.h"
 #include "view/view.h" // ViewState
+#include "log.h"
 
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtx/norm.hpp"
@@ -139,6 +140,9 @@ void LabelCollider::process(TileID _tileID, float _tileInverseScale, float _tile
     m_isect2d.resize(split, screenSize);
 
     m_isect2d.intersect(m_aabbs);
+    if (m_isect2d.aborted) {
+        LOGE("Too many label collisions for tile %s", _tileID.toString().c_str());
+    }
 
     // Set the first item to be the one with higher priority
     for (auto& pair : m_isect2d.pairs) {

@@ -348,7 +348,7 @@ void Map::render() {
     if (scene.fontContext()->glyphTextureCount() > FontContext::max_textures - 2) {
         LOGW("Rebuilding tiles due to font atlas exhaustion!");
         scene.tileManager()->clearTileSets();
-        scene.markerManager()->rebuildAll();
+        scene.markerManager()->clearMeshes();
         scene.fontContext()->releaseFonts();
         platform->requestRender();
     }

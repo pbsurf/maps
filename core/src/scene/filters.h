@@ -15,6 +15,8 @@ enum class FilterKeyword : uint8_t {
     zoom,
     geometry,
     meters_per_pixel,
+    latitude,
+    longitude
 };
 
 FilterKeyword stringToFilterKeyword(const std::string& _key);

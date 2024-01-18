@@ -76,6 +76,9 @@ public:
     // Rebuild all markers.
     void rebuildAll();
 
+    // necessary if, e.g., font atlases rebuilt
+    void clearMeshes();
+
     const std::vector<std::unique_ptr<Marker>>& markers() const;
 
     const Marker* getMarkerOrNullBySelectionColor(uint32_t selectionColor) const;

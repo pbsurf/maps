@@ -405,7 +405,7 @@ std::shared_ptr<Texture> SceneTextures::add(const std::string& _name, const Url&
         return texture;
     } else if (_url.hasData() && _url.mediaType().substr(0,13) == "image/svg+xml") {
 #ifdef TANGRAM_SVG_LOADER
-        if (!userLoadSvg(const_cast<char*>(_url.data().c_str()), texture.get())) {
+        if (!userLoadSvg(_url.data().c_str(), _url.data().size(), texture.get())) {
             LOGE("Error parsing svg for texture '%s'", _name.c_str());
         }
 #else
@@ -452,17 +452,17 @@ void Scene::runTextureTasks() {
                 LOGE("Error retrieving URL '%s': %s", task.url.string().c_str(), response.error);
             } else {
                 /// Decode texture on download thread.
-                auto data = reinterpret_cast<const uint8_t*>(response.content.data());
                 auto& texture = task.texture;
                 if (Url::getPathExtension(task.url.string()) == "svg") {
 #ifdef TANGRAM_SVG_LOADER
-                    if (!userLoadSvg((char*)data, texture.get())) {
+                    if (!userLoadSvg(response.content.data(), response.content.size(), texture.get())) {
                         LOGE("Error loading texture data from URL '%s'", task.url.string().c_str());
                     }
 #else
                     LOGE("SVG support not enabled - cannot load '%s'", task.url.string().c_str());
 #endif
                 } else {
+                    auto data = reinterpret_cast<const uint8_t*>(response.content.data());
                     if (!texture->loadImageFromMemory(data, response.content.size())) {
                         LOGE("Invalid texture data from URL '%s'", task.url.string().c_str());
                     }

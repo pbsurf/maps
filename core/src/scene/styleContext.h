@@ -2,6 +2,7 @@
 
 #include "js/JavaScriptFwd.h"
 #include "scene/styleParam.h"
+#include "tile/tileID.h"
 
 #include <array>
 #include <memory>
@@ -35,10 +36,10 @@ public:
     void setFeature(const Feature& feature);
 
     /// Set current zoom level being evaluated.
-    void setZoom(double zoom);
+    void setTileID(TileID _tileId);
 
     double getZoom() const {
-        return m_zoom;
+        return m_tileID.s;
     }
 
     /// Squared meters per pixels at current zoom.
@@ -71,10 +72,10 @@ private:
 
     void setKeyword(FilterKeyword keyword, Value value);
 
-    std::array<Value, 4> m_keywordValues;
+    std::array<Value, 6> m_keywordValues;
 
     // Cache zoom separately from keywords for easier access.
-    double m_zoom = -1;
+    TileID m_tileID = {0,0,0,0};  // = -1;
 
     // Geometry keyword is accessed as a string, but internally cached as an int.
     int m_keywordGeometry = -1;

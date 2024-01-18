@@ -95,7 +95,7 @@ struct SceneFonts {
 // TODO: define in cmake file, not here!
 #define TANGRAM_SVG_LOADER 1
 #ifdef TANGRAM_SVG_LOADER
-  bool userLoadSvg(char* svg, Texture* texture);
+  bool userLoadSvg(const char* svg, size_t len, Texture* texture);
 #endif
 
 class Scene {

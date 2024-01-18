@@ -334,6 +334,12 @@ void MarkerManager::rebuildAll() {
     }
 }
 
+void MarkerManager::clearMeshes() {
+    for (auto& entry : m_markers) {
+        entry->clearMesh();
+    }
+}
+
 const std::vector<std::unique_ptr<Marker>>& MarkerManager::markers() const {
     return m_markers;
 }
@@ -447,7 +453,7 @@ bool MarkerManager::buildMesh(Marker& marker, int zoom) {
     // Apply default draw rules defined for this style
     styler->style().applyDefaultDrawRules(*rule);
 
-    m_styleContext->setZoom(zoom);
+    m_styleContext->setTileID(TileID(0, 0, zoom));
     m_styleContext->setFeature(*feature);
     bool valid = marker.evaluateRuleForContext(*m_styleContext);
 

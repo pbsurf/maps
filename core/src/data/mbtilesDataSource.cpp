@@ -378,9 +378,9 @@ bool MBTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _d
 
     // offlineId > 0 indicates request to set offline_id; not necessary to read data
     if (offlineId > 0) {
-        _data.push_back('\0');  // make TileTask::hasData() true
         return m_queries->getOffline.bind(z, _tileId.x, y).exec([&](int, const char* tileid){
             m_queries->putOffline.bind(tileid, std::abs(offlineId)).exec();
+            _data.push_back('\0');  // make TileTask::hasData() true
         });
     }
 

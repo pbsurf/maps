@@ -135,14 +135,16 @@ void StyleContext::setFeature(const Feature& _feature) {
     m_jsContext->setCurrentFeature(&_feature);
 }
 
-void StyleContext::setZoom(double zoom) {
-    if (m_zoom != zoom) {
-        setKeyword(FilterKeyword::zoom, zoom);
-        m_zoom = zoom;
-        // When new zoom is set, meters_per_pixel must be updated too.
-        double meters_per_pixel = MapProjection::metersPerPixelAtZoom(m_zoom);
-        setKeyword(FilterKeyword::meters_per_pixel, meters_per_pixel);
-    }
+void StyleContext::setTileID(TileID _tileId) {
+    if (m_tileID == _tileId) return;
+    LngLat center = MapProjection::projectedMetersToLngLat(MapProjection::tileCenter(_tileId));
+    setKeyword(FilterKeyword::zoom, _tileId.s);
+    setKeyword(FilterKeyword::latitude, center.latitude);
+    setKeyword(FilterKeyword::longitude, center.longitude);
+    // When new zoom is set, meters_per_pixel must be updated too.
+    double meters_per_pixel = MapProjection::metersPerPixelAtZoom(_tileId.s);
+    setKeyword(FilterKeyword::meters_per_pixel, meters_per_pixel);
+    m_tileID = _tileId;
 }
 
 void StyleContext::setKeyword(FilterKeyword keyword, Value value) {
@@ -171,7 +173,7 @@ void StyleContext::setKeyword(FilterKeyword keyword, Value value) {
 double StyleContext::getPixelAreaScale() {
     // scale the filter value with pixelsPerMeter
     // used with `px2` area filtering
-    double metersPerPixel = MapProjection::metersPerPixelAtZoom(m_zoom);
+    double metersPerPixel = MapProjection::metersPerPixelAtZoom(m_tileID.s);
     return metersPerPixel * metersPerPixel;
 }
 

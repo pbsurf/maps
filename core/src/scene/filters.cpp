@@ -11,11 +11,15 @@ namespace Tangram {
 static const char* keywordGeometryString = "$geometry";
 static const char* keywordZoomString = "$zoom";
 static const char* keywordMetersPerPixelString = "$meters_per_pixel";
+static const char* keywordLatitude = "$latitude";
+static const char* keywordLongitude = "$longitude";
 
 FilterKeyword stringToFilterKeyword(const std::string& _key) {
     if (_key == keywordGeometryString) { return FilterKeyword::geometry; }
     if (_key == keywordZoomString) { return  FilterKeyword::zoom; }
     if (_key == keywordMetersPerPixelString) { return FilterKeyword::meters_per_pixel; }
+    if (_key == keywordLatitude) { return FilterKeyword::latitude; }
+    if (_key == keywordLongitude) { return FilterKeyword::longitude; }
     return  FilterKeyword::undefined;
 }
 
@@ -24,6 +28,8 @@ std::string filterKeywordToString(FilterKeyword keyword) {
         case FilterKeyword::geometry: return keywordGeometryString;
         case FilterKeyword::zoom: return keywordZoomString;
         case FilterKeyword::meters_per_pixel: return keywordMetersPerPixelString;
+        case FilterKeyword::latitude: return keywordLatitude;
+        case FilterKeyword::longitude: return keywordLongitude;
         default: return {};
     }
 }
