@@ -884,7 +884,19 @@ void Map::handleTapGesture(float _posX, float _posY) {
 
 void Map::handleDoubleTapGesture(float _posX, float _posY) {
     cancelCameraAnimation();
-    impl->inputHandler.handleDoubleTapGesture(_posX, _posY);
+    // We want tapped map position to remain at same screen position throughout zoom; using a camera ease
+    //  gives correct final state but causes tapped position to wobble during zoom.
+    //impl->inputHandler.handleDoubleTapGesture(_posX, _posY);  -- doesn't do any animation!
+    float startZoom = impl->view.getZoom();
+    impl->ease = std::make_unique<Ease>(0.5, [=](float t) {
+        float cx = _posX, cy = _posY;
+        float z0 = impl->view.getZoom();
+        float z1 = ease(startZoom, startZoom+1, t, EaseType::linear);
+        impl->view.setZoom(z1);
+        impl->view.screenToGroundPlane(cx, cy);
+        double s = std::pow(2.0, z1 - z0) - 1;
+        impl->view.translate(s * cx, s * cy);  // from handlePinchGesture()
+    });
     impl->platform.requestRender();
 }
 

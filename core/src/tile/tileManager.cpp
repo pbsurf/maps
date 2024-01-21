@@ -298,8 +298,11 @@ void TileManager::updateTileSets(const View& _view) {
                     std::function<void(TileID, int32_t)> addChildren;
                     addChildren = [&](TileID tid, int32_t bias){
                         if(bias < 0) {
-                            for (int i = 0; i < 4; i++)
-                                addChildren(tid.getChild(i, maxZoom), bias+1);
+                            for (int i = 0; i < 4; i++) {
+                                auto child = tid.getChild(i, maxZoom);
+                                child.s = tid.s;
+                                addChildren(child, bias+1);
+                            }
                         } else {
                             tileSet.visibleTiles.insert(tid);
                         }
@@ -491,7 +494,7 @@ void TileManager::updateTileSet(TileSet& _tileSet, const ViewState& _view) {
                 else { rasterLoading++; }
             }
         }
-        DBG("> %s - ready:%d proxy:%d/%d loading:%d rDone:%d rLoading:%d canceled:%d",
+        LOGD("> %s - ready:%d proxy:%d/%d loading:%d rDone:%d rLoading:%d canceled:%d",
              it.first.toString().c_str(),
              bool(entry.tile),
              entry.getProxyCounter(),
