@@ -8,7 +8,7 @@
 
 namespace Tangram {
 
-TileTask::TileTask(TileID& _tileId, std::shared_ptr<TileSource> _source) :
+TileTask::TileTask(const TileID& _tileId, std::shared_ptr<TileSource> _source) :
     m_tileId(_tileId),
     m_source(_source),
     m_sourceId(_source ? _source->id() : 0),

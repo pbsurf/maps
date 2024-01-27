@@ -22,7 +22,7 @@ class TileTask {
 
 public:
 
-    TileTask(TileID& _tileId, std::shared_ptr<TileSource> _source);
+    TileTask(const TileID& _tileId, std::shared_ptr<TileSource> _source);
 
     // No copies
     TileTask(const TileTask& _other) = delete;
@@ -113,7 +113,7 @@ protected:
 
 class BinaryTileTask : public TileTask {
 public:
-    BinaryTileTask(TileID& _tileId, std::shared_ptr<TileSource> _source)
+    BinaryTileTask(const TileID& _tileId, std::shared_ptr<TileSource> _source)
         : TileTask(_tileId, _source) {}
 
     virtual bool hasData() const override {

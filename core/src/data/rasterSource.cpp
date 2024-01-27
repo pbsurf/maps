@@ -17,7 +17,7 @@ public:
     std::unique_ptr<Texture> texture;
     std::unique_ptr<Raster> raster;
 
-    RasterTileTask(TileID& _tileId, std::shared_ptr<TileSource> _source, bool _subTask)
+    RasterTileTask(const TileID& _tileId, std::shared_ptr<TileSource> _source, bool _subTask)
         : BinaryTileTask(_tileId, _source),
           subTask(_subTask) {}
 
