@@ -441,19 +441,17 @@ void MBTilesDataSource::storeTileData(const TileID& _tileId, const std::vector<c
 
 void MBTilesDataSource::deleteOfflineMap(int offlineId, bool delTiles) {
     if (delTiles) {
-        int totchanges = m_db->totalChanges();
+        //int totchanges = m_db->totalChanges();
         m_queries->delOfflineTiles.bind(offlineId).exec();
-        if (m_db->totalChanges() - totchanges > 32)
-            m_db->exec("VACUUM;");
+        //if (m_db->totalChanges() - totchanges > 32) m_db->exec("VACUUM;"); -- too slow
     }
     m_queries->delOffline.bind(offlineId).exec();
 }
 
 void MBTilesDataSource::deleteOldTiles(int cutoff) {
-    int totchanges = m_db->totalChanges();
+    //int totchanges = m_db->totalChanges();
     m_queries->delOldTiles.bind(cutoff).exec();
-    if (m_db->totalChanges() - totchanges > 32)  // SqliteCpp doesn't wrap sqlite3_changes()
-        m_db->exec("VACUUM;");
+    //if (m_db->totalChanges() - totchanges > 32) m_db->exec("VACUUM;");  -- too slow
 }
 
 void MBTilesDataSource::getTileSizes(std::function<void(int, int, int)> cb) {
