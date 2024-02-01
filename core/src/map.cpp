@@ -888,7 +888,7 @@ void Map::handleDoubleTapGesture(float _posX, float _posY) {
     //  gives correct final state but causes tapped position to wobble during zoom.
     //impl->inputHandler.handleDoubleTapGesture(_posX, _posY);  -- doesn't do any animation!
     float startZoom = impl->view.getZoom();
-    impl->ease = std::make_unique<Ease>(0.35, [=](float t) {
+    impl->ease = std::make_unique<Ease>(0.35f, [=](float t) {
         float cx = _posX, cy = _posY;
         float z0 = impl->view.getZoom();
         float z1 = ease(startZoom, startZoom+1, t, EaseType::linear);
