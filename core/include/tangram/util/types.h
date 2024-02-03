@@ -28,6 +28,7 @@ struct LngLat {
         return longitude == _other.longitude &&
                latitude == _other.latitude;
     }
+    bool operator!=(const LngLat& _other) const { return !operator==(_other); }
 
     // Get a LngLat with an equivalent longitude within the range (-180, 180].
     LngLat wrapped() const {

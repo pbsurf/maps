@@ -431,8 +431,10 @@ void Map::setCameraPositionEased(const CameraPosition& _camera, float _duration,
     float radiansStart = getRotation();
 
     // Ease over the smallest angular distance needed
-    float radiansDelta = glm::mod(_camera.rotation - radiansStart, (float)TWO_PI);
-    if (radiansDelta > PI) { radiansDelta -= TWO_PI; }
+    float radiansDelta = _camera.rotation - radiansStart;
+    // this approach ensures > 0; glm::mod uses trunc instead of floor (like GLSL), std::fmod preserves sign
+    radiansDelta = radiansDelta - float(TWO_PI)*std::floor(radiansDelta/float(TWO_PI));
+    if (radiansDelta > float(PI)) { radiansDelta -= float(TWO_PI); }
 
     e.start.rotation = radiansStart;
     e.end.rotation = radiansStart + radiansDelta;
@@ -634,8 +636,10 @@ void Map::flyTo(const CameraPosition& _camera, float _duration, float _speed) {
     float tStart = getTilt();
 
     // Ease over the smallest angular distance needed
-    float radiansDelta = glm::mod(_camera.rotation - rStart, (float)TWO_PI);
-    if (radiansDelta > PI) { radiansDelta -= TWO_PI; }
+    float radiansDelta = _camera.rotation - rStart;
+    // this approach ensures > 0; glm::mod uses trunc instead of floor (like GLSL), std::fmod preserves sign
+    radiansDelta = radiansDelta - float(TWO_PI)*std::floor(radiansDelta/float(TWO_PI));
+    if (radiansDelta > float(PI)) { radiansDelta -= float(TWO_PI); }
     float rEnd = rStart + radiansDelta;
 
     double dLongitude = lngEnd - lngStart;
