@@ -432,8 +432,9 @@ void Map::setCameraPositionEased(const CameraPosition& _camera, float _duration,
 
     // Ease over the smallest angular distance needed
     float radiansDelta = _camera.rotation - radiansStart;
-    // this approach ensures > 0; glm::mod uses trunc instead of floor (like GLSL), std::fmod preserves sign
-    radiansDelta = radiansDelta - float(TWO_PI)*std::floor(radiansDelta/float(TWO_PI));
+    // trying to get better numerical behavior, esp. final roll == commanded roll; both mod and floor
+    //  produce issues w/ very small deltas
+    if (radiansDelta < -float(PI)) { radiansDelta += float(TWO_PI); }
     if (radiansDelta > float(PI)) { radiansDelta -= float(TWO_PI); }
 
     e.start.rotation = radiansStart;
@@ -637,8 +638,8 @@ void Map::flyTo(const CameraPosition& _camera, float _duration, float _speed) {
 
     // Ease over the smallest angular distance needed
     float radiansDelta = _camera.rotation - rStart;
-    // this approach ensures > 0; glm::mod uses trunc instead of floor (like GLSL), std::fmod preserves sign
-    radiansDelta = radiansDelta - float(TWO_PI)*std::floor(radiansDelta/float(TWO_PI));
+    // trying to get better numerical behavior, esp. final roll == commanded roll
+    if (radiansDelta < -float(PI)) { radiansDelta += float(TWO_PI); }
     if (radiansDelta > float(PI)) { radiansDelta -= float(TWO_PI); }
     float rEnd = rStart + radiansDelta;
 
