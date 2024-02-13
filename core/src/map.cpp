@@ -224,7 +224,7 @@ void Map::resize(int _newWidth, int _newHeight) {
 void Map::setViewport(int _newX, int _newY, int _newWidth, int _newHeight) {
 
     LOGS("resize: %d x %d", _newWidth, _newHeight);
-    LOGD("resize: %d x %d", _newWidth, _newHeight);
+    LOGV("resize: %d x %d", _newWidth, _newHeight);
 
     impl->view.setViewport(_newX, _newY, _newWidth, _newHeight);
 
