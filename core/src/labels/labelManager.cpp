@@ -340,6 +340,13 @@ void LabelManager::handleOcclusions(const ViewState& _viewState, bool _hideExtra
         auto& entry = *it;
         auto* l = entry.label;
 
+        // note that bounds needed even if label is occluded by repeat group (for example) to determine if
+        //  label is on screen - could still be drawn if fading out
+        ScreenTransform transform { m_transforms, entry.transformRange };
+        OBBBuffer obbs { m_obbs, entry.obbsRange };
+
+        l->obbs(transform, obbs);
+
         // if requested, hide extra labels indicated by transition.selected < 0
         if (_hideExtraLabels && l->options().selectTransition.time < 0) {
           l->occlude();
@@ -371,11 +378,6 @@ void LabelManager::handleOcclusions(const ViewState& _viewState, bool _hideExtra
                 continue;
             }
         }
-
-        ScreenTransform transform { m_transforms, entry.transformRange };
-        OBBBuffer obbs { m_obbs, entry.obbsRange };
-
-        l->obbs(transform, obbs);
 
         int anchorIndex = l->anchorIndex();
 

@@ -119,8 +119,9 @@ void main() {
         // Modify line width in model space before extrusion
         #pragma tangram: width
 
+        // line dash is specified as multiples of line width; use width at half zoom (to support extrude.z == 0)
         #ifdef TANGRAM_USE_TEX_COORDS
-            v_texcoord.y /= 2. * extrude.z;
+            v_texcoord.y /= 2. * (extrude.z + dwdz/2.);
         #endif
 
         position.xy += extrude.xy * width;
