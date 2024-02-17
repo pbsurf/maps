@@ -58,7 +58,8 @@ Node Importer::loadSceneData(Platform& _platform, const Url& _sceneUrl, const st
 
         auto cb = [&, nextUrlToImport](UrlResponse&& response) {
             std::unique_lock<std::mutex> lock(m_sceneMutex);
-            if (response.error) {
+            if (m_canceled) {}
+            else if (response.error) {
                 LOGE("Unable to retrieve '%s': %s", nextUrlToImport.string().c_str(),
                      response.error);
             } else {
@@ -111,8 +112,14 @@ Node Importer::loadSceneData(Platform& _platform, const Url& _sceneUrl, const st
 void Importer::cancelLoading(Platform& _platform) {
     std::unique_lock<std::mutex> lock(m_sceneMutex);
     m_canceled = true;
-    for (auto handle : m_urlRequests) {
+    while (!m_urlRequests.empty()) {
+        auto handle = m_urlRequests.back();
+        m_urlRequests.pop_back();
+        // cancelUrlRequest() will call request callback, which needs m_sceneMutex to notify cond var in
+        //  loadSceneData so that loadSceneData can break loop and exit
+        lock.unlock();
         _platform.cancelUrlRequest(handle);
+        lock.lock();
     }
 }
 
