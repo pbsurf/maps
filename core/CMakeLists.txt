@@ -244,7 +244,6 @@ target_link_libraries(tangram-core
 
 if(TANGRAM_USE_FONTCONTEXT_STB)
   target_compile_definitions(tangram-core PRIVATE FONTCONTEXT_STB=1)
-  target_include_directories(tangram-core PRIVATE ../app/styluslabs/nanovg-2/src)
 else()
   target_link_libraries(tangram-core PRIVATE alfons)
 endif()

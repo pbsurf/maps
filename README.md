@@ -1,3 +1,7 @@
+* Fork of Tangram ES for use with [Stylus Labs Maps](https://www.github.com/styluslabs/maps) *
+
+Compatibility with upstream will be restored in the future.
+
 Tangram ES
 ==========
 
