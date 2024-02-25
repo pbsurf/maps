@@ -19,6 +19,7 @@
 [submodule "external/glfw"]
 	path = platforms/common/glfw
 	url = https://github.com/glfw/glfw
+  shallow = true
 [submodule "external/benchmark"]
 	path = bench/benchmark
 	url = https://github.com/google/benchmark
@@ -31,3 +32,7 @@
 [submodule "core/deps/stb"]
 	path = core/deps/stb
 	url = https://github.com/nothings/stb.git
+[submodule "core/deps/glm"]
+	path = core/deps/glm
+	url = https://github.com/g-truc/glm
+  shallow = true
