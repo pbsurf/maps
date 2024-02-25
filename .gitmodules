@@ -1,6 +1,3 @@
-[submodule "core/include/isect2d"]
-	path = core/deps/isect2d
-	url = https://github.com/tangrams/isect2d.git
 [submodule "core/dependencies/csscolorparser"]
 	path = core/deps/css-color-parser-cpp
 	url = https://github.com/tangrams/css-color-parser-cpp
@@ -31,9 +28,6 @@
 [submodule "external/harfbuzz-icu-freetype"]
 	path = core/deps/harfbuzz-icu-freetype
 	url = https://github.com/tangrams/harfbuzz-icu-freetype.git
-[submodule "external/SQLiteCpp"]
-	path = core/deps/SQLiteCpp
-	url = https://github.com/SRombauts/SQLiteCpp.git
 [submodule "core/deps/stb"]
 	path = core/deps/stb
 	url = https://github.com/nothings/stb.git
