@@ -72,6 +72,7 @@ public:
     };
 
     static const float activation_distance_threshold;
+    static const float priority_scale;
 
     Label(glm::vec2 _size, Type _type, Options _options);
 

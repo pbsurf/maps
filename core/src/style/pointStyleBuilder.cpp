@@ -142,7 +142,7 @@ auto PointStyleBuilder::applyRule(const DrawRule& _rule) const -> Parameters {
     StyleParam::Width repeatDistance;
 
     if (_rule.get(StyleParamKey::priority, priority)) {
-        p.labelOptions.priority = priority;
+        p.labelOptions.priority = priority*Label::priority_scale;
     }
 
     _rule.get(StyleParamKey::sprite_default, p.spriteDefault);

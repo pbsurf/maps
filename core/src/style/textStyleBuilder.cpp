@@ -671,7 +671,7 @@ TextStyle::Parameters TextStyleBuilder::applyRule(const DrawRule& _rule,
 
     if (_iconText) {
         if (_rule.get(StyleParamKey::text_priority, priority)) {
-            p.labelOptions.priority = priority;
+            p.labelOptions.priority = priority*Label::priority_scale;
         }
         _rule.get(StyleParamKey::text_collide, p.labelOptions.collide);
         if (!_rule.get(StyleParamKey::text_interactive, p.interactive)) {
@@ -713,7 +713,7 @@ TextStyle::Parameters TextStyleBuilder::applyRule(const DrawRule& _rule,
         }
     } else {
         if (_rule.get(StyleParamKey::priority, priority)) {
-            p.labelOptions.priority = priority;
+            p.labelOptions.priority = priority*Label::priority_scale;
         }
         _rule.get(StyleParamKey::collide, p.labelOptions.collide);
         _rule.get(StyleParamKey::interactive, p.interactive);

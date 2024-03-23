@@ -15,6 +15,7 @@ namespace Tangram {
 //  make linux BUILD_TYPE=Release CMAKE_BUILD_OPTIONS=--verbose CMAKE_OPTIONS="-DTANGRAM_USE_FONTCONTEXT_STB=1"
 // Getting rid of harfbuzz-icu-freetype saves about 3 MB in Release build (8.4 -> 5.6 MB)
 // - dropping sqlite (mbtiles) gets us to 4.2 MB
+// Tangram-ES previously did use fontstash, see 1d5983905871d0ed393f4d2e33104d76edcbf922
 
 // options for texture management (after getting working in single 256x256 texture)
 // - add multi-texture support to fontstash

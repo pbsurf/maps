@@ -10,6 +10,7 @@
 namespace Tangram {
 
 const float Label::activation_distance_threshold = 2;
+const float Label::priority_scale = 65536;
 
 Label::Label(glm::vec2 _size, Type _type, Options _options)
     : m_type(_type),
