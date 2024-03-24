@@ -29,11 +29,6 @@ Texture::~Texture() {
 }
 
 bool Texture::loadImageFromMemory(const uint8_t* data, size_t length) {
-    // stbi_load_from_memory loads the image as a series of scanlines starting
-    // from the top-left corner of the image. This flips the output such that
-    // the data begins at the bottom-left corner, as required for our OpenGL
-    // texture coordinates.
-    stbi_set_flip_vertically_on_load(true);
 
     int width = 0, height = 0;
     int channelsInFile = 0;
@@ -57,6 +52,18 @@ bool Texture::loadImageFromMemory(const uint8_t* data, size_t length) {
         return false;
     }
     m_bufferSize = width * height * bpp();
+
+    // need to flip image vertically for OpenGL coordinate system
+    // stbi_set_flip_vertically_on_load flips image in place, requiring 3x memcpy per row; we'd also need to
+    //  switch to stbi_set_flip_vertically_on_load_thread to avoid conflict w/ other users of stb_image
+    GLubyte* flipped = reinterpret_cast<GLubyte*>(std::malloc(m_bufferSize));
+    size_t rowSize = width*bpp();
+    for(int y = 0; y < height; ++y) {
+        GLubyte* src = &m_buffer.get()[y*rowSize];
+        GLubyte* dst = &flipped[(height - y - 1)*rowSize];
+        std::memcpy(dst, src, rowSize);
+    }
+    m_buffer.reset(flipped);
 
     resize(width, height);
 
