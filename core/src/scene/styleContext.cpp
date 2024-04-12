@@ -13,6 +13,10 @@
 
 namespace Tangram {
 
+#ifdef TANGRAM_JS_TRACING
+void reportJSTrace(StyleContext::FunctionID _id, double secs);
+#endif
+
 static const std::vector<std::string> s_geometryStrings = {
     "", // unknown
     "point",
@@ -109,17 +113,11 @@ bool StyleContext::setFunctions(const std::vector<std::string>& _functions) {
     }
 
     m_functionCount = id;
-#ifdef TANGRAM_JS_TRACING
-    m_callCounts.assign(id, 0);
-#endif
     return success;
 }
 
 bool StyleContext::addFunction(const std::string& _function) {
     bool success = m_jsContext->setFunction(m_functionCount++, _function);
-#ifdef TANGRAM_JS_TRACING
-    m_callCounts.push_back(0);
-#endif
     return success;
 }
 
@@ -188,7 +186,7 @@ bool StyleContext::evalFilter(FunctionID _id) {
     bool result = m_jsContext->evaluateBooleanFunction(_id);
 #ifdef TANGRAM_JS_TRACING
     auto t1 = std::chrono::high_resolution_clock::now();
-    m_callCounts[_id] += std::chrono::duration<double>(t1 - t0).count() * 1E9;
+    reportJSTrace(_id, std::chrono::duration<double>(t1 - t0).count());
 #endif
     return result;
 }
@@ -376,7 +374,7 @@ bool StyleContext::evalStyle(FunctionID _id, StyleParamKey _key, StyleParam::Val
     }
 #ifdef TANGRAM_JS_TRACING
     auto t1 = std::chrono::high_resolution_clock::now();
-    m_callCounts[_id] += std::chrono::duration<double>(t1 - t0).count() * 1E9;
+    reportJSTrace(_id, std::chrono::duration<double>(t1 - t0).count());
 #endif
     return !_val.is<none_type>();
 }

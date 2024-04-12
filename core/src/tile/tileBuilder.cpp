@@ -155,13 +155,7 @@ std::unique_ptr<Tile> TileBuilder::build(TileID _tileID, const TileData& _tileDa
     }
 
     tile->setSelectionFeatures(m_selectionFeatures);
-#ifdef TANGRAM_JS_TRACING
-    const auto& fns = m_scene.functions();
-    for(size_t ii = 0; ii < fns.size(); ++ii) {
-      Tangram::logMsg("JS: %.3f us for %s", m_styleContext->m_callCounts[ii]/1000.0, fns[ii].c_str());
-      m_styleContext->m_callCounts[ii] = 0;
-    }
-#endif
+
     return tile;
 }
 

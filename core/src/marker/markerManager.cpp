@@ -30,7 +30,10 @@ MarkerManager::MarkerManager(const Scene& _scene, MarkerManager* _oldInst) : m_s
     }
 }
 
-MarkerManager::~MarkerManager() {}
+MarkerManager::~MarkerManager() {
+    if(!m_markers.empty())
+        LOGD("Destroying MarkerManager with %d markers.", int(m_markers.size()));
+}
 
 
 MarkerID MarkerManager::add() {
@@ -307,14 +310,7 @@ bool MarkerManager::update(const View& _view, float _dt) {
         easing |= marker->isEasing();
     }
     LOGT("<<< update");
-#ifdef TANGRAM_JS_TRACING
-    if(rebuilt) {
-      for(size_t ii = 0; ii < m_functions.size(); ++ii) {
-        Tangram::logMsg("JS: %.3f us for %s", m_styleContext->m_callCounts[ii]/1000.0, m_functions[ii].c_str());
-        m_styleContext->m_callCounts[ii] = 0;
-      }
-    }
-#endif
+
     return rebuilt || easing || dirty;
 }
 
