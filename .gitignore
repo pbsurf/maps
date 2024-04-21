@@ -1,5 +1,8 @@
 # Created by http://www.gitignore.io
 
+### Extraneous files for dependencies added to this repo ###
+core/deps/tinydng
+
 ### Windows ###
 .vscode/
 .vs/
@@ -157,8 +160,6 @@ platforms/android/*/obj
 # Android gradle
 platforms/android/demo/gradle
 platforms/android/demo/gradlew*
-app/android/gradle
-app/android/gradlew*
 
 # vim
 *.swp

@@ -34,7 +34,7 @@ bool GlyphTexture::bind(RenderState& _rs, GLuint _textureUnit) {
 
     _rs.texture(m_glHandle, _textureUnit, GL_TEXTURE_2D);
 
-    auto format = static_cast<GLenum>(m_options.pixelFormat);
+    auto format = m_options.glFormat();  //static_cast<GLenum>(m_options.pixelFormat);
     for (auto& range : m_dirtyRows) {
         auto rows = range.max - range.min;
         auto offset = m_buffer.get() + (range.min * m_width * bpp());

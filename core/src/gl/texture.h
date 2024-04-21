@@ -31,12 +31,11 @@ enum class TextureWrap : GLenum {
     REPEAT = GL_REPEAT,
 };
 
-enum class PixelFormat : GLenum {
-    ALPHA = GL_RED,  //GL_ALPHA,  -- GL 3 doesn't allow GL_ALPHA as texture format
-    LUMINANCE = GL_LUMINANCE,
-    LUMINANCE_ALPHA = GL_LUMINANCE_ALPHA,
-    RGB = GL_RGB,
-    RGBA = GL_RGBA,
+enum class PixelFormat : GLint {
+    ALPHA = GL_R8,  //GL_ALPHA,  -- GL 3 doesn't allow GL_ALPHA as texture format
+    RGB = GL_RGB8,
+    RGBA = GL_RGBA8,
+    FLOAT = GL_R32F,
 };
 
 struct TextureOptions {
@@ -48,20 +47,19 @@ struct TextureOptions {
     float displayScale = 1.f; // 0.5 for a "@2x" image.
     bool generateMipmaps = false;
 
-    int bytesPerPixel() const {
-        switch (pixelFormat) {
-        case PixelFormat::ALPHA:
-        case PixelFormat::LUMINANCE:
-            return 1;
-        case PixelFormat::LUMINANCE_ALPHA:
-            return 2;
-        case PixelFormat::RGB:
-            return 3;
-        default:
-            break;
-        }
-        return 4;
+    GLenum glFormat() const {
+        if (pixelFormat == PixelFormat::ALPHA || pixelFormat == PixelFormat::FLOAT) return GL_RED;
+        if (pixelFormat == PixelFormat::RGB) return GL_RGB;
+        return GL_RGBA;
     }
+
+    int bytesPerPixel() const {
+        if (pixelFormat == PixelFormat::ALPHA) return 1;
+        if (pixelFormat == PixelFormat::RGB) return 3;
+        return 4;  // FLOAT, RGBA
+    }
+
+    GLenum glType() const { return pixelFormat == PixelFormat::FLOAT ? GL_FLOAT : GL_UNSIGNED_BYTE; }
 };
 
 class Texture {

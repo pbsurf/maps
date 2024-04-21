@@ -2965,27 +2965,31 @@ static bool DecompressZIPedTile(const StreamReader& sr, unsigned char* dst_data,
           static_cast<unsigned long>(8);
 
       std::vector<uint8_t> tmp_buf;
-      tmp_buf.resize(uncompressed_size);
 
-      if (!DecompressZIP(tmp_buf.data(), &uncompressed_size, sr.data() + offset,
-                         static_cast<unsigned long>(input_len), err)) {
-        if (err) {
-          (*err) += "Failed to decode ZIP data.\n";
+      if (image_info.compression == COMPRESSION_NONE) {
+        const uint8_t* start = sr.data() + offset;
+        tmp_buf.assign(start, start + uncompressed_size);
+      } else {
+        tmp_buf.resize(uncompressed_size);
+        if (!DecompressZIP(tmp_buf.data(), &uncompressed_size, sr.data() + offset,
+                           static_cast<unsigned long>(input_len), err)) {
+          if (err) {
+            (*err) += "Failed to decode ZIP data.\n";
+          }
+          return false;
         }
-        return false;
-      }
 
-      if (!UnpredictImageU8(tmp_buf, image_info.predictor,
-                            size_t(image_info.tile_width),
-                            size_t(image_info.tile_length),
-                            size_t(image_info.samples_per_pixel),
-                            size_t(image_info.bits_per_sample))) {
-        if (err) {
-          (*err) += "Failed to unpredict ZIP-ed tile image.\n";
+        if (!UnpredictImageU8(tmp_buf, image_info.predictor,
+                              size_t(image_info.tile_width),
+                              size_t(image_info.tile_length),
+                              size_t(image_info.samples_per_pixel),
+                              size_t(image_info.bits_per_sample))) {
+          if (err) {
+            (*err) += "Failed to unpredict ZIP-ed tile image.\n";
+          }
+          return false;
         }
-        return false;
       }
-
       // Copy to dest buffer.
       // NOTE: For some DNG file, tiled image may exceed the extent of target
       // image resolution.
@@ -3043,29 +3047,33 @@ static bool DecompressZIPedTile(const StreamReader& sr, unsigned char* dst_data,
                                    image_info.bits_per_sample) /
         static_cast<unsigned long>(8);
 
-    std::vector<uint8_t> tmp_buf;
-    tmp_buf.resize(uncompressed_size);
+    if (image_info.compression == COMPRESSION_NONE) {
+      memcpy(dst_data, sr.data() + offset, uncompressed_size);
+    } else {
+      std::vector<uint8_t> tmp_buf;
+      tmp_buf.resize(uncompressed_size);
 
-    if (!DecompressZIP(tmp_buf.data(), &uncompressed_size, sr.data() + offset,
-                       static_cast<unsigned long>(input_len), err)) {
-      if (err) {
-        (*err) += "Failed to decode non-tiled ZIP data.\n";
+      if (!DecompressZIP(tmp_buf.data(), &uncompressed_size, sr.data() + offset,
+                         static_cast<unsigned long>(input_len), err)) {
+        if (err) {
+          (*err) += "Failed to decode non-tiled ZIP data.\n";
+        }
+        return false;
       }
-      return false;
-    }
 
-    if (!UnpredictImageU8(tmp_buf, image_info.predictor,
-                          size_t(image_info.tile_width),
-                          size_t(image_info.tile_length),
-                          size_t(image_info.samples_per_pixel),
-                          size_t(image_info.bits_per_sample))) {
-      if (err) {
-        (*err) += "Failed to unpredict ZIP-ed tile image.\n";
+      if (!UnpredictImageU8(tmp_buf, image_info.predictor,
+                            size_t(image_info.tile_width),
+                            size_t(image_info.tile_length),
+                            size_t(image_info.samples_per_pixel),
+                            size_t(image_info.bits_per_sample))) {
+        if (err) {
+          (*err) += "Failed to unpredict ZIP-ed tile image.\n";
+        }
+        return false;
       }
-      return false;
-    }
 
-    memcpy(dst_data, tmp_buf.data(), tmp_buf.size());
+      memcpy(dst_data, tmp_buf.data(), tmp_buf.size());
+    }
   }
 
 #ifdef TINY_DNG_LOADER_PROFILING
@@ -5372,7 +5380,11 @@ bool LoadDNGFromMemory(const char* mem, unsigned int size,
           return false;
         }
 
-        if (!sr.read(len, len, image->data.data())) {
+        //if (!sr.read(len, len, image->data.data())) {
+        // support tiled, uncompressed images
+        bool ok = DecompressZIPedTile(sr, &(image->data.at(0)), image->width,
+                                      (*image), err);
+        if (!ok) {
           if (err) {
             (*err) += "Failed to read image data.\n";
           }

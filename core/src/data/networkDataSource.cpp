@@ -2,6 +2,7 @@
 
 #include "log.h"
 #include "platform.h"
+#include "util/mapProjection.h"
 
 namespace Tangram {
 
@@ -31,7 +32,8 @@ bool NetworkDataSource::urlHasTilePattern(const std::string &url) {
     return (url.find("{x}") != std::string::npos &&
             url.find("{y}") != std::string::npos &&
             url.find("{z}") != std::string::npos) ||
-           (url.find("{q}") != std::string::npos);
+           (url.find("{q}") != std::string::npos) ||
+           (url.find("{bbox}") != std::string::npos);
 }
 
 std::string NetworkDataSource::buildUrlForTile(const TileID& tile, const std::string& urlTemplate, const UrlOptions& options, int subdomainIndex) {
@@ -66,6 +68,17 @@ std::string NetworkDataSource::buildUrlForTile(const TileID& tile, const std::st
     if (qPos != std::string::npos) {
         auto quadkey = tileCoordinatesToQuadKey(tile);
         url.replace(qPos, 3, quadkey);
+    }
+    // {bbox} is replaced with min_lng,min_lat,max_lng,max_lat for fetching from ArcGIS WMS server with CRS=CRS:84
+    size_t bbPos = url.find("{bbox}");
+    if (bbPos != std::string::npos) {
+        auto bbox = MapProjection::tileBounds(tile);
+        LngLat llmin = MapProjection::projectedMetersToLngLat(bbox.min);
+        LngLat llmax = MapProjection::projectedMetersToLngLat(bbox.max);
+        char buff[64];
+        snprintf(buff, sizeof(buff), "%.8f,%.8f,%.8f,%.8f",
+                 llmin.longitude, llmin.latitude, llmax.longitude, llmax.latitude);
+        url.replace(bbPos, 6, buff);
     }
 
     return url;

@@ -7,8 +7,7 @@
 #include "map.h"
 #include "platform.h"
 #include "util/geom.h"
-
-#include "stb_image.h"
+#include "util/imageLoader.h"
 
 #include <cassert>
 #include <cstring> // for memset
@@ -31,19 +30,12 @@ Texture::~Texture() {
 bool Texture::loadImageFromMemory(const uint8_t* data, size_t length) {
 
     int width = 0, height = 0;
-    int channelsInFile = 0;
-    int channelsRequested = bpp();
-
+    GLint internalfmt = 0;
     LOGTInit();
 
-    m_buffer.reset(stbi_load_from_memory(data, static_cast<int>(length),
-                                         &width, &height, &channelsInFile,
-                                         channelsRequested));
+    m_buffer.reset(loadImage(data, length, &width, &height, &internalfmt, int(bpp())));
 
     if (!m_buffer) {
-        LOGE("Could not load image data: %dx%d bpp:%d/%d",
-             m_width, m_height, channelsInFile, channelsRequested);
-
         // Default inconsistent texture data is set to a 1*1 pixel texture
         // This reduces inconsistent behavior when texture failed loading
         // texture data but a Tangram style shader requires a shader sampler
@@ -51,25 +43,12 @@ bool Texture::loadImageFromMemory(const uint8_t* data, size_t length) {
         setPixelData(1, 1, bpp(), pixel, bpp());
         return false;
     }
+
+    m_options.pixelFormat = static_cast<PixelFormat>(internalfmt);
     m_bufferSize = width * height * bpp();
-
-    // need to flip image vertically for OpenGL coordinate system
-    // stbi_set_flip_vertically_on_load flips image in place, requiring 3x memcpy per row; we'd also need to
-    //  switch to stbi_set_flip_vertically_on_load_thread to avoid conflict w/ other users of stb_image
-    GLubyte* flipped = reinterpret_cast<GLubyte*>(std::malloc(m_bufferSize));
-    size_t rowSize = width*bpp();
-    for(int y = 0; y < height; ++y) {
-        GLubyte* src = &m_buffer.get()[y*rowSize];
-        GLubyte* dst = &flipped[(height - y - 1)*rowSize];
-        std::memcpy(dst, src, rowSize);
-    }
-    m_buffer.reset(flipped);
-
     resize(width, height);
 
-    LOGT("Decoded image data: %dx%d bpp:%d/%d",
-         width, height, channelsInFile, channelsRequested);
-
+    LOGT("Decoded image data: %dx%d bpp:%d", width, height, bpp());
     return true;
 }
 
@@ -139,11 +118,10 @@ bool Texture::upload(RenderState& _rs, GLuint _textureUnit) {
         _rs.texture(m_glHandle, _textureUnit, GL_TEXTURE_2D);
     }
 
-    auto format = static_cast<GLenum>(m_options.pixelFormat);
+    auto internalfmt = static_cast<GLint>(m_options.pixelFormat);
     // desktop GL doesn't support GL_ALPHA, GLES doesn't support GL_RED, so have to use GL_R8
-    GLint intfmt = format == GL_RED ? GL_R8 : format;
-    GL::texImage2D(GL_TEXTURE_2D, 0, intfmt, m_width, m_height, 0, format,
-                   GL_UNSIGNED_BYTE, m_buffer.get());
+    GL::texImage2D(GL_TEXTURE_2D, 0, internalfmt, m_width, m_height, 0, m_options.glFormat(),
+                   m_options.glType(), m_buffer.get());
 
     if (m_buffer && m_options.generateMipmaps) {
         GL::generateMipmap(GL_TEXTURE_2D);

@@ -141,6 +141,9 @@ typedef char            GLchar;
 #define GL_RGBA                         0x1908
 #define GL_RGBA8_OES                    0x8058
 #define GL_R8                           0x8229
+#define GL_RGB8                         0x8051
+#define GL_RGBA8                        0x8058
+#define GL_R32F                         0x822E
 
 #define GL_NEAREST                      0x2600
 #define GL_LINEAR                       0x2601
