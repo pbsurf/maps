@@ -63,10 +63,28 @@ uint8_t* loadImage(const uint8_t* data, size_t length, int* width, int* height, 
         if (image.sample_format == tinydng::SAMPLEFORMAT_IEEEFP) {
             if (image.samples_per_pixel == 1 && image.bits_per_sample == 32)
                 fmt = GL_R32F;
+        } else if (image.sample_format != tinydng::SAMPLEFORMAT_INT &&
+                   image.sample_format != tinydng::SAMPLEFORMAT_UINT) {
+          // not supported
         } else if (image.bits_per_sample == 8) {
             if (image.samples_per_pixel == 1) fmt = GL_R8;
             else if (image.samples_per_pixel == 3) fmt = GL_RGB8;
             else if (image.samples_per_pixel == 4) fmt = GL_RGBA8;
+        } else if (image.samples_per_pixel == 1) {
+            // convert int16 and int32 images to float
+            std::vector<float> fdata(image.width*image.height);
+            if(image.bits_per_sample == 16) {
+                int16_t* src = (int16_t*)image.data.data();
+                for(size_t ii = 0; ii < fdata.size(); ++ii) { fdata[ii] = float(src[ii]); }
+            }
+            else if(image.bits_per_sample == 32) {
+                int32_t* src = (int32_t*)image.data.data();
+                for(size_t ii = 0; ii < fdata.size(); ++ii) { fdata[ii] = float(src[ii]); }
+            }
+            *width = image.width;
+            *height = image.height;
+            *pixelfmt = GL_R32F;
+            return flipImage((uint8_t*)fdata.data(), image.width, image.height, 4);
         }
         if(!fmt) {
             LOGE("Unsupported TIFF: %d bits per sample, %d samples per pixel",

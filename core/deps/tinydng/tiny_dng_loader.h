@@ -2845,6 +2845,23 @@ static bool DecompressZIP(unsigned char* dst,
   return true;
 }
 
+template<typename T>
+static void ReverseDiff(T* dst, const size_t width, const size_t rows, const size_t spp)
+{
+  const T mask = std::numeric_limits<T>::max();
+  const size_t stride = width * spp;
+  for (size_t row = 0; row < rows; row++) {
+    for (size_t c = 0; c < spp; c++) {
+      uint64_t b = dst[row * stride + c];
+      for (size_t col = 1; col < width; col++) {
+        // value may overflow(wrap over), but its expected behavior.
+        b += dst[row * stride + spp * col + c];
+        dst[row * stride + spp * col + c] = static_cast<T>(b & mask);
+      }
+    }
+  }
+}
+
 // Assume T = uint8 or uint16
 static bool UnpredictImageU8(std::vector<uint8_t>& dst,  // inout
                              int predictor, const size_t width,
@@ -2856,21 +2873,17 @@ static bool UnpredictImageU8(std::vector<uint8_t>& dst,  // inout
   } else if (predictor == 2 || predictor == 3) {
     // horizontal diff
     const size_t bps = bits_per_sample/8;  // bytes per sample
-    const size_t stride = width * spp * bps;
-    for (size_t row = 0; row < rows; row++) {
-      for (size_t c = 0; c < spp; c++) {
-        unsigned int b = dst[row * stride + c];
-        for (size_t col = 1; col < width*bps; col++) {
-          // value may overflow(wrap over), but its expected behavior.
-          b += dst[stride * row + spp * col + c];
-          dst[stride * row + spp * col + c] =
-              static_cast<unsigned char>(b & 0xFF);
-        }
-      }
+    if (bps == 1 || predictor == 3) {
+      ReverseDiff(dst.data(), width*bps, rows, spp);
+    } else if (bps == 2) {
+      ReverseDiff((uint16_t*)dst.data(), width, rows, spp);
+    } else if (bps == 4) {
+      ReverseDiff((uint32_t*)dst.data(), width, rows, spp);
     }
     if (predictor == 3) {
       // for floating point predictor, have to undo byte reordering
       // ref: Adobe Photoshop TIFF Technical Note 3 - chriscox.org/TIFFTN3d1.pdf
+      const size_t stride = width * spp * bps;
       std::vector<uint8_t> src(dst.size());
       src.swap(dst);
       const size_t blkincr = width * spp;
