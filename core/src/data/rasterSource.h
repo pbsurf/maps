@@ -55,8 +55,6 @@ public:
 
     void generateGeometry(bool _generateGeometry) override;
 
-    std::unique_ptr<Texture> getTextureDirect(std::shared_ptr<TileTask> _task);
-
 };
 
 }

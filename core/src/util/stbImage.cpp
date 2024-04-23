@@ -40,7 +40,7 @@ static uint8_t* flipImage(const uint8_t* data, int width, int height, int bpp)
     return flipped;
 }
 
-struct malloc_deleter { void operator()(GLubyte* x) { std::free(x); } };
+struct malloc_deleter { void operator()(void* x) { std::free(x); } };
 
 uint8_t* loadImage(const uint8_t* data, size_t length, int* width, int* height, GLint* pixelfmt, int channels)
 {
