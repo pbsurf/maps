@@ -3,6 +3,7 @@
 #include "gl.h"
 #include <vector>
 #include <string>
+#include <cstdint>
 
 namespace Tangram {
 

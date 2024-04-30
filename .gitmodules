@@ -1,6 +1,3 @@
-[submodule "core/dependencies/csscolorparser"]
-	path = core/deps/css-color-parser-cpp
-	url = https://github.com/tangrams/css-color-parser-cpp
 [submodule "core/include/variant"]
 	path = core/deps/variant
 	url = https://github.com/tangrams/variant
