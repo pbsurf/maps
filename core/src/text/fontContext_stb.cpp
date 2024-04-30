@@ -31,16 +31,24 @@ namespace Tangram {
 //  between requested and actual size
 //const std::vector<float> FontContext::s_fontRasterSizes = { 16, 28, 40 };
 
+// move to cmake file
+#define TANGRAM_USER_FONTSTASH
+FONScontext* userCreateFontstash(FONSparams* params, int atlasFontPx);
+
 constexpr int atlasFontPx = 32;  // should be roughly 2x max font size (em size) used
 
 FontContext::FontContext(Platform& _platform) : m_sdfRadius(SDF_WIDTH), m_platform(_platform) {
     FONSparams params;
+    memset(&params, 0, sizeof(FONSparams));
     params.flags = FONS_SDF | FONS_ZERO_TOPLEFT;  //FONS_DELAY_LOAD;
     params.sdfPadding = SDF_WIDTH * 2;  // assumes pixel scale = 2
     params.sdfPixelDist = 128.0f/SDF_WIDTH/2;  // assumes pixel scale = 2
     params.atlasBlockHeight = GlyphTexture::size;
-
+#ifdef TANGRAM_USER_FONTSTASH
+    m_fons = userCreateFontstash(&params, atlasFontPx);
+#else
     m_fons = fonsCreateInternal(&params);
+#endif
     fonsResetAtlas(m_fons, GlyphTexture::size, GlyphTexture::size, atlasFontPx);
     m_textures.push_back(std::make_unique<GlyphTexture>());
 }
