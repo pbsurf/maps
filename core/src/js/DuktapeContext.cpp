@@ -17,7 +17,7 @@ const static char FUNC_ID[] = "\xff""\xff""fns";
 
 DuktapeContext::DuktapeContext() {
     // Create duktape heap with default allocation functions and custom fatal error handler.
-    _ctx = duk_create_heap(nullptr, nullptr, nullptr, nullptr, fatalErrorHandler);
+    _ctx = duk_create_heap(nullptr, nullptr, nullptr, this, fatalErrorHandler);
 
     //// Create global geometry constants
     // TODO make immutable
@@ -195,8 +195,11 @@ int DuktapeContext::jsConsoleLog(duk_context *_ctx) {
 // Implements Proxy handler.has(target_object, key)
 int DuktapeContext::jsHasProperty(duk_context *_ctx) {
 
-    duk_get_prop_string(_ctx, 0, INSTANCE_ID);
-    auto context = static_cast<const DuktapeContext*>(duk_to_pointer(_ctx, -1));
+    duk_memory_functions mem_fns;
+    duk_get_memory_functions(_ctx, &mem_fns);
+    auto context = static_cast<const DuktapeContext*>(mem_fns.udata);
+    //duk_get_prop_string(_ctx, 0, INSTANCE_ID);
+    //auto context = static_cast<const DuktapeContext*>(duk_to_pointer(_ctx, -1));
     if (!context || !context->_feature) {
         LOGE("Error: no context set %p %p", context, context ? context->_feature : nullptr);
         duk_pop(_ctx);
@@ -213,9 +216,13 @@ int DuktapeContext::jsHasProperty(duk_context *_ctx) {
 // Implements Proxy handler.get(target_object, key)
 int DuktapeContext::jsGetProperty(duk_context *_ctx) {
 
+    // getting DuktapeContext* from JS object is slow - instead we store as memory function user data
+    duk_memory_functions mem_fns;
+    duk_get_memory_functions(_ctx, &mem_fns);
+    auto context = static_cast<const DuktapeContext*>(mem_fns.udata);
     // Get the JavaScriptContext instance from JS Feature object (first parameter).
-    duk_get_prop_string(_ctx, 0, INSTANCE_ID);
-    auto context = static_cast<const DuktapeContext*>(duk_to_pointer(_ctx, -1));
+    //duk_get_prop_string(_ctx, 0, INSTANCE_ID);
+    //auto context = static_cast<const DuktapeContext*>(duk_to_pointer(_ctx, -1));
     if (!context || !context->_feature) {
         LOGE("Error: no context set %p %p",  context, context ? context->_feature : nullptr);
         duk_pop(_ctx);

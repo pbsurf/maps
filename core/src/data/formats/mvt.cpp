@@ -52,10 +52,8 @@ void Mvt::getGeometry(ParserContext& _ctx, protobuf::message _geomIn) {
 
         if(cmd == GeomCmd::moveTo || cmd == GeomCmd::lineTo) { // get parameters/points
             // if cmd is move then move to a new line/set of points and save this line
-            if(cmd == GeomCmd::moveTo) {
-                if (geometry.coordinates.size() > 0) {
-                    geometry.sizes.push_back(numCoordinates);
-                }
+            if(cmd == GeomCmd::moveTo && numCoordinates > 0) {
+                geometry.sizes.push_back(numCoordinates);
                 numCoordinates = 0;
             }
 
@@ -165,8 +163,9 @@ Feature Mvt::getFeature(ParserContext& _ctx, protobuf::message _featureIn) {
         case GeometryType::lines:
         {
             auto pos = _ctx.geometry.coordinates.begin();
+            feature.lines.reserve(_ctx.geometry.sizes.size());
             for (int length : _ctx.geometry.sizes) {
-                if (length == 0) { continue; }
+                //if (length == 0) { continue; }  -- no longer possible for 0 to be added to sizes
                 Line line;
                 line.reserve(length);
                 line.insert(line.begin(), pos, pos + length);
@@ -180,7 +179,7 @@ Feature Mvt::getFeature(ParserContext& _ctx, protobuf::message _featureIn) {
             auto pos = _ctx.geometry.coordinates.begin();
             auto rpos = _ctx.geometry.coordinates.rend();
             for (int length : _ctx.geometry.sizes) {
-                if (length == 0) { continue; }
+                //if (length == 0) { continue; }
                 float area = signedArea(pos, pos + length);
                 if (area == 0) {
                     pos += length;

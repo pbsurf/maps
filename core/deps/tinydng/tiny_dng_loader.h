@@ -2816,9 +2816,9 @@ static bool DecompressZIP(unsigned char* dst,
                           unsigned long* uncompressed_size /* inout */,
                           const unsigned char* src, unsigned long src_size,
                           std::string* err) {
-  std::vector<unsigned char> tmpBuf(*uncompressed_size);
 
 #ifdef TINY_DNG_LOADER_USE_SYSTEM_ZLIB
+  std::vector<unsigned char> tmpBuf(*uncompressed_size);
   int ret = uncompress(&tmpBuf.at(0), uncompressed_size, src, src_size);
   if (Z_OK != ret) {
     if (err) {
@@ -2828,8 +2828,20 @@ static bool DecompressZIP(unsigned char* dst,
     }
     return false;
   }
+  memcpy(dst, tmpBuf.data(), (*uncompressed_size));
+#elif 0  // a bit slower, but avoids extra dependency
+  int ret = stbi_zlib_decode_buffer((char*)dst, *uncompressed_size, (const char*)src, src_size);
+  if (ret < 0) {
+    if (err) {
+      std::stringstream ss;
+      ss << "stbi_zlib_decode failed. code = " << ret << "\n";
+      (*err) += ss.str();
+    }
+    return false;
+  }
 #else
-  int ret = mz_uncompress(&tmpBuf.at(0), uncompressed_size, src, src_size);
+  unsigned long avail_out = *uncompressed_size;
+  int ret = mz_uncompress(dst, &avail_out, src, src_size);  //&tmpBuf.at(0)
   if (MZ_OK != ret) {
     if (err) {
       std::stringstream ss;
@@ -2839,73 +2851,89 @@ static bool DecompressZIP(unsigned char* dst,
     return false;
   }
 #endif
-
-  memcpy(dst, tmpBuf.data(), (*uncompressed_size));
-
   return true;
 }
 
 template<typename T>
-static void ReverseDiff(T* dst, const size_t width, const size_t rows, const size_t spp)
+static void ReverseDiff(T* dst, size_t dst_width, size_t dst_stride,
+                        T* src, const size_t width, const size_t rows, const size_t spp)
 {
   const T mask = std::numeric_limits<T>::max();
-  const size_t stride = width * spp;
+  const size_t src_stride = width * spp;
   for (size_t row = 0; row < rows; row++) {
     for (size_t c = 0; c < spp; c++) {
-      uint64_t b = dst[row * stride + c];
-      for (size_t col = 1; col < width; col++) {
+      uint64_t b = src[row * src_stride + c];
+      for (size_t col = 1; col < dst_width; col++) {
         // value may overflow(wrap over), but its expected behavior.
-        b += dst[row * stride + spp * col + c];
-        dst[row * stride + spp * col + c] = static_cast<T>(b & mask);
+        b += src[row * src_stride + spp * col + c];
+        dst[row * dst_stride + spp * col + c] = static_cast<T>(b & mask);
       }
     }
   }
 }
 
-// Assume T = uint8 or uint16
-static bool UnpredictImageU8(std::vector<uint8_t>& dst,  // inout
-                             int predictor, const size_t width,
-                             const size_t rows, const size_t spp,
-                             const size_t bits_per_sample) {
+static bool UnpredictImageU8(uint8_t* dst, size_t dst_width, size_t dst_stride, uint8_t* src,
+                             int predictor, const size_t width, const size_t rows, const size_t spp,
+                             const size_t bps) {
+  size_t src_stride = width*bps*spp;
   if (predictor == 1) {
     // no prediction scheme
-    return true;
-  } else if (predictor == 2 || predictor == 3) {
-    // horizontal diff
-    const size_t bps = bits_per_sample/8;  // bytes per sample
-    if (bps == 1 || predictor == 3) {
-      ReverseDiff(dst.data(), width*bps, rows, spp);
-    } else if (bps == 2) {
-      ReverseDiff((uint16_t*)dst.data(), width, rows, spp);
-    } else if (bps == 4) {
-      ReverseDiff((uint32_t*)dst.data(), width, rows, spp);
+    for (size_t row = 0; row < rows; row++) {
+      memcpy(&dst[row * dst_stride], &src[row * src_stride], dst_width*bps*spp);
     }
-    if (predictor == 3) {
-      // for floating point predictor, have to undo byte reordering
-      // ref: Adobe Photoshop TIFF Technical Note 3 - chriscox.org/TIFFTN3d1.pdf
-      const size_t stride = width * spp * bps;
-      std::vector<uint8_t> src(dst.size());
-      src.swap(dst);
-      const size_t blkincr = width * spp;
+  } else if (predictor == 2) {
+    if (bps == 1) {
+      ReverseDiff(dst, dst_width, dst_stride, src, width, rows, spp);
+    } else if (bps == 2) {
+      ReverseDiff((uint16_t*)dst, dst_width, dst_stride/2, (uint16_t*)src, width, rows, spp);
+    } else if (bps == 4) {
+      ReverseDiff((uint32_t*)dst, dst_width, dst_stride/4, (uint32_t*)src, width, rows, spp);
+    }
+  } else if (predictor == 3) {
+    // for floating point predictor, have to undo byte reordering
+    // ref: Adobe Photoshop TIFF Technical Note 3 - chriscox.org/TIFFTN3d1.pdf
+
+    // optimize single sample float case
+    /*if (spp == 1 && width%bps == 0 && dst_width == width) {
+      //std::vector<uint8_t> src(dst.size());
+      //src.swap(dst);
+      const size_t blkwidth = width/bps;
       for (size_t row = 0; row < rows; row++) {
-        for (size_t col = 0; col < blkincr; col++) {
-          for (size_t byte = 0; byte < bps; byte++) {
-            dst[row * stride + bps * col + byte] =
-                src[row * stride + (bps-byte-1) * blkincr + col];
+        uint64_t b = 0;
+        for (size_t blk = 0; blk < bps; blk++) {
+          for (size_t col = 0; col < blkwidth; col++) {
+            for (size_t byte = 0; byte < bps; byte++) {
+              b += src[row * src_stride + bps * (blk*blkwidth + col) + byte];
+              dst[row * dst_stride + bps * (bps*col + byte) + (bps-blk-1)] = b & 0xFF;
+            }
           }
         }
       }
+      return true;
+    }*/
+
+    // first undo differencing in-place, then reorder when copying to destination
+    ReverseDiff(src, width*bps, src_stride, src, width*bps, rows, spp);
+    const size_t srcincr = width * spp;
+    const size_t dstincr = dst_width * spp;
+    for (size_t row = 0; row < rows; row++) {
+      for (size_t col = 0; col < dstincr; col++) {
+        for (size_t byte = 0; byte < bps; byte++) {
+          dst[row * dst_stride + bps * col + byte] =
+              src[row * src_stride + (bps-byte-1) * srcincr + col];
+        }
+      }
     }
-    return true;
   } else {
     return false;
   }
+  return true;
 }
 
 static bool DecompressZIPedTile(const StreamReader& sr, unsigned char* dst_data,
                                 int dst_width, const DNGImage& image_info,
                                 std::string* err) {
-  unsigned int tiff_h = 0, tiff_w = 0;
+  unsigned int tile_y = 0, tile_x = 0;
   int offset = 0;
 
   (void)dst_data;
@@ -2915,177 +2943,91 @@ static bool DecompressZIPedTile(const StreamReader& sr, unsigned char* dst_data,
   auto start_t = std::chrono::system_clock::now();
 #endif
 
-  TINY_DNG_DPRINTF("tile_offset = %d\n", int(image_info.tile_offset));
+  // <-       image width(skip len)           ->
+  // +-----------------------------------------+
+  // |                                         |
+  // |              <- tile w  ->              |
+  // |              +-----------+              |
+  // |              |           | \            |
+  // |              |           | |            |
+  // |              |           | | tile h     |
+  // |              |           | |            |
+  // |              |           | /            |
+  // |              +-----------+              |
+  // |                                         |
+  // |                                         |
+  // +-----------------------------------------+
 
-  if ((image_info.tile_width > 0) && (image_info.tile_length > 0)) {
-    // Assume ZIP is stored in tiled format.
-    //TINY_DNG_ASSERT(image_info.tile_width > 0, "Invalid tile width.");
-    //TINY_DNG_ASSERT(image_info.tile_length > 0, "Invalid tile length.");
+  TINY_DNG_DPRINTF("w, h = %d, %d\n", image_info.width, image_info.height);
+  TINY_DNG_DPRINTF("tile = %d, %d\n", image_info.tile_width, image_info.tile_length);
+  TINY_DNG_CHECK_AND_RETURN(image_info.bits_per_sample%8 == 0, "Sample sizes < 8 bit not supported!", err);
 
-    // <-       image width(skip len)           ->
-    // +-----------------------------------------+
-    // |                                         |
-    // |              <- tile w  ->              |
-    // |              +-----------+              |
-    // |              |           | \            |
-    // |              |           | |            |
-    // |              |           | | tile h     |
-    // |              |           | |            |
-    // |              |           | /            |
-    // |              +-----------+              |
-    // |                                         |
-    // |                                         |
-    // +-----------------------------------------+
+  const size_t tile_w = image_info.tile_width > 0 ? image_info.tile_width : image_info.width;
+  const size_t tile_h = image_info.tile_length > 0 ? image_info.tile_length : image_info.height;
+  const size_t bps = image_info.bits_per_sample/8;
+  const size_t spp = image_info.samples_per_pixel;
 
-    TINY_DNG_DPRINTF("tile = %d, %d\n", image_info.tile_width,
-                     image_info.tile_length);
-    TINY_DNG_DPRINTF("w, h = %d, %d\n", image_info.width, image_info.height);
+  while (tile_y < static_cast<unsigned int>(image_info.height)) {
+    TINY_DNG_DPRINTF("sr tell = %d\n", int(sr.tell()));
 
-    // Currently we only support tile data for tile.length == tiff.height.
-    // assert(image_info.tile_length == image_info.height);
-
-    size_t column_step = 0; // debug
-    (void)column_step;
-
-    while (tiff_h < static_cast<unsigned int>(image_info.height)) {
-      TINY_DNG_DPRINTF("sr tell = %d\n", int(sr.tell()));
-
-      if ((image_info.width <= image_info.tile_width) &&
-          (image_info.height <= image_info.tile_length)) {
-        // Only 1 tile in the image and tile size is larger than image size.
-        // Use image_info.tile_offset
-        // FIXME(syoyo): Record tag len in somewhere and lookup it to count the
-        // number of tiles in the image.
-        offset = int(image_info.tile_offset);
-      } else {
-        // Read offset to data location.
-        if (!sr.read4(&offset)) {
-          if (err) {
-            (*err) +=
-                "Failed to read offset to image data location in "
-                "DecompressZip.\n";
-          }
-          return false;
-        }
-        TINY_DNG_DPRINTF("offt = %d\n", offset);
-      }
-
-      size_t input_len = sr.size() - static_cast<size_t>(offset);
-      unsigned long uncompressed_size =
-          static_cast<unsigned long>(
-              image_info.samples_per_pixel * image_info.tile_width *
-              image_info.tile_length * image_info.bits_per_sample) /
-          static_cast<unsigned long>(8);
-
-      std::vector<uint8_t> tmp_buf;
-
-      if (image_info.compression == COMPRESSION_NONE) {
-        const uint8_t* start = sr.data() + offset;
-        tmp_buf.assign(start, start + uncompressed_size);
-      } else {
-        tmp_buf.resize(uncompressed_size);
-        if (!DecompressZIP(tmp_buf.data(), &uncompressed_size, sr.data() + offset,
-                           static_cast<unsigned long>(input_len), err)) {
-          if (err) {
-            (*err) += "Failed to decode ZIP data.\n";
-          }
-          return false;
-        }
-
-        if (!UnpredictImageU8(tmp_buf, image_info.predictor,
-                              size_t(image_info.tile_width),
-                              size_t(image_info.tile_length),
-                              size_t(image_info.samples_per_pixel),
-                              size_t(image_info.bits_per_sample))) {
-          if (err) {
-            (*err) += "Failed to unpredict ZIP-ed tile image.\n";
-          }
-          return false;
-        }
-      }
-      // Copy to dest buffer.
-      // NOTE: For some DNG file, tiled image may exceed the extent of target
-      // image resolution.
-      const size_t bpp = size_t(image_info.samples_per_pixel *
-                                image_info.bits_per_sample/8);
-      const unsigned int tile_w = static_cast<unsigned int>(image_info.tile_width);
-
-      for (unsigned int y = 0;
-           y < static_cast<unsigned int>(image_info.tile_length); y++) {
-        unsigned int y_offset = y + tiff_h;
-        if (y_offset >= static_cast<unsigned int>(image_info.height)) {
-          continue;
-        }
-
-        size_t dst_offset =
-            tiff_w + static_cast<unsigned int>(dst_width) * y_offset;
-
-        size_t x_len = tile_w;
-        if ((tiff_w + tile_w) >= static_cast<unsigned int>(dst_width)) {
-          x_len = static_cast<size_t>(dst_width) - tiff_w;
-        }
-
-        for (size_t x = 0; x < x_len; x++) {
-          for (size_t c = 0; c < bpp; c++) {
-            dst_data[bpp * (dst_offset + x) + c] =
-                tmp_buf[bpp * (y * tile_w + x) + c];
-          }
-        }
-      }
-
-      tiff_w += static_cast<unsigned int>(image_info.tile_width);
-      column_step++;
-      // TINY_DNG_DPRINTF("col = %d, tiff_w = %d / %d\n", column_step, tiff_w,
-      // image_info.width);
-      if (tiff_w >= static_cast<unsigned int>(image_info.width)) {
-        tiff_h += static_cast<unsigned int>(image_info.tile_length);
-        // TINY_DNG_DPRINTF("tiff_h = %d\n", tiff_h);
-        tiff_w = 0;
-        column_step = 0;
-      }
-    }
-  } else {
-    // Assume ZIP data is not stored in tiled format.
-
-    TINY_DNG_DPRINTF("width = %d", int(image_info.width));
-    TINY_DNG_DPRINTF("height = %d", int(image_info.height));
-
-    TINY_DNG_CHECK_AND_RETURN(image_info.offset > 0, "Invalid ZIPed data offset.", err);
-    offset = static_cast<int>(image_info.offset);
-
-    size_t input_len = sr.size() - static_cast<size_t>(offset);
-    unsigned long uncompressed_size =
-        static_cast<unsigned long>(image_info.samples_per_pixel *
-                                   image_info.width * image_info.height *
-                                   image_info.bits_per_sample) /
-        static_cast<unsigned long>(8);
-
-    if (image_info.compression == COMPRESSION_NONE) {
-      memcpy(dst_data, sr.data() + offset, uncompressed_size);
+    if (image_info.tile_width <= 0 || image_info.tile_length <= 0) {
+      TINY_DNG_CHECK_AND_RETURN(image_info.offset > 0, "Invalid ZIPed data offset.", err);
+      offset = static_cast<int>(image_info.offset);
+    } else if ((image_info.width <= image_info.tile_width) &&
+        (image_info.height <= image_info.tile_length)) {
+      // Only 1 tile in the image and tile size is larger than image size.
+      // Use image_info.tile_offset
+      // FIXME(syoyo): Record tag len in somewhere and lookup it to count the
+      // number of tiles in the image.
+      TINY_DNG_DPRINTF("tile_offset = %d\n", int(image_info.tile_offset));
+      offset = int(image_info.tile_offset);
     } else {
-      std::vector<uint8_t> tmp_buf;
-      tmp_buf.resize(uncompressed_size);
+      // Read offset to data location.
+      if (!sr.read4(&offset)) {
+        if (err) {
+          (*err) +=
+              "Failed to read offset to image data location in "
+              "DecompressZip.\n";
+        }
+        return false;
+      }
+      TINY_DNG_DPRINTF("offt = %d\n", offset);
+    }
 
-      if (!DecompressZIP(tmp_buf.data(), &uncompressed_size, sr.data() + offset,
+    const uint8_t* tile_src = sr.data() + offset;
+    size_t input_len = sr.size() - static_cast<size_t>(offset);
+    std::unique_ptr<uint8_t[]> tmp_buf;
+    if (image_info.compression != COMPRESSION_NONE) {
+      unsigned long uncompressed_size = tile_w * tile_h * spp * bps;
+      tmp_buf.reset(new uint8_t[uncompressed_size]);
+      if (!DecompressZIP(tmp_buf.get(), &uncompressed_size, tile_src,
                          static_cast<unsigned long>(input_len), err)) {
         if (err) {
-          (*err) += "Failed to decode non-tiled ZIP data.\n";
+          (*err) += "Failed to decode ZIP data.\n";
         }
         return false;
       }
+      tile_src = tmp_buf.get();
+    }
 
-      if (!UnpredictImageU8(tmp_buf, image_info.predictor,
-                            size_t(image_info.tile_width),
-                            size_t(image_info.tile_length),
-                            size_t(image_info.samples_per_pixel),
-                            size_t(image_info.bits_per_sample))) {
-        if (err) {
-          (*err) += "Failed to unpredict ZIP-ed tile image.\n";
-        }
-        return false;
+    size_t dst_offset = dst_width * tile_y + tile_x;
+    uint8_t* tile_dst = &dst_data[dst_offset*spp*bps];
+    size_t dst_stride = dst_width*spp*bps;
+    size_t nrows = std::min(tile_h, size_t(image_info.height - tile_y));
+    size_t dst_w = std::min(tile_w, size_t(dst_width - tile_x));
+    // copy tile_src to tile_dst, undoing predictor (if any)
+    if (!UnpredictImageU8(tile_dst, dst_w, dst_stride, (uint8_t*)tile_src,
+                          image_info.predictor, tile_w, nrows, spp, bps)) {
+      if (err) {
+        (*err) += "Failed to unpredict ZIP-ed tile image.\n";
       }
+      return false;
+    }
 
-      memcpy(dst_data, tmp_buf.data(), tmp_buf.size());
+    tile_x += tile_w;
+    if (tile_x >= static_cast<unsigned int>(image_info.width)) {
+      tile_y += tile_h;
+      tile_x = 0;
     }
   }
 
