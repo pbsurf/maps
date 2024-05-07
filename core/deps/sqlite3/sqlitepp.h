@@ -174,7 +174,8 @@ public:
   SQLiteDB(const SQLiteDB&) = delete;
   ~SQLiteDB() {
     if(!db) return;
-    while(sqlite3_stmt* stmt = sqlite3_next_stmt(db, NULL))
+    sqlite3_stmt* stmt = NULL;
+    while((stmt = sqlite3_next_stmt(db, stmt)))
       LOGW("SQLite statement was not finalized: %s", sqlite3_sql(stmt));
     sqlite3_close(db);
   }
@@ -182,6 +183,7 @@ public:
 
   const char* errMsg() { return sqlite3_errmsg(db); }
   int totalChanges() { return sqlite3_total_changes(db); }
+  int64_t lastInsertRowId() { return sqlite3_last_insert_rowid(db); }
   bool exec(const char* sql) { return sqlite3_exec(db, sql, NULL, NULL, NULL) == SQLITE_OK; }
   bool exec(const std::string& sql) { return exec(sql.c_str()); }
   SQLiteStmt stmt(const char* sql) { return SQLiteStmt(db, sql); }

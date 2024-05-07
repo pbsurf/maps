@@ -2862,8 +2862,8 @@ static void ReverseDiff(T* dst, size_t dst_width, size_t dst_stride,
   const size_t src_stride = width * spp;
   for (size_t row = 0; row < rows; row++) {
     for (size_t c = 0; c < spp; c++) {
-      uint64_t b = src[row * src_stride + c];
-      for (size_t col = 1; col < dst_width; col++) {
+      uint64_t b = 0;
+      for (size_t col = 0; col < dst_width; col++) {
         // value may overflow(wrap over), but its expected behavior.
         b += src[row * src_stride + spp * col + c];
         dst[row * dst_stride + spp * col + c] = static_cast<T>(b & mask);
@@ -2892,6 +2892,8 @@ static bool UnpredictImageU8(uint8_t* dst, size_t dst_width, size_t dst_stride, 
   } else if (predictor == 3) {
     // for floating point predictor, have to undo byte reordering
     // ref: Adobe Photoshop TIFF Technical Note 3 - chriscox.org/TIFFTN3d1.pdf
+    // for further optimization, we could try SIMD:
+    // - see https://aras-p.info/blog/2023/03/01/Float-Compression-7-More-Filtering-Optimization/
 
     // optimize single sample float case
     /*if (spp == 1 && width%bps == 0 && dst_width == width) {
