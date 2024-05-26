@@ -49,6 +49,9 @@ if (UNIX AND CMAKE_COMPILER_IS_GNUCXX)
     endif()
 endif()
 
+# enable URIs (needs for attaching databases as read-only)
+target_compile_definitions(sqlite3 PUBLIC SQLITE_USE_URI=1)
+
 # Allow the library to be installed via "make install" and found with "find_package"
 
 include(GNUInstallDirs)
