@@ -7,11 +7,9 @@
 
 if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/sqlite3.c")
     file(DOWNLOAD "https://www.sqlite.org/2020/sqlite-amalgamation-3320300.zip" "${CMAKE_CURRENT_SOURCE_DIR}/sqlite.zip")
-    add_custom_command(
-        OUTPUT sqlite3.h sqlite3.c
-        COMMAND unzip sqlite.zip sqlite3.h sqlite3.c
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        DEPENDS "sqlite.zip")
+    file(ARCHIVE_EXTRACT INPUT ${CMAKE_CURRENT_SOURCE_DIR}/sqlite.zip DESTINATION ${CMAKE_CURRENT_SOURCE_DIR})
+    file(RENAME ${CMAKE_CURRENT_SOURCE_DIR}/sqlite-amalgamation-3320300/sqlite3.h ${CMAKE_CURRENT_SOURCE_DIR}/sqlite3.h)
+    file(RENAME ${CMAKE_CURRENT_SOURCE_DIR}/sqlite-amalgamation-3320300/sqlite3.c ${CMAKE_CURRENT_SOURCE_DIR}/sqlite3.c)
 endif()
 
 # add sources of the "sqlite3" static library

@@ -277,7 +277,10 @@ void Importer::importScenesRecursive(Node& root, const Url& sceneUrl, std::unord
         importScenesRecursive(root, url, imported);
     }
 
-    mergeMapFields(root, sceneNode.yaml);
+    // don't overwrite root with empty node from missing file!
+    if (!sceneNode.yaml.IsNull()) {
+      mergeMapFields(root, sceneNode.yaml);
+    }
 
     resolveSceneUrls(root, sceneUrl);
 }
