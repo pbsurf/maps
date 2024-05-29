@@ -137,9 +137,10 @@ SceneID Map::loadScene(SceneOptions&& _sceneOptions, bool _async) {
 
 SceneID Map::Impl::loadScene(SceneOptions&& _sceneOptions) {
 
-    std::unique_ptr<Scene> oldScene = std::move(scene);
-    scene = std::make_unique<Scene>(platform, std::move(_sceneOptions), nullptr, oldScene.get());
-    oldScene.reset();  // dispose old scene ... might be blocking
+    Scene* oldScene = scene.release();
+    scene = std::make_unique<Scene>(platform, std::move(_sceneOptions), nullptr, oldScene);
+    // oldScene may have been loaded async, so dispose on worker thread (after loading complete)
+    asyncWorker->enqueue([oldScene](){ delete oldScene; });
     scene->load();
 
     if (onSceneReady) {
