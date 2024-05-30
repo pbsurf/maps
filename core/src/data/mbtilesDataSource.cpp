@@ -111,8 +111,8 @@ MBTilesQueries::MBTilesQueries(sqlite3* db, tag_cache) :
     // - SELECT tile_id FROM offline_tiles EXCEPT SELECT tile_id FROM offline_tiles WHERE offline_id <> ?;
     delOfflineTiles(db, "DELETE FROM images WHERE tile_id IN (SELECT tile_id FROM offline_tiles WHERE"
         " offline_id = ?1 AND tile_id NOT IN (SELECT tile_id FROM offline_tiles WHERE offline_id <> ?1));"),
-    delOldTiles(db, "DELETE FROM images WHERE tile_id IN (SELECT tile_id FROM tile_last_access"
-        " WHERE last_access < ? AND tile_id NOT IN (SELECT tile_id FROM offline_tiles));"),
+    delOldTiles(db, "DELETE FROM images WHERE tile_id NOT IN (SELECT tile_id FROM tile_last_access"
+        " WHERE last_access > ?) AND tile_id NOT IN (SELECT tile_id FROM offline_tiles);"),
     getTileSizes(db, "SELECT images.tile_id, ot.offline_id, tla.last_access, length(tile_data)"
         " FROM images LEFT JOIN tile_last_access AS tla ON images.tile_id = tla.tile_id"
         " LEFT JOIN offline_tiles AS ot ON images.tile_id = ot.tile_id;"),
@@ -436,6 +436,8 @@ void MBTilesDataSource::storeTileData(const TileID& _tileId, const std::vector<c
     m_platform.notifyStorage(size, 0);  //offlineId ? size : 0);
     if (offlineId) {
         m_queries->putOffline.bind(md5id, std::abs(offlineId)).exec();
+    } else {
+        m_queries->putLastAccess.bind(md5id).exec();
     }
 }
 
