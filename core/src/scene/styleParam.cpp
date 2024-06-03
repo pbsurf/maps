@@ -47,6 +47,7 @@ const std::map<std::string, StyleParamKey> s_StyleParamMap = {
     {"miter_limit", StyleParamKey::miter_limit},
     {"none", StyleParamKey::none},
     {"offset", StyleParamKey::offset},
+    {"optional", StyleParamKey::text_optional},
     {"order", StyleParamKey::order},
     {"outline:alpha", StyleParamKey::outline_alpha},
     {"outline:cap", StyleParamKey::outline_cap},

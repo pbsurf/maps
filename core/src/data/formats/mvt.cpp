@@ -276,7 +276,7 @@ Layer Mvt::getLayer(ParserContext& _ctx, protobuf::message _layerIn) {
                             _ctx.values.push_back(valueItr.varint());
                             break;
                         case 6: // sint value
-                            _ctx.values.push_back(valueItr.int64());
+                            _ctx.values.push_back(valueItr.svarint());  //int64());
                             break;
                         case 7: // bool value
                             _ctx.values.push_back(valueItr.boolean());
