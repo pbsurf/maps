@@ -745,6 +745,12 @@ bool StyleParam::isFontSize(StyleParamKey _key) {
 
 bool StyleParam::isNumberType(StyleParamKey _key) {
     switch (_key) {
+        case StyleParamKey::alpha:  // enable stops for alpha values and miter limits
+        case StyleParamKey::outline_alpha:
+        case StyleParamKey::text_font_alpha:
+        case StyleParamKey::text_font_stroke_alpha:
+        case StyleParamKey::miter_limit:
+        case StyleParamKey::outline_miter_limit:
         case StyleParamKey::placement_min_length_ratio:
             return true;
         default:

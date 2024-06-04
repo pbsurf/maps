@@ -429,6 +429,12 @@ bool IsDNGFromMemory(const char* mem, unsigned int size, std::string* msg);
 #ifdef TINY_DNG_LOADER_ENABLE_ZIP
 #ifndef TINY_DNG_LOADER_USE_SYSTEM_ZLIB
 #include "miniz.h"
+// https://github.com/vurtun/lib/blob/master/sinfl.h
+//#define SINFL_IMPLEMENTATION
+//#include "sinfl.h"
+//#ifdef SINFL_NO_SIMD
+//#error "SIMD not enabled in sinfl.h!"
+//#endif
 #endif
 #endif
 
@@ -2837,6 +2843,12 @@ static bool DecompressZIP(unsigned char* dst,
       ss << "stbi_zlib_decode failed. code = " << ret << "\n";
       (*err) += ss.str();
     }
+    return false;
+  }
+#elif 0  // single header, uses SIMD
+  int ret = sinflate(dst, *uncompressed_size, src, src_size);
+  if (ret < 0) {
+    if (err) (*err) += "sinflate failed."
     return false;
   }
 #else
