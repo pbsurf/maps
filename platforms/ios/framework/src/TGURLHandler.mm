@@ -61,9 +61,25 @@
 
 #pragma mark - Instance Methods
 
-- (NSUInteger)downloadRequestAsync:(NSURL *)url completionHandler:(TGDownloadCompletionHandler)completionHandler
+- (NSUInteger)downloadRequestAsync:(NSURL *)url headers:(NSString*)headers payload:(NSData*)payload completionHandler:(TGDownloadCompletionHandler)completionHandler
 {
-    NSURLSessionDataTask* dataTask = [self.session dataTaskWithURL:url
+    NSMutableURLRequest* request = [NSMutableURLRequest requestWithURL:url];
+    if([payload length] > 0) {
+        [request setHTTPMethod:@"POST"];
+        [request setHTTPBody:payload];
+    }
+    if([headers length] > 0) {
+        NSArray* hdrs = [headers componentsSeparatedByString:@"\r\n"];
+        for (NSString* hdr in hdrs) {
+            NSRange colon = [hdr rangeOfString:@":"];
+            if(colon.location == NSNotFound) continue;
+            NSString* key = [hdr substringToIndex:colon.location];
+            NSString* val = [hdr substringFromIndex:colon.location + 1];
+            [request setValue:val forHTTPHeaderField:key];
+        }
+    }
+
+    NSURLSessionDataTask* dataTask = [self.session dataTaskWithRequest:request
                                                  completionHandler:completionHandler];
 
     [dataTask resume];

@@ -31,7 +31,7 @@ NS_ASSUME_NONNULL_BEGIN
 
  @note This method will be automatically called by the map view instance.
  */
-- (NSUInteger)downloadRequestAsync:(NSURL *)url completionHandler:(TGDownloadCompletionHandler)completionHandler;
+- (NSUInteger)downloadRequestAsync:(NSURL *)url headers:(NSString*)headers payload:(NSData*)payload completionHandler:(TGDownloadCompletionHandler)completionHandler;
 
 /**
  Cancel a previous download request.
