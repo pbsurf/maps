@@ -10,11 +10,6 @@
 #include <cstdlib>
 #include <map>
 
-Tangram::Platform* createiOSPlatform()
-{
-  return new Tangram::iOSPlatform(NULL);
-}
-
 namespace Tangram {
 
 void logMsg(const char* fmt, ...) {
@@ -33,6 +28,11 @@ void setCurrentThreadPriority(int priority) {
 
 void initGLExtensions() {
     // No-op
+}
+
+Platform* createiOSPlatform()
+{
+  return new iOSPlatform(NULL);
 }
 
 iOSPlatform::iOSPlatform(__weak TGMapView* _mapView) :
