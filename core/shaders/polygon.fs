@@ -1,8 +1,3 @@
-precision highp float;
-precision highp int;
-precision highp sampler2D;
-precision highp sampler2DArray;
-
 #pragma tangram: extensions
 
 #ifdef GL_ES
