@@ -2845,7 +2845,7 @@ static bool DecompressZIP(unsigned char* dst,
     }
     return false;
   }
-#elif 0  // single header, uses SIMD ... slower than miniz on iPhone
+#elif 0  // single header, uses SIMD ... no faster than miniz on iPhone
   // skip the zlib header
   int ret = sinflate(dst, *uncompressed_size, src+2, src_size-2);
   if (ret <= 0) {

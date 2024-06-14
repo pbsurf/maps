@@ -39,6 +39,8 @@ public:
     // Build selection fragment shader source
     std::string buildSelectionFragmentSource() const;
 
+    static int glesVersion;
+
 private:
 
     std::string applySourceBlocks(const std::string& _source, bool _fragShader,
