@@ -1,7 +1,7 @@
 #include "sqlite_fdvfs.h"
+#include "sqlite3.h"
 
 #include <string.h>
-#include <sqlite3.h>
 #include <unistd.h>
 #include <stdlib.h>
 

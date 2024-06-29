@@ -27,6 +27,7 @@ class AndroidPlatform : public Platform {
 public:
 
     AndroidPlatform(JNIEnv* jniEnv, jobject mapController, jobject assetManager);
+    void onActivityCreated(JNIEnv* jniEnv, jobject mapController, jobject assetManager);
     void shutdown() override;
     void setContinuousRendering(bool isContinuous) override;
     FontSourceHandle systemFont(const std::string& name, const std::string& weight, const std::string& face) const override;

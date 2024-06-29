@@ -70,9 +70,7 @@ void logMsg(const char* fmt, ...) {
 AndroidPlatform::AndroidPlatform(JNIEnv* jniEnv, jobject mapController, jobject assetManager)
     : m_jniWorker(JniHelpers::getJVM()) {
 
-    m_mapController = jniEnv->NewWeakGlobalRef(mapController);
-
-    m_assetManager = AAssetManager_fromJava(jniEnv, assetManager);
+    onActivityCreated(jniEnv, mapController, assetManager);
 
     if (m_assetManager == nullptr) {
         LOGE("Could not obtain Asset Manager reference");
@@ -82,6 +80,12 @@ AndroidPlatform::AndroidPlatform(JNIEnv* jniEnv, jobject mapController, jobject 
 #ifdef TANGRAM_MBTILES_DATASOURCE
     sqlite3_ndk_init(m_assetManager);
 #endif
+}
+
+void AndroidPlatform::onActivityCreated(JNIEnv* jniEnv, jobject mapController, jobject assetManager)
+{
+  m_mapController = jniEnv->NewWeakGlobalRef(mapController);
+  m_assetManager = AAssetManager_fromJava(jniEnv, assetManager);
 }
 
 void AndroidPlatform::shutdown() {
