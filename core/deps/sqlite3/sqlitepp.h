@@ -121,7 +121,7 @@ public:
 
   template<class... Args>
   bool onerow(Args&... args) {
-    if(!stmt) return false;
+    if(!stmt) { LOGE("Attemping to exec null statement!"); return false; }
     int res = sqlite3_step(stmt);
     // no rows - not an error, but return false to inform caller no data was written
     if(res == SQLITE_DONE || res == SQLITE_OK) {
@@ -172,6 +172,7 @@ public:
 
   SQLiteDB(sqlite3* _db = NULL) : db(_db) {}
   SQLiteDB(const SQLiteDB&) = delete;
+  SQLiteDB(SQLiteDB&& other) : db(std::exchange(other.db, nullptr)) {}
   ~SQLiteDB() {
     if(!db) return;
 #ifndef NDEBUG  // sqlite FTS, e.g., leaves around some unfinalized statements that we can't do anything about

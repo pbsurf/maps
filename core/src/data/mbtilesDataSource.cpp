@@ -81,10 +81,6 @@ struct MBTilesQueries {
     // caching and offline maps
     SQLiteStmt getOffline = nullptr;
     SQLiteStmt putOffline = nullptr;
-    SQLiteStmt delOffline = nullptr;
-    SQLiteStmt delOfflineTiles = nullptr;
-    SQLiteStmt delOldTiles = nullptr;
-    SQLiteStmt getTileSizes = nullptr;
     SQLiteStmt getOfflineSize = nullptr;
     SQLiteStmt putLastAccess = nullptr;
 
@@ -103,19 +99,6 @@ MBTilesQueries::MBTilesQueries(sqlite3* db, tag_cache) :
     putImage(db, "REPLACE INTO images (tile_id, tile_data) VALUES (?, ?);"),
     getOffline(db, "SELECT 1,tile_id FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;"),
     putOffline(db, "REPLACE INTO offline_tiles (tile_id, offline_id) VALUES (?, ?);"),
-    delOffline(db, "DELETE FROM offline_tiles WHERE offline_id = ?;"),
-    // note that rows in maps and tile_last_access will be deleted by trigger
-    // a few potential alternatives are:
-    // - omit "WHERE offline_id = ?1" ... seems like this might be slower though
-    // - SELECT tile_id FROM offline_tiles GROUP BY tile_id HAVING MAX(offline_id) = ? AND MIN(offline_id) = ?
-    // - SELECT tile_id FROM offline_tiles EXCEPT SELECT tile_id FROM offline_tiles WHERE offline_id <> ?;
-    delOfflineTiles(db, "DELETE FROM images WHERE tile_id IN (SELECT tile_id FROM offline_tiles WHERE"
-        " offline_id = ?1 AND tile_id NOT IN (SELECT tile_id FROM offline_tiles WHERE offline_id <> ?1));"),
-    delOldTiles(db, "DELETE FROM images WHERE tile_id NOT IN (SELECT tile_id FROM tile_last_access"
-        " WHERE last_access > ?) AND tile_id NOT IN (SELECT tile_id FROM offline_tiles);"),
-    getTileSizes(db, "SELECT images.tile_id, ot.offline_id, tla.last_access, length(tile_data)"
-        " FROM images LEFT JOIN tile_last_access AS tla ON images.tile_id = tla.tile_id"
-        " LEFT JOIN offline_tiles AS ot ON images.tile_id = ot.tile_id;"),
     getOfflineSize(db, "SELECT sum(length(tile_data)) FROM images WHERE tile_id IN"
         " (SELECT tile_id FROM offline_tiles);"),
     putLastAccess(db, "REPLACE INTO tile_last_access (tile_id, last_access) VALUES"
@@ -257,15 +240,14 @@ void MBTilesDataSource::openMBTiles() {
         path.erase(path.begin()); // Remove leading '/'.
     }
 
-    m_db = std::make_unique<SQLiteDB>();
-    if (sqlite3_open_v2(path.c_str(), &m_db->db, mode, vfs) != SQLITE_OK) {
-        LOGE("Unable to open SQLite database: %s - %s", m_path.c_str(), m_db->errMsg());
-        m_db.reset();
+    SQLiteDB db;
+    if (sqlite3_open_v2(path.c_str(), &db.db, mode, vfs) != SQLITE_OK) {
+        LOGE("Unable to open SQLite database: %s - %s", m_path.c_str(), db.errMsg());
         return;
     }
     LOG("SQLite database opened: %s", path.c_str());
 
-    bool ok = testSchema(*m_db);
+    bool ok = testSchema(db);
     if (ok) {
         if (m_cacheMode && !m_schemaOptions.isCache) {
             // TODO better description
@@ -277,27 +259,25 @@ void MBTilesDataSource::openMBTiles() {
     } else if (m_cacheMode) {
 
         // Setup the database by running the schema.sql.
-        initSchema(*m_db, m_name, m_mime);
+        initSchema(db, m_name, m_mime);
 
-        ok = testSchema(*m_db);
+        ok = testSchema(db);
         if (!ok) {
             LOGE("Unable to initialize MBTiles schema");
-            m_db.reset();
             return;
         }
     } else {
         LOGE("Invalid MBTiles schema");
-        m_db.reset();
         return;
     }
 
     if (m_schemaOptions.compression == Compression::unsupported) {
-        m_db.reset();
         return;
     }
 
-    m_queries = m_cacheMode ? std::make_unique<MBTilesQueries>(m_db->db, MBTilesQueries::tag_cache{})
-        : std::make_unique<MBTilesQueries>(m_db->db);
+    m_queries = m_cacheMode ? std::make_unique<MBTilesQueries>(db.db, MBTilesQueries::tag_cache{})
+        : std::make_unique<MBTilesQueries>(db.db);
+    m_db = std::make_unique<SQLiteDB>(std::move(db));
 }
 
 /**
@@ -441,34 +421,13 @@ void MBTilesDataSource::storeTileData(const TileID& _tileId, const std::vector<c
     }
 }
 
-void MBTilesDataSource::deleteOfflineMap(int offlineId, bool delTiles) {
-    if (delTiles) {
-        //int totchanges = m_db->totalChanges();
-        m_queries->delOfflineTiles.bind(offlineId).exec();
-        //if (m_db->totalChanges() - totchanges > 32) m_db->exec("VACUUM;"); -- too slow
-    }
-    m_queries->delOffline.bind(offlineId).exec();
-}
-
-void MBTilesDataSource::deleteOldTiles(int cutoff) {
-    //int totchanges = m_db->totalChanges();
-    m_queries->delOldTiles.bind(cutoff).exec();
-    //if (m_db->totalChanges() - totchanges > 32) m_db->exec("VACUUM;");  -- too slow
-}
-
-void MBTilesDataSource::getTileSizes(std::function<void(int, int, int)> cb) {
-    m_queries->getTileSizes.exec([&](const char*, int ofl_id, int ts, int size){ cb(ofl_id, ts, size); });
-}
-
 int64_t MBTilesDataSource::getOfflineSize() {
     int64_t size = 0;
-    m_queries->getOfflineSize.exec([&](int64_t s){ size = s; });
+    if(m_queries)
+      m_queries->getOfflineSize.exec([&](int64_t s){ size = s; });
     return size;
 }
 
-sqlite3* MBTilesDataSource::dbHandle()
-{
-  return m_db->db;
-}
+sqlite3* MBTilesDataSource::dbHandle() { return m_db->db; }
 
 }
