@@ -158,7 +158,6 @@ install_manifest.txt
 platforms/android/demo/jni
 platforms/android/*/libs
 platforms/android/*/obj
-*.mk
 
 # Android gradle
 platforms/android/demo/gradle
