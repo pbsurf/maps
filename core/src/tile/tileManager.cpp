@@ -485,7 +485,7 @@ void TileManager::updateTileSet(TileSet& _tileSet, const ViewState& _view) {
     for (auto& it : tiles) {
         auto& entry = it.second;
 
-#if 0 && LOG_LEVEL >= 3
+#ifdef TANGRAM_DEBUG_TILESETS //0 && LOG_LEVEL >= 3
         size_t rasterLoading = 0;
         size_t rasterDone = 0;
         if (entry.task) {
@@ -494,7 +494,8 @@ void TileManager::updateTileSet(TileSet& _tileSet, const ViewState& _view) {
                 else { rasterLoading++; }
             }
         }
-        LOGD("> %s - ready:%d proxy:%d/%d loading:%d rDone:%d rLoading:%d canceled:%d",
+        LOGD("%s > %s - ready:%d proxy:%d/%d loading:%d rDone:%d rLoading:%d canceled:%d",
+             _tileSet.source->name().c_str(),
              it.first.toString().c_str(),
              bool(entry.tile),
              entry.getProxyCounter(),

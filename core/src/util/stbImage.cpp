@@ -20,6 +20,7 @@
 #define TINY_DNG_LOADER_ENABLE_ZIP
 #define TINY_DNG_NO_EXCEPTION
 #define TINY_DNG_LOADER_NO_STB_IMAGE_INCLUDE  // this is simpler than #undef STB_IMAGE_IMPLEMENTATION
+#define TINY_DNG_PPRINTF LOG  // for profiling (if TINY_DNG_LOADER_PROFILING defined at compile time)
 #include "tinydng/tiny_dng_loader.h"
 #endif
 

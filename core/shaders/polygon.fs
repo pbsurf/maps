@@ -50,6 +50,7 @@ vec3 worldNormal() {
 #pragma tangram: raster
 #pragma tangram: global
 
+#ifndef TANGRAM_CUSTOM_MAIN
 void main(void) {
 
     // Initialize globals
@@ -90,3 +91,4 @@ void main(void) {
     //color.rgb = pow(color.rgb, vec3(1.0/2.2)); // gamma correction
     gl_FragColor = color;
 }
+#endif

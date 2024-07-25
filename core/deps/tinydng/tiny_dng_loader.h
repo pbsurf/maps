@@ -333,6 +333,10 @@ bool IsDNGFromMemory(const char* mem, unsigned int size, std::string* msg);
 #ifdef TINY_DNG_LOADER_PROFILING
 // Requires C++11 feature
 #include <chrono>
+
+#ifndef TINY_DNG_PPRINTF
+#define TINY_DNG_PPRINTF(...) printf(__VA_ARGS__)
+#endif
 #endif
 
 #if __cplusplus > 199911L
@@ -351,10 +355,12 @@ bool IsDNGFromMemory(const char* mem, unsigned int size, std::string* msg);
 #endif
 
 //#define TINY_DNG_LOADER_DEBUG
+#ifndef TINY_DNG_DPRINTF
 #ifdef TINY_DNG_LOADER_DEBUG
 #define TINY_DNG_DPRINTF(...) printf(__VA_ARGS__)
 #else
 #define TINY_DNG_DPRINTF(...)
+#endif
 #endif
 
 #if 0 // DBG
@@ -3048,10 +3054,9 @@ static bool DecompressZIPedTile(const StreamReader& sr, unsigned char* dst_data,
 
 #ifdef TINY_DNG_LOADER_PROFILING
   auto end_t = std::chrono::system_clock::now();
-  auto ms =
-      std::chrono::duration_cast<std::chrono::milliseconds>(end_t - start_t);
-
-  std::cout << "DecompressZIP : " << ms.count() << " [ms]" << std::endl;
+  std::chrono::duration<double, std::milli> ms = end_t - start_t;
+  TINY_DNG_PPRINTF("TinyDNG DecompressZIP: %d bytes out in %.3f ms",
+      image_info.width * image_info.height * spp * bps, ms.count());
 #endif
 
   return true;
@@ -3320,11 +3325,9 @@ static bool DecompressLosslessJPEG(const StreamReader& sr,
 
 #ifdef TINY_DNG_LOADER_PROFILING
   auto end_t = std::chrono::system_clock::now();
-  auto ms =
-      std::chrono::duration_cast<std::chrono::milliseconds>(end_t - start_t);
-
-  std::cout << "DecompressLosslessJPEG : " << ms.count() << " [ms]"
-            << std::endl;
+  std::chrono::duration<double, std::milli> ms = end_t - start_t;
+  TINY_DNG_PPRINTF("TinyDNG DecompressLosslessJPEG %d pixels out in %.3f ms\n",
+      image_info.width * image_info.height, ms.count());
 #endif
 
   return true;

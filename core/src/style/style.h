@@ -49,6 +49,7 @@ enum class LightingType : uint8_t {
 
 enum class Blending : uint8_t {
     opaque,
+    nonopaque,
     add,
     multiply,
     inlay,

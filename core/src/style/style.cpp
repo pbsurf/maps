@@ -44,6 +44,7 @@ void Style::build(const Scene& _scene) {
     const char* blendingDefine = "";
     switch (m_blend) {
     case Blending::opaque: blendingDefine = "#define TANGRAM_BLEND_OPAQUE\n"; break;
+    case Blending::nonopaque: blendingDefine = "#define TANGRAM_BLEND_NONOPAQUE\n"; break;
     case Blending::add: blendingDefine = "#define TANGRAM_BLEND_ADD\n"; break;
     case Blending::multiply: blendingDefine = "#define TANGRAM_BLEND_MULTIPLY\n"; break;
     case Blending::inlay: blendingDefine = "#define TANGRAM_BLEND_INLAY\n"; break;
@@ -271,6 +272,7 @@ void Style::onBeginDrawFrame(RenderState& rs, const View& _view) {
             rs.depthMask(GL_FALSE);
             break;
         case Blending::translucent:
+        case Blending::nonopaque:
             rs.blending(GL_TRUE);
             rs.blendingFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             rs.depthTest(GL_TRUE);
@@ -307,6 +309,7 @@ void Style::onBeginDrawSelectionFrame(RenderState& rs, const View& _view) {
         case Blending::add:
         case Blending::multiply:
         case Blending::translucent:
+        case Blending::nonopaque:
             rs.depthTest(GL_TRUE);
             rs.depthMask(GL_TRUE);
             break;
