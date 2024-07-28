@@ -100,7 +100,7 @@ protected:
     const int64_t m_sourceId;
     const int64_t m_sourceGeneration;
 
-    // Tile result, set when tile was  sucessfully created
+    // Tile result, set when tile is successfully created
     std::unique_ptr<Tile> m_tile;
 
     std::atomic<bool> m_ready;

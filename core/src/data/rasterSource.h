@@ -26,6 +26,7 @@ class RasterSource : public TileSource {
     friend class TileSource;
 protected:
     std::shared_ptr<TileData> m_tileData;
+    std::shared_ptr<TileData> m_gridData;
 
     std::shared_ptr<TileData> parse(const TileTask& _task) const override;
 
