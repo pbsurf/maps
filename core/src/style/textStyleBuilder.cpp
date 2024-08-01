@@ -536,15 +536,15 @@ void TextStyleBuilder::addCurvedTextLabels(const Line& _line, const TextStyle::P
         sampler.sample(mid, center, rotation);
         size_t offset = sampler.curSegment();
 
-        std::vector<glm::vec2> l;
+        std::vector<glm::vec3> l;
         l.reserve(range.end - range.start + 1);
 
         for (size_t j = range.start; j < range.end; j++) {
             auto& p = _line[j];
-            l.emplace_back(p.x, p.y);
+            l.emplace_back(p.x, p.y, 0.f);
 
             if (j == offset) {
-                l.push_back(center);
+                l.push_back(glm::vec3(center, 0.f));
             }
         }
         size_t anchor = offset - range.start + 1;

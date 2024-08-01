@@ -58,6 +58,8 @@ public:
     bool updateScreenTransform(const glm::mat4& _mvp, const ViewState& _viewState,
                                const AABB* _bounds, ScreenTransform& _transform) override;
 
+    bool setElevation(ElevationManager& elevMgr, glm::dvec2 origin, float scale) override;
+
     void obbs(ScreenTransform& _transform, OBBBuffer& _obbs) const override;
 
     void addVerticesToMesh(ScreenTransform& _transform, const glm::vec2& _screenSize) override;
@@ -84,7 +86,7 @@ public:
 
 protected:
 
-    const Coordinates m_coordinates;
+    std::array<glm::vec3, 2> m_coordinates;
 
     // Back-pointer to owning container
     const TextLabels& m_textLabels;

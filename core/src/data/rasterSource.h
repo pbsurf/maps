@@ -42,6 +42,8 @@ protected:
 
 public:
 
+    bool m_isTerrain3dSource = false;
+
     RasterSource(const std::string& _name, std::unique_ptr<DataSource> _sources,
                  TextureOptions _options, TileSource::ZoomOptions _zoomOptions = {});
 

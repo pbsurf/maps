@@ -21,7 +21,7 @@ public:
         uint32_t selectionColor;
     };
 
-    using ModelTransform = std::vector<glm::vec2>;
+    using ModelTransform = std::vector<glm::vec3>;
 
     CurvedLabel(ModelTransform _modelTransform, Label::Options _options, float _prio,
                 TextLabel::VertexAttributes _attrib, glm::vec2 _dim,
@@ -41,6 +41,8 @@ public:
     bool updateScreenTransform(const glm::mat4& _mvp, const ViewState& _viewState,
                                const AABB* _bounds, ScreenTransform& _transform) override;
 
+    bool setElevation(ElevationManager& elevMgr, glm::dvec2 origin, float scale) override;
+
     void obbs(ScreenTransform& _transform, OBBBuffer& _obbs) const override;
 
     void addVerticesToMesh(ScreenTransform& _transform, const glm::vec2& _screenSize) override;
@@ -52,12 +54,12 @@ public:
     }
 
     glm::vec2 modelCenter() const override {
-        return m_modelTransform[m_anchorPoint];
+        return glm::vec2(m_modelTransform[m_anchorPoint]);
     }
 
 protected:
 
-    const std::vector<glm::vec2> m_modelTransform;
+    ModelTransform m_modelTransform;
 
     const size_t m_anchorPoint;
 

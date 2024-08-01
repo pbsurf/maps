@@ -66,9 +66,9 @@ class Texture {
 
 public:
 
-    explicit Texture(TextureOptions _options);
+    explicit Texture(TextureOptions _options, bool _disposeBuffer = true);
 
-    Texture(const uint8_t* data, size_t length, TextureOptions _options);
+    Texture(const uint8_t* data, size_t length, TextureOptions _options, bool _disposeBuffer = true);
 
     virtual ~Texture();
 
@@ -85,6 +85,7 @@ public:
     // Width and Height texture getters
     int width() const { return m_width; }
     int height() const { return m_height; }
+    const TextureOptions& getOptions() const { return m_options; }
 
     // Size of texture data in bytes
     size_t bufferSize() const { return m_bufferSize; }

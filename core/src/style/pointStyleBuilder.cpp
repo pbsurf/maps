@@ -233,7 +233,7 @@ void PointStyleBuilder::addLabel(const Point& _point, const glm::vec4& _quad, Te
         }
     }
 
-    m_labels.push_back(std::make_unique<SpriteLabel>(glm::vec3(glm::vec2(_point), m_zoom),
+    m_labels.push_back(std::make_unique<SpriteLabel>(glm::vec3(_point, 0.f), m_zoom,
                                                      _params.size,
                                                      _params.labelOptions,
                                                      SpriteLabel::VertexAttributes{

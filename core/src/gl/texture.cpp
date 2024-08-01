@@ -14,10 +14,11 @@
 
 namespace Tangram {
 
-Texture::Texture(TextureOptions _options) : m_options(_options) {}
+Texture::Texture(TextureOptions _options, bool _disposeBuffer)
+    : m_options(_options), m_disposeBuffer(_disposeBuffer) {}
 
-Texture::Texture(const uint8_t* data, size_t length, TextureOptions options)
-    : Texture(options) {
+Texture::Texture(const uint8_t* data, size_t length, TextureOptions options, bool _disposeBuffer)
+    : Texture(options, _disposeBuffer) {
     loadImageFromMemory(data, length);
 }
 

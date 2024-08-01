@@ -7,6 +7,7 @@
 #include "scene/spriteAtlas.h"
 #include "style/pointStyle.h"
 #include "util/geom.h"
+#include "util/elevationManager.h"
 #include "view/view.h"
 
 namespace Tangram {
@@ -55,11 +56,12 @@ struct FlatTransform {
     glm::vec4 projected(size_t i) const { return glm::vec4(m_transform[4+i], m_transform[i].z); }
 };
 
-SpriteLabel::SpriteLabel(Coordinates _coordinates, glm::vec2 _size, Label::Options _options,
+SpriteLabel::SpriteLabel(Coordinates _coordinates, float _zoom, glm::vec2 _size, Label::Options _options,
                          SpriteLabel::VertexAttributes _attrib, Texture* _texture,
                          SpriteLabels& _labels, size_t _labelsPos)
     : Label(_size, Label::Type::point, _options),
       m_coordinates(_coordinates),
+      m_zoom(_zoom),
       m_labels(_labels),
       m_labelsPos(_labelsPos),
       m_texture(_texture),
@@ -73,6 +75,13 @@ void SpriteLabel::applyAnchor(LabelProperty::Anchor _anchor) {
     m_anchor = LabelProperty::anchorDirection(_anchor) * m_dim * 0.5f;
 }
 
+bool SpriteLabel::setElevation(ElevationManager& elevMgr, glm::dvec2 origin, float scale)
+{
+  bool ok = true;
+  m_coordinates.z = elevMgr.getElevation(origin + glm::dvec2(m_coordinates), ok)/scale;
+  return ok;
+}
+
 bool SpriteLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& _viewState,
                                         const AABB* _bounds, ScreenTransform& _transform) {
 
@@ -84,7 +93,7 @@ bool SpriteLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& 
         std::array<glm::vec2, 4> positions;
         std::array<glm::vec4, 4> projected;
 
-        float sourceScale = pow(2, m_coordinates.z);
+        float sourceScale = powf(2, m_zoom);
 
         float scale = float(sourceScale / (_viewState.zoomScale * _viewState.tileSize));
         float zoomFactor = m_vertexAttrib.extrudeScale * _viewState.fractZoom;

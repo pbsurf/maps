@@ -131,6 +131,15 @@ bool Scene::load() {
     LOGTO("<<< applyGlobals");
 
     m_tileSources = SceneLoader::applySources(m_config, m_options, m_platform);
+    // setup 3D terrain if enabled
+    if (!m_options.terrain3dSource.empty()) {
+      for (auto& src : m_tileSources) {
+        if (src->isRaster() && src->name() == m_options.terrain3dSource) {
+          m_elevationManager = std::make_unique<ElevationManager>(std::static_pointer_cast<RasterSource>(src));
+          break;
+        }
+      }
+    }
     LOGTO("<<< applySources");
 
     SceneLoader::applyCameras(m_config, m_camera);
@@ -548,10 +557,9 @@ Scene::UpdateState Scene::update(const View& _view, float _dt) {
         for (const auto& tile : tiles) {
             tile->update(_dt, _view);
         }
-        m_labelManager->updateLabelSet(_view.state(), _dt, *this, tiles, markers,
-                                       *m_tileManager);
+        m_labelManager->updateLabelSet(_view.state(), _dt, *this, tiles, markers);
     } else {
-        m_labelManager->updateLabels(_view.state(), _dt, m_styles, tiles, markers);
+        m_labelManager->updateLabels(_view.state(), _dt, *this, tiles, markers);
     }
 
     return { m_tileManager->hasLoadingTiles(), m_labelManager->needUpdate(), markersChanged };

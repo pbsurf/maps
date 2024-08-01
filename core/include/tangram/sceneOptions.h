@@ -68,6 +68,9 @@ public:
     /// cache directory for tiles, fonts, etc
     std::string diskCacheDir;
 
+    /// elevation source for 3D terrain; blank to disable
+    std::string terrain3dSource;
+
     /// global fallback fonts
     std::vector<FontSourceHandle> fallbackFonts;
 

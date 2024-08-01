@@ -37,14 +37,12 @@ public:
 
     void updateLabelSet(const ViewState& _viewState, float _dt, const Scene& _scene,
                         const std::vector<std::shared_ptr<Tile>>& _tiles,
-                        const std::vector<std::unique_ptr<Marker>>& _markers,
-                        TileManager& tileManager);
+                        const std::vector<std::unique_ptr<Marker>>& _markers);
 
     /* onlyRender: when the view and tiles have not changed one does not need to update the set of
      * active labels. We just need to render these the labels in this case
      */
-    void updateLabels(const ViewState& _viewState, float _dt,
-                      const std::vector<std::unique_ptr<Style>>& _styles,
+    void updateLabels(const ViewState& _viewState, float _dt, const Scene& _scene,
                       const std::vector<std::shared_ptr<Tile>>& _tiles,
                       const std::vector<std::unique_ptr<Marker>>& _markers,
                       bool _onlyRender = true);
@@ -70,8 +68,8 @@ protected:
     bool withinRepeatDistance(Label *_label);
 
     void processLabelUpdate(const ViewState& _viewState, const LabelSet* _labelSet, Style* _style,
-                            const Tile* _tile, const Marker *_marker, const glm::mat4& _mvp,
-                            float _dt, bool _drawAll, bool _onlyRender, bool _isProxy);
+                            const Tile* _tile, const Marker *_marker, ElevationManager* _elevManager,
+                            const glm::mat4& _mvp, float _dt, bool _drawAll, bool _onlyRender, bool _isProxy);
 
     bool m_needUpdate;
 

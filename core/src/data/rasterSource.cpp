@@ -53,7 +53,7 @@ public:
 
         // Create tile geometries
         if (!subTask) {
-            if(1)  //source->name() == "elevation")
+            if(source->m_isTerrain3dSource)
               m_tile = _tileBuilder.build(m_tileId, *(source->m_gridData), *source);
             else
               m_tile = _tileBuilder.build(m_tileId, *(source->m_tileData), *source);
@@ -157,7 +157,7 @@ std::unique_ptr<Texture> RasterSource::createTexture(TileID _tile, const std::ve
     auto data = reinterpret_cast<const uint8_t*>(_rawTileData.data());
     auto length = _rawTileData.size();
 
-    return std::make_unique<Texture>(data, length, m_texOptions);
+    return std::make_unique<Texture>(data, length, m_texOptions, !m_isTerrain3dSource);
 }
 
 std::shared_ptr<TileData> RasterSource::parse(const TileTask& _task) const {

@@ -18,6 +18,7 @@
 #include "tile/tileCache.h"
 #include "tile/tileManager.h"
 #include "view/view.h"
+#include "util/elevationManager.h"
 
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
@@ -35,8 +36,8 @@ LabelManager::LabelManager()
 LabelManager::~LabelManager() {}
 
 void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSet* _labelSet, Style* _style,
-                                const Tile* _tile, const Marker* _marker, const glm::mat4& _mvp,
-                                float _dt, bool _drawAll, bool _onlyRender, bool _isProxy) {
+                                const Tile* _tile, const Marker* _marker, ElevationManager* _elevManager,
+                                const glm::mat4& _mvp, float _dt, bool _drawAll, bool _onlyRender, bool _isProxy) {
 
     // TODO appropriate buffer to filter out-of-screen labels
     float border = 256.0f;
@@ -48,7 +49,26 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
                       _viewState.viewportSize.x,
                       _viewState.viewportSize.y);
 
+    bool setElev = false;
+    if (_elevManager) {
+        if (_marker && !_marker->m_elevationSet) {
+            _elevManager->setZoom(_marker->builtZoomLevel());
+            setElev = true;
+        } else if (_tile && !_tile->m_elevationSet) {
+            _elevManager->setZoom(_tile->getID().z);
+            setElev = true;  //_elevManager->getElevation(_tile->getOrigin(), setElev);
+        }
+    }
+
     for (auto& label : _labelSet->getLabels()) {
+        if (setElev) {
+            if (_tile) {
+                setElev = label->setElevation(*_elevManager, _tile->getOrigin(), _tile->getScale());
+            } else if (_marker) {
+                setElev = label->setElevation(*_elevManager, _marker->origin(), _marker->extent());
+            }
+        }
+
         if (!_drawAll && (label->state() == Label::State::dead) ) {
             continue;
         }
@@ -83,6 +103,9 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
             m_selectionLabels.emplace_back(label.get(), _style, _tile, _marker, _isProxy, transformRange);
         }
     }
+
+    if (setElev && _tile) { _tile->m_elevationSet = true; }
+    else if (setElev && _marker) { _marker->m_elevationSet = true; }
 }
 
 std::pair<Label*, const Tile*> LabelManager::getLabel(uint32_t _selectionColor) const {
@@ -98,8 +121,7 @@ std::pair<Label*, const Tile*> LabelManager::getLabel(uint32_t _selectionColor) 
     return {nullptr, nullptr};
 }
 
-void LabelManager::updateLabels(const ViewState& _viewState, float _dt,
-                          const std::vector<std::unique_ptr<Style>>& _styles,
+void LabelManager::updateLabels(const ViewState& _viewState, float _dt, const Scene& _scene,
                           const std::vector<std::shared_ptr<Tile>>& _tiles,
                           const std::vector<std::unique_ptr<Marker>>& _markers,
                           bool _onlyRender) {
@@ -114,6 +136,7 @@ void LabelManager::updateLabels(const ViewState& _viewState, float _dt,
 
     bool drawAllLabels = Tangram::getDebugFlag(DebugFlags::draw_all_labels);
 
+    const auto& _styles = _scene.styles();
     for (const auto& tile : _tiles) {
 
         //LOG("tile: %d/%d z:%d,%d", tile->getID().x, tile->getID().y, tile->getID().z, tile->getID().s);
@@ -132,8 +155,8 @@ void LabelManager::updateLabels(const ViewState& _viewState, float _dt,
             auto labels = dynamic_cast<const LabelSet*>(mesh.get());
             if (!labels) { continue; }
 
-            processLabelUpdate(_viewState, labels, style.get(), tile.get(), nullptr, mvp,
-                               _dt, drawAllLabels, _onlyRender, proxyTile);
+            processLabelUpdate(_viewState, labels, style.get(), tile.get(), nullptr,
+                               _scene.elevationManager(), mvp, _dt, drawAllLabels, _onlyRender, proxyTile);
         }
     }
 
@@ -150,7 +173,7 @@ void LabelManager::updateLabels(const ViewState& _viewState, float _dt,
             if (!labels) { continue; }
 
             processLabelUpdate(_viewState, labels, style.get(), nullptr, marker.get(),
-                               marker->modelViewProjectionMatrix(),
+                               _scene.elevationManager(), marker->modelViewProjectionMatrix(),
                                _dt, drawAllLabels, _onlyRender, false);
         }
     }
@@ -467,21 +490,20 @@ bool LabelManager::withinRepeatDistance(Label *_label) {
 
 void LabelManager::updateLabelSet(const ViewState& _viewState, float _dt, const Scene& _scene,
                             const std::vector<std::shared_ptr<Tile>>& _tiles,
-                            const std::vector<std::unique_ptr<Marker>>& _markers,
-                            TileManager& _tileManager) {
+                            const std::vector<std::unique_ptr<Marker>>& _markers) {
 
     m_transforms.clear();
     m_obbs.clear();
 
     /// Collect and update labels from visible tiles
-    updateLabels(_viewState, _dt, _scene.styles(), _tiles, _markers, false);
+    updateLabels(_viewState, _dt, _scene, _tiles, _markers, false);
 
     std::sort(m_labels.begin(), m_labels.end(), LabelManager::priorityComparator);
 
     /// Mark labels to skip transitions
 
     if (int(m_lastZoom) != int(_viewState.zoom)) {
-        skipTransitions(_scene, _tiles, _tileManager, _viewState.zoom);
+        skipTransitions(_scene, _tiles, *_scene.tileManager(), _viewState.zoom);
         m_lastZoom = _viewState.zoom;
     }
 

@@ -8,6 +8,7 @@
 #include "style/textStyle.h"
 #include "text/fontContext.h"
 #include "util/geom.h"
+#include "util/elevationManager.h"
 #include "view/view.h"
 
 #include "glm/gtx/norm.hpp"
@@ -40,7 +41,7 @@ TextLabel::TextLabel(Coordinates _coordinates, Type _type, Label::Options _optio
                      TextLabel::VertexAttributes _attrib, glm::vec2 _dim,
                      TextLabels& _labels, TextRange _textRanges, Align _preferedAlignment)
     : Label(_dim, _type, _options),
-      m_coordinates(_coordinates),
+      m_coordinates({ glm::vec3(_coordinates[0], 0.f), glm::vec3(_coordinates[1], 0.f) }),
       m_textLabels(_labels),
       m_textRanges(_textRanges),
       m_fontAttrib(_attrib),
@@ -68,6 +69,14 @@ void TextLabel::applyAnchor(Anchor _anchor) {
     m_anchor = LabelProperty::anchorDirection(_anchor) * offset * 0.5f;
 }
 
+bool TextLabel::setElevation(ElevationManager& elevMgr, glm::dvec2 origin, float scale)
+{
+  bool ok1 = true, ok2 = true;
+  m_coordinates[0].z = elevMgr.getElevation(origin + glm::dvec2(m_coordinates[0]), ok1)/scale;
+  m_coordinates[1].z = elevMgr.getElevation(origin + glm::dvec2(m_coordinates[1]), ok2)/scale;
+  return ok1 && ok2;
+}
+
 bool TextLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& _viewState,
                                       const AABB* _bounds, ScreenTransform& _transform) {
 
@@ -77,9 +86,9 @@ bool TextLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& _v
         case Type::debug:
         case Type::point: {
 
-            glm::vec2 p0 = m_coordinates[0];
+            glm::vec3 p0 = m_coordinates[0];
 
-            glm::vec2 screenPosition = worldToScreenSpace(_mvp, glm::vec4(p0, 0.0, 1.0),
+            glm::vec2 screenPosition = worldToScreenSpace(_mvp, glm::vec4(p0, 1.0),
                                                           _viewState.viewportSize, clipped);
 
             if (clipped) { return false; }
@@ -103,12 +112,12 @@ bool TextLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& _v
 
             // project label position from mercator world space to screen
             // coordinates
-            glm::vec2 p0 = m_coordinates[0];
-            glm::vec2 p2 = m_coordinates[1];
+            glm::vec3 p0 = m_coordinates[0];
+            glm::vec3 p2 = m_coordinates[1];
 
-            glm::vec2 ap0 = worldToScreenSpace(_mvp, glm::vec4(p0, 0.0, 1.0),
+            glm::vec2 ap0 = worldToScreenSpace(_mvp, glm::vec4(p0, 1.0),
                                                _viewState.viewportSize, clipped);
-            glm::vec2 ap2 = worldToScreenSpace(_mvp, glm::vec4(p2, 0.0, 1.0),
+            glm::vec2 ap2 = worldToScreenSpace(_mvp, glm::vec4(p2, 1.0),
                                                _viewState.viewportSize, clipped);
 
             // check whether the label is behind the camera using the
@@ -171,7 +180,7 @@ bool TextLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& _v
 float TextLabel::candidatePriority() const {
     if (m_type != Type::line) { return 0.f; }
 
-    return 1.f / (glm::length2(m_coordinates[0] - m_coordinates[1]));
+    return 1.f / (glm::length2(glm::vec2(m_coordinates[0]) - glm::vec2(m_coordinates[1])));
 }
 
 void TextLabel::obbs(ScreenTransform& _transform, OBBBuffer& _obbs) const {

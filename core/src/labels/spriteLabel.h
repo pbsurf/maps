@@ -39,7 +39,7 @@ public:
 
     using Coordinates = glm::vec3;
 
-    SpriteLabel(Coordinates _coordinates, glm::vec2 _size, Label::Options _options,
+    SpriteLabel(Coordinates _coordinates, float _zoom, glm::vec2 _size, Label::Options _options,
                 SpriteLabel::VertexAttributes _attrib, Texture* _texture,
                 SpriteLabels& _labels, size_t _labelsPos);
 
@@ -47,6 +47,8 @@ public:
 
     bool updateScreenTransform(const glm::mat4& _mvp, const ViewState& _viewState,
                                const AABB* _bounds, ScreenTransform& _transform) override;
+
+    bool setElevation(ElevationManager& elevMgr, glm::dvec2 origin, float scale) override;
 
     void obbs(ScreenTransform& _transform, OBBBuffer& _obbs) const override;
 
@@ -66,7 +68,8 @@ public:
 
 private:
 
-    const Coordinates m_coordinates;
+    Coordinates m_coordinates;
+    float m_zoom;
 
     // Back-pointer to owning container and position
     const SpriteLabels& m_labels;

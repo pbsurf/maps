@@ -9,6 +9,7 @@
 #include "textLabels.h"
 #include "util/geom.h"
 #include "util/lineSampler.h"
+#include "util/elevationManager.h"
 #include "view/view.h"
 
 #include <glm/gtx/norm.hpp>
@@ -36,6 +37,16 @@ void CurvedLabel::applyAnchor(LabelProperty::Anchor _anchor) {
     m_anchor = LabelProperty::anchorDirection(_anchor) * offset * 0.5f;
 }
 
+bool CurvedLabel::setElevation(ElevationManager& elevMgr, glm::dvec2 origin, float scale)
+{
+  bool ok = true;
+  for(glm::vec3& p : m_modelTransform) {
+    p.z = elevMgr.getElevation(origin + glm::vec2(p), ok)/scale;
+    if(!ok) break;
+  }
+  return ok;
+}
+
 bool CurvedLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& _viewState,
                                         const AABB* _bounds, ScreenTransform& _transform) {
 
@@ -48,7 +59,7 @@ bool CurvedLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& 
     LineSampler<ScreenTransform> sampler { _transform };
 
     for (auto& p : m_modelTransform) {
-        glm::vec2 sp = worldToScreenSpace(_mvp, glm::vec4(p, 0.0, 1.0),
+        glm::vec2 sp = worldToScreenSpace(_mvp, glm::vec4(p, 1.0),
                                           _viewState.viewportSize, clipped);
 
         if (clipped) { return false; }

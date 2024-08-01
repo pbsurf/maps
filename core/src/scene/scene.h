@@ -42,6 +42,7 @@ class SelectionQuery;
 class Style;
 class Texture;
 class TileSource;
+class ElevationManager;
 struct SceneLoader;
 
 struct SceneCamera : public Camera {
@@ -154,6 +155,7 @@ public:
     TileManager* tileManager() const { return m_tileManager.get(); }
     LabelManager* labelManager() const { return m_labelManager.get(); }
     MarkerManager* markerManager() const { return m_markerManager.get(); }
+    ElevationManager* elevationManager() const { return m_elevationManager.get(); }
 
     const SceneError* errors() const {
         return (m_errors.empty() ? nullptr : &m_errors.front());
@@ -265,6 +267,7 @@ protected:
     std::unique_ptr<TileManager> m_tileManager;
     std::unique_ptr<MarkerManager> m_markerManager;
     std::unique_ptr<LabelManager> m_labelManager;
+    std::unique_ptr<ElevationManager> m_elevationManager;
 
     std::mutex m_sceneLoadMutex;
     std::mutex m_taskMutex;

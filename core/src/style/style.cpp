@@ -54,6 +54,10 @@ void Style::build(const Scene& _scene) {
 
     m_shaderSource->addSourceBlock("defines", blendingDefine, false);
 
+    if (_scene.elevationManager()) {
+        m_shaderSource->addSourceBlock("defines", "#define TANGRAM_TERRAIN_3D\n", false);
+    }
+
     if (m_material.material) {
         m_material.uniforms = m_material.material->injectOnProgram(*m_shaderSource);
     }

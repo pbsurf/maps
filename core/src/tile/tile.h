@@ -92,6 +92,8 @@ public:
 
     void setProxyState(bool isProxy) { m_proxyState = isProxy; }
 
+    mutable bool m_elevationSet = false;
+
 private:
 
     const TileID m_id;
