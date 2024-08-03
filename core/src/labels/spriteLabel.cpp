@@ -75,10 +75,13 @@ void SpriteLabel::applyAnchor(LabelProperty::Anchor _anchor) {
     m_anchor = LabelProperty::anchorDirection(_anchor) * m_dim * 0.5f;
 }
 
-bool SpriteLabel::setElevation(ElevationManager& elevMgr, glm::dvec2 origin, float scale)
+bool SpriteLabel::setElevation(ElevationManager& elevMgr, glm::dvec2 origin, double scale)
 {
   bool ok = true;
-  m_coordinates.z = elevMgr.getElevation(origin + glm::dvec2(m_coordinates), ok)/scale;
+  m_coordinates.z = elevMgr.getElevation(origin + glm::dvec2(m_coordinates)*scale, ok)/scale;
+
+  LOGW("SpriteLabel %p: z = %f", (void*)this, m_coordinates.z);
+
   return ok;
 }
 
@@ -86,7 +89,7 @@ bool SpriteLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& 
                                         const AABB* _bounds, ScreenTransform& _transform) {
 
     glm::vec2 halfScreen = glm::vec2(_viewState.viewportSize * 0.5f);
-    glm::vec2 p0 = m_coordinates;
+    glm::vec3 p0 = m_coordinates;
 
     if (m_options.flat) {
 
@@ -119,9 +122,9 @@ bool SpriteLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& 
         AABB aabb;
         for (size_t i = 0; i < 4; i++) {
 
-            positions[i] += p0;
+            positions[i] += glm::vec2(p0);
 
-            glm::vec4 proj = worldToClipSpace(_mvp, glm::vec4(positions[i], 0.f, 1.f));
+            glm::vec4 proj = worldToClipSpace(_mvp, glm::vec4(positions[i], p0.z, 1.f));
             if (proj.w <= 0.0f) { return false; }
 
             projected[i] = proj;
@@ -143,7 +146,7 @@ bool SpriteLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& 
         FlatTransform(_transform).set(positions, projected);
 
         {
-            glm::vec4 projected = worldToClipSpace(_mvp, glm::vec4(p0, 0.f, 1.f));
+            glm::vec4 projected = worldToClipSpace(_mvp, glm::vec4(p0, 1.f));
             if (projected.w <= 0.0f) { return false; }
 
             projected /= projected.w;
@@ -157,7 +160,7 @@ bool SpriteLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& 
         }
     } else {
 
-        glm::vec4 projected = worldToClipSpace(_mvp, glm::vec4(p0, 0.f, 1.f));
+        glm::vec4 projected = worldToClipSpace(_mvp, glm::vec4(p0, 1.f));
         if (projected.w <= 0.0f) { return false; }
 
         projected /= projected.w;
@@ -176,6 +179,12 @@ bool SpriteLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& 
         }
 
         m_screenCenter = position;
+
+        LOGW("Label %p: coords: %f,%f,%f; projected: %f %f %f %f; position: %f %f; _mvp:\n%.3f %.3f %.3f %.3f\n%.3f %.3f %.3f %.3f\n%.3f %.3f %.3f %.3f\n%.3f %.3f %.3f %.3f",
+            (void*)this, m_coordinates.x, m_coordinates.y, m_coordinates.z, projected[0], projected[1], projected[2], projected[3],
+            position[0], position[1], _mvp[0][0], _mvp[0][1], _mvp[0][2], _mvp[0][3],
+            _mvp[1][0], _mvp[1][1], _mvp[1][2], _mvp[1][3], _mvp[2][0], _mvp[2][1], _mvp[2][2], _mvp[2][3],
+            _mvp[3][0], _mvp[3][1], _mvp[3][2], _mvp[3][3]);
 
         BillboardTransform(_transform).set(position, glm::vec3(projected),
                                            _viewState.viewportSize, _viewState.fractZoom);

@@ -50,8 +50,9 @@ static TileID lngLatTile(LngLat ll, int z)
 
 static TileID projMetersTile(ProjectedMeters ll, int z)
 {
+  constexpr double hc = MapProjection::EARTH_HALF_CIRCUMFERENCE_METERS;
   double metersPerTile = MapProjection::metersPerTileAtZoom(z);
-  return TileID(int(ll.x/metersPerTile), int(ll.y/metersPerTile), z);
+  return TileID(int((ll.x + hc)/metersPerTile), int((hc - ll.y)/metersPerTile), z);
 }
 
 double ElevationManager::getElevation(ProjectedMeters pos, bool& ok)
@@ -60,16 +61,17 @@ double ElevationManager::getElevation(ProjectedMeters pos, bool& ok)
   static TileID prevTileId = {0, 0, 0, 0};
 
   ok = true;
+  //TileID llId = lngLatTile(MapProjection::projectedMetersToLngLat(pos), m_currZoom);
   TileID tileId = projMetersTile(pos, m_currZoom);
   auto tex = prevTex.lock();
   if(tex && tileId == prevTileId)
     return elevationLerp(*tex.get(), tileId, pos);
 
-  auto task = m_elevationSource->createRasterTask(tileId, false);
-  if(task->raster) {
+  auto newtex = m_elevationSource->getTexture(tileId);
+  if(newtex) {
     prevTileId = tileId;
-    prevTex = task->raster->texture;
-    return elevationLerp(*task->raster->texture.get(), tileId, pos);
+    prevTex = newtex;
+    return elevationLerp(*newtex, tileId, pos);
   }
   ok = false;
   return 0;
@@ -77,7 +79,7 @@ double ElevationManager::getElevation(ProjectedMeters pos, bool& ok)
 
 ElevationManager::ElevationManager(std::shared_ptr<RasterSource> src) : m_elevationSource(src)
 {
-  m_elevationSource->m_isTerrain3dSource = true;
+  m_elevationSource->m_keepTextureData = true;
 }
 
 } // namespace Tangram

@@ -102,7 +102,7 @@ public:
     virtual bool updateScreenTransform(const glm::mat4& _mvp, const ViewState& _viewState,
                                        const AABB* _bounds, ScreenTransform& _transform) = 0;
 
-    virtual bool setElevation(ElevationManager& elevMgr, glm::dvec2 origin, float scale) = 0;
+    virtual bool setElevation(ElevationManager& elevMgr, glm::dvec2 origin, double scale) = 0;
 
     // Current screen position of the label anchor
     glm::vec2 screenCenter() const { return m_screenCenter; }
@@ -159,6 +159,8 @@ public:
     void print() const;
 
     void setAlpha(float _alpha);
+
+    bool m_elevationSet = false;
 
 protected:
 

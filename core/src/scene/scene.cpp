@@ -1,6 +1,7 @@
 #include "scene/scene.h"
 
 #include "data/tileSource.h"
+#include "data/rasterSource.h"
 #include "gl/framebuffer.h"
 #include "gl/shaderProgram.h"
 #include "labels/labelManager.h"
@@ -23,6 +24,7 @@
 #include "text/fontContext.h"
 #include "util/base64.h"
 #include "util/util.h"
+#include "util/elevationManager.h"
 #include "log.h"
 #include "scene.h"
 

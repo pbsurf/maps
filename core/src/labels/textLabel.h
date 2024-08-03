@@ -58,7 +58,7 @@ public:
     bool updateScreenTransform(const glm::mat4& _mvp, const ViewState& _viewState,
                                const AABB* _bounds, ScreenTransform& _transform) override;
 
-    bool setElevation(ElevationManager& elevMgr, glm::dvec2 origin, float scale) override;
+    bool setElevation(ElevationManager& elevMgr, glm::dvec2 origin, double scale) override;
 
     void obbs(ScreenTransform& _transform, OBBBuffer& _obbs) const override;
 

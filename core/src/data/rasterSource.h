@@ -42,7 +42,7 @@ protected:
 
 public:
 
-    bool m_isTerrain3dSource = false;
+    bool m_keepTextureData = false;
 
     RasterSource(const std::string& _name, std::unique_ptr<DataSource> _sources,
                  TextureOptions _options, TileSource::ZoomOptions _zoomOptions = {});
@@ -50,7 +50,7 @@ public:
     // TODO Is this always PNG or can it also be JPEG?
     const char* mimeType() const override { return "image/png"; };
 
-    //void loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb _cb) override;
+    std::shared_ptr<Texture> getTexture(TileID _tile);
 
     std::shared_ptr<TileTask> createTask(TileID _tile) override;
 

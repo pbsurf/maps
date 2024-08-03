@@ -49,28 +49,22 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
                       _viewState.viewportSize.x,
                       _viewState.viewportSize.y);
 
-    bool setElev = false;
-    if (_elevManager) {
-        if (_marker && !_marker->m_elevationSet) {
-            _elevManager->setZoom(_marker->builtZoomLevel());
-            setElev = true;
-        } else if (_tile && !_tile->m_elevationSet) {
-            _elevManager->setZoom(_tile->getID().z);
-            setElev = true;  //_elevManager->getElevation(_tile->getOrigin(), setElev);
-        }
+    bool setElev = _elevManager && (_tile || _marker);
+    if (setElev) {
+        _elevManager->setZoom(_tile ? _tile->getID().z : _marker->builtZoomLevel());
     }
 
     for (auto& label : _labelSet->getLabels()) {
-        if (setElev) {
-            if (_tile) {
-                setElev = label->setElevation(*_elevManager, _tile->getOrigin(), _tile->getScale());
-            } else if (_marker) {
-                setElev = label->setElevation(*_elevManager, _marker->origin(), _marker->extent());
-            }
-        }
-
         if (!_drawAll && (label->state() == Label::State::dead) ) {
             continue;
+        }
+
+        if (setElev && !label->m_elevationSet) {
+            if (_tile) {
+                setElev = label->m_elevationSet = label->setElevation(*_elevManager, _tile->getOrigin(), _tile->getScale());
+            } else if (_marker) {
+                //setElev = label->setElevation(*_elevManager, _marker->origin(), _marker->extent());
+            }
         }
 
         Range transformRange;
@@ -103,9 +97,6 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
             m_selectionLabels.emplace_back(label.get(), _style, _tile, _marker, _isProxy, transformRange);
         }
     }
-
-    if (setElev && _tile) { _tile->m_elevationSet = true; }
-    else if (setElev && _marker) { _marker->m_elevationSet = true; }
 }
 
 std::pair<Label*, const Tile*> LabelManager::getLabel(uint32_t _selectionColor) const {

@@ -7,6 +7,8 @@
 #include "util/mapProjection.h"
 #include "log.h"
 
+#include "scene/scene.h"
+
 namespace Tangram {
 
 class RasterTileTask : public BinaryTileTask {
@@ -53,7 +55,7 @@ public:
 
         // Create tile geometries
         if (!subTask) {
-            if(source->m_isTerrain3dSource)
+            if(_tileBuilder.scene().elevationManager())
               m_tile = _tileBuilder.build(m_tileId, *(source->m_gridData), *source);
             else
               m_tile = _tileBuilder.build(m_tileId, *(source->m_tileData), *source);
@@ -157,7 +159,7 @@ std::unique_ptr<Texture> RasterSource::createTexture(TileID _tile, const std::ve
     auto data = reinterpret_cast<const uint8_t*>(_rawTileData.data());
     auto length = _rawTileData.size();
 
-    return std::make_unique<Texture>(data, length, m_texOptions, !m_isTerrain3dSource);
+    return std::make_unique<Texture>(data, length, m_texOptions, !m_keepTextureData);
 }
 
 std::shared_ptr<TileData> RasterSource::parse(const TileTask& _task) const {
@@ -237,6 +239,12 @@ std::shared_ptr<Texture> RasterSource::cacheTexture(const TileID& _tileId, std::
     LOGV("%d - added %s", m_textures->size(), id.toString().c_str());
 
     return texture;
+}
+
+std::shared_ptr<Texture> RasterSource::getTexture(TileID _tile)
+{
+  auto texIt = m_textures->find(_tile);
+  return texIt != m_textures->end() ? texIt->second.lock() : nullptr;
 }
 
 }

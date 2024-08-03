@@ -130,8 +130,6 @@ public:
 
     static bool compareByDrawOrder(const std::unique_ptr<Marker>& lhs, const std::unique_ptr<Marker>& rhs);
 
-    mutable bool m_elevationSet = false;
-
 protected:
 
     std::unique_ptr<Feature> m_feature;

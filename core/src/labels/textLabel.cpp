@@ -69,11 +69,11 @@ void TextLabel::applyAnchor(Anchor _anchor) {
     m_anchor = LabelProperty::anchorDirection(_anchor) * offset * 0.5f;
 }
 
-bool TextLabel::setElevation(ElevationManager& elevMgr, glm::dvec2 origin, float scale)
+bool TextLabel::setElevation(ElevationManager& elevMgr, glm::dvec2 origin, double scale)
 {
   bool ok1 = true, ok2 = true;
-  m_coordinates[0].z = elevMgr.getElevation(origin + glm::dvec2(m_coordinates[0]), ok1)/scale;
-  m_coordinates[1].z = elevMgr.getElevation(origin + glm::dvec2(m_coordinates[1]), ok2)/scale;
+  m_coordinates[0].z = elevMgr.getElevation(origin + glm::dvec2(m_coordinates[0])*scale, ok1)/scale;
+  m_coordinates[1].z = elevMgr.getElevation(origin + glm::dvec2(m_coordinates[1])*scale, ok2)/scale;
   return ok1 && ok2;
 }
 
@@ -138,10 +138,10 @@ bool TextLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& _v
 
             if (length < minLength) { return false; }
 
-            glm::vec2 p1 = glm::vec2(p2 + p0) * 0.5f;
+            glm::vec3 p1 = (p2 + p0) * 0.5f;
 
             // Keep screen position center at world center (less sliding in tilted view)
-            glm::vec2 screenPosition = worldToScreenSpace(_mvp, glm::vec4(p1, 0.0, 1.0),
+            glm::vec2 screenPosition = worldToScreenSpace(_mvp, glm::vec4(p1, 1.0),
                                                           _viewState.viewportSize, clipped);
 
             auto offset = m_options.offset;
