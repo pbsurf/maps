@@ -77,6 +77,13 @@ double ElevationManager::getElevation(ProjectedMeters pos, bool& ok)
   return 0;
 }
 
+float ElevationManager::getDepth(glm::vec2 screenpos)
+{
+    GLuint pixel;
+    GL::readPixels(floorf(screenpos.x), floorf(screenpos.y), 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel);
+    return pixel;
+}
+
 ElevationManager::ElevationManager(std::shared_ptr<RasterSource> src) : m_elevationSource(src)
 {
   m_elevationSource->m_keepTextureData = true;

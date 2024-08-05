@@ -79,10 +79,10 @@ bool CurvedLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& 
         return false;
     }
 
-    auto center = sampler.point(m_anchorPoint);
-
+    auto oldcenter = sampler.point(m_anchorPoint);
     // Set center for repeatGroup distance calculations
-    m_screenCenter = glm::vec2(center);
+    m_screenCenter = worldToScreenSpace(_mvp, glm::vec4(m_modelTransform[m_anchorPoint], 1.0),
+                                        _viewState.viewportSize, clipped);
     m_screenAnchorPoint = m_anchorPoint;
 
     // Chord length for minimal ~120 degree inner angles (squared)

@@ -79,6 +79,11 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
             continue;
         }
 
+        // is label hidden behind terrain?
+        if (setElev && label->screenDepth() > _elevManager->getDepth(label->screenCenter()) + 0.001f) {
+            label->occlude();
+            continue;
+        }
 
         if (_onlyRender) {
             if (label->occludedLastFrame()) { label->occlude(); }

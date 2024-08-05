@@ -79,9 +79,6 @@ bool SpriteLabel::setElevation(ElevationManager& elevMgr, glm::dvec2 origin, dou
 {
   bool ok = true;
   m_coordinates.z = elevMgr.getElevation(origin + glm::dvec2(m_coordinates)*scale, ok)/scale;
-
-  LOGW("SpriteLabel %p: z = %f", (void*)this, m_coordinates.z);
-
   return ok;
 }
 
@@ -156,7 +153,7 @@ bool SpriteLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& 
             position.y = 1 - projected.y;
             position *= halfScreen;
             position += m_options.offset;
-            m_screenCenter = position;
+            m_screenCenter = glm::vec3(position, projected.z);
         }
     } else {
 
@@ -178,13 +175,7 @@ bool SpriteLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& 
             if (!aabb.intersect(*_bounds)) { return false; }
         }
 
-        m_screenCenter = position;
-
-        LOGW("Label %p: coords: %f,%f,%f; projected: %f %f %f %f; position: %f %f; _mvp:\n%.3f %.3f %.3f %.3f\n%.3f %.3f %.3f %.3f\n%.3f %.3f %.3f %.3f\n%.3f %.3f %.3f %.3f",
-            (void*)this, m_coordinates.x, m_coordinates.y, m_coordinates.z, projected[0], projected[1], projected[2], projected[3],
-            position[0], position[1], _mvp[0][0], _mvp[0][1], _mvp[0][2], _mvp[0][3],
-            _mvp[1][0], _mvp[1][1], _mvp[1][2], _mvp[1][3], _mvp[2][0], _mvp[2][1], _mvp[2][2], _mvp[2][3],
-            _mvp[3][0], _mvp[3][1], _mvp[3][2], _mvp[3][3]);
+        m_screenCenter = glm::vec3(position, projected.z);
 
         BillboardTransform(_transform).set(position, glm::vec3(projected),
                                            _viewState.viewportSize, _viewState.fractZoom);

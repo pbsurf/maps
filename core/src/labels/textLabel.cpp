@@ -88,21 +88,21 @@ bool TextLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& _v
 
             glm::vec3 p0 = m_coordinates[0];
 
-            glm::vec2 screenPosition = worldToScreenSpace(_mvp, glm::vec4(p0, 1.0),
+            glm::vec3 screenPosition = worldToScreenSpace(_mvp, glm::vec4(p0, 1.0),
                                                           _viewState.viewportSize, clipped);
 
             if (clipped) { return false; }
 
             if (_bounds) {
                 auto aabb = m_options.anchors.extents(m_dim);
-                aabb.min += screenPosition + m_options.offset;
-                aabb.max += screenPosition + m_options.offset;
+                aabb.min += glm::vec2(screenPosition) + m_options.offset;
+                aabb.max += glm::vec2(screenPosition) + m_options.offset;
                 if (!aabb.intersect(*_bounds)) { return false; }
             }
 
             m_screenCenter = screenPosition;
 
-            PointTransform(_transform).set(screenPosition + m_options.offset, glm::vec2{1, 0});
+            PointTransform(_transform).set(glm::vec2(screenPosition) + m_options.offset, glm::vec2{1, 0});
 
             return true;
         }
@@ -141,7 +141,7 @@ bool TextLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& _v
             glm::vec3 p1 = (p2 + p0) * 0.5f;
 
             // Keep screen position center at world center (less sliding in tilted view)
-            glm::vec2 screenPosition = worldToScreenSpace(_mvp, glm::vec4(p1, 1.0),
+            glm::vec3 screenPosition = worldToScreenSpace(_mvp, glm::vec4(p1, 1.0),
                                                           _viewState.viewportSize, clipped);
 
             auto offset = m_options.offset;
@@ -166,7 +166,7 @@ bool TextLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& _v
 
             m_screenCenter = screenPosition;
 
-            PointTransform(_transform).set(screenPosition + rotate2d(offset, rotation), rotation);
+            PointTransform(_transform).set(glm::vec2(screenPosition) + rotate2d(offset, rotation), rotation);
 
             return true;
         }

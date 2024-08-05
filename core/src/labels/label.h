@@ -105,7 +105,8 @@ public:
     virtual bool setElevation(ElevationManager& elevMgr, glm::dvec2 origin, double scale) = 0;
 
     // Current screen position of the label anchor
-    glm::vec2 screenCenter() const { return m_screenCenter; }
+    glm::vec2 screenCenter() const { return glm::vec2(m_screenCenter); }
+    float screenDepth() const { return m_screenCenter.z; }
 
     // Occlude the label
     void occlude(bool _occlusion = true) { m_occluded = _occlusion; }
@@ -182,7 +183,7 @@ protected:
     bool m_occludedLastFrame;
     bool m_occluded;
 
-    glm::vec2 m_screenCenter;
+    glm::vec3 m_screenCenter;
     float m_alpha;
 };
 
