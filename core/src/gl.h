@@ -144,6 +144,8 @@ typedef char            GLchar;
 #define GL_RGB8                         0x8051
 #define GL_RGBA8                        0x8058
 #define GL_R32F                         0x822E
+#define GL_R32UI                        0x8236
+#define GL_RED_INTEGER                  0x8D94
 
 #define GL_NEAREST                      0x2600
 #define GL_LINEAR                       0x2601
@@ -354,6 +356,7 @@ struct GL {
     static void deleteFramebuffers(GLsizei n, const GLuint *framebuffers);
     static void deleteRenderbuffers(GLsizei n, const GLuint *renderbuffers);
     static GLenum checkFramebufferStatus(GLenum target);
+    static void drawBuffers(GLsizei n, const GLuint *drawbuffers);
 
     // Texture
     static void bindTexture(GLenum target, GLuint texture );

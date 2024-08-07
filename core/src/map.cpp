@@ -22,6 +22,7 @@
 #include "tile/tile.h"
 #include "tile/tileCache.h"
 #include "util/asyncWorker.h"
+#include "util/elevationManager.h"
 #include "util/fastmap.h"
 #include "util/inputHandler.h"
 #include "util/ease.h"
@@ -319,6 +320,11 @@ void Map::render() {
                               impl->selectionQueries);
 
         impl->selectionQueries.clear();
+    }
+
+    if (scene.elevationManager()) {
+        scene.elevationManager()->renderTerrainDepth(renderState, view,
+                                                     scene.tileManager()->getVisibleTiles());
     }
 
     // Get background color for frame based on zoom level, if there are stops

@@ -133,15 +133,6 @@ bool Scene::load() {
     LOGTO("<<< applyGlobals");
 
     m_tileSources = SceneLoader::applySources(m_config, m_options, m_platform);
-    // setup 3D terrain if enabled
-    if (!m_options.terrain3dSource.empty()) {
-      for (auto& src : m_tileSources) {
-        if (src->isRaster() && src->name() == m_options.terrain3dSource) {
-          m_elevationManager = std::make_unique<ElevationManager>(std::static_pointer_cast<RasterSource>(src));
-          break;
-        }
-      }
-    }
     LOGTO("<<< applySources");
 
     SceneLoader::applyCameras(m_config, m_camera);
@@ -194,6 +185,20 @@ bool Scene::load() {
     }
     runTextureTasks();
     LOGTO("<<< applyStyles");
+
+    // setup 3D terrain if enabled
+    if (!m_options.terrain3dSource.empty()) {
+        auto terrainSrc = std::find_if(m_tileSources.begin(), m_tileSources.end(),
+            [this](auto& src){ return src->isRaster() && src->name() == m_options.terrain3dSource; });
+        auto terrainStyle = std::find_if(m_styles.begin(), m_styles.end(),
+            [](auto& style){ return style->type() == StyleType::polygon && style->hasRasters(); });
+            //[this](auto& style){ return style->getName() == m_options.terrain3dStyle; });
+        if (terrainSrc != m_tileSources.end() && terrainStyle != m_styles.end()) {
+            m_elevationManager = std::make_unique<ElevationManager>(
+                std::static_pointer_cast<RasterSource>(*terrainSrc), **terrainStyle);
+        }
+    }
+    LOGTO("<<< elevationManager");
 
     m_lights = SceneLoader::applyLights(m_config["lights"]);
     m_lightShaderBlocks = Light::assembleLights(m_lights);

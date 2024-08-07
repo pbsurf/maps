@@ -13,24 +13,26 @@
 namespace Tangram {
 
 class RenderTexture : public Texture {
-    static constexpr TextureOptions textureOptions() {
+    static constexpr TextureOptions textureOptions(GLenum _pixelFormat) {
         TextureOptions options;
+        options.pixelFormat = PixelFormat(_pixelFormat);
         options.minFilter = TextureMinFilter::NEAREST;
         options.magFilter = TextureMagFilter::NEAREST;
         return options;
     }
 public:
-    RenderTexture(int width, int height)
-        : Texture(textureOptions()) {
+    RenderTexture(int width, int height, GLenum _pixelFormat)
+        : Texture(textureOptions(_pixelFormat)) {
         resize(width, height);
     }
     GLuint glHandle() const { return m_glHandle; }
 };
 
-FrameBuffer::FrameBuffer(int _width, int _height, bool _colorRenderBuffer) :
+FrameBuffer::FrameBuffer(int _width, int _height, bool _colorRenderBuffer, GLenum _pixelFormat) :
     m_glFrameBufferHandle(0),
     m_glDepthRenderBufferHandle(0),
     m_glColorRenderBufferHandle(0),
+    m_pixelFormat(_pixelFormat),
     m_valid(false),
     m_colorRenderBuffer(_colorRenderBuffer),
     m_width(_width), m_height(_height) {
@@ -128,7 +130,7 @@ void FrameBuffer::init(RenderState& _rs) {
         GL::framebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                     GL_RENDERBUFFER, m_glColorRenderBufferHandle);
     } else {
-        m_texture = std::make_unique<RenderTexture>(m_width, m_height);
+        m_texture = std::make_unique<RenderTexture>(m_width, m_height, m_pixelFormat);
         m_texture->bind(_rs, 0);
 
         GL::framebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,

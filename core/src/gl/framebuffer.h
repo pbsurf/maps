@@ -17,7 +17,7 @@ class FrameBuffer {
 
 public:
 
-    FrameBuffer(int _width, int _height, bool _colorRenderBuffer = true);
+    FrameBuffer(int _width, int _height, bool _colorRenderBuffer = true, GLenum _pixelFormat = GL_RGBA8);
 
     ~FrameBuffer();
 
@@ -57,6 +57,8 @@ private:
     GLuint m_glDepthRenderBufferHandle;
 
     GLuint m_glColorRenderBufferHandle;
+
+    GLenum m_pixelFormat;
 
     bool m_valid;
 

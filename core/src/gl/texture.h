@@ -36,6 +36,7 @@ enum class PixelFormat : GLint {
     RGB = GL_RGB8,
     RGBA = GL_RGBA8,
     FLOAT = GL_R32F,
+    R32UI = GL_R32UI
 };
 
 struct TextureOptions {
@@ -50,16 +51,21 @@ struct TextureOptions {
     GLenum glFormat() const {
         if (pixelFormat == PixelFormat::ALPHA || pixelFormat == PixelFormat::FLOAT) return GL_RED;
         if (pixelFormat == PixelFormat::RGB) return GL_RGB;
+        if (pixelFormat == PixelFormat::R32UI) return GL_RED_INTEGER;
         return GL_RGBA;
     }
 
     int bytesPerPixel() const {
         if (pixelFormat == PixelFormat::ALPHA) return 1;
         if (pixelFormat == PixelFormat::RGB) return 3;
-        return 4;  // FLOAT, RGBA
+        return 4;  // FLOAT, RGBA, R32UI
     }
 
-    GLenum glType() const { return pixelFormat == PixelFormat::FLOAT ? GL_FLOAT : GL_UNSIGNED_BYTE; }
+    GLenum glType() const {
+        if (pixelFormat == PixelFormat::FLOAT) return GL_FLOAT;
+        if (pixelFormat == PixelFormat::R32UI) return GL_UNSIGNED_INT;
+        return GL_UNSIGNED_BYTE;
+    }
 };
 
 class Texture {
