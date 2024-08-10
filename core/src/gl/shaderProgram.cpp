@@ -199,7 +199,7 @@ GLuint ShaderProgram::makeCompiledShader(RenderState& rs, const std::string& _sr
             // Print full source with line numbers
             LOGD("\n\n");
             for (size_t i = 0; i < sourceLines.size(); i++) {
-                LOGD("%d: %s", i, sourceLines[i].c_str());
+                LOGD("%d: %s", i+1, sourceLines[i].c_str());
             }
         }
 

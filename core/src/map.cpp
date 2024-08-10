@@ -261,7 +261,7 @@ MapState Map::update(float _dt) {
         bool firstUpdate = !wasReady;
         impl->syncClientTileSources(firstUpdate);
 
-        auto sceneState = scene.update(impl->view, _dt);
+        auto sceneState = scene.update(impl->renderState, impl->view, _dt);
 
         if (sceneState.animateLabels || sceneState.animateMarkers) {
             state |= MapState::labels_changing;
@@ -322,10 +322,10 @@ void Map::render() {
         impl->selectionQueries.clear();
     }
 
-    if (scene.elevationManager()) {
-        scene.elevationManager()->renderTerrainDepth(renderState, view,
-                                                     scene.tileManager()->getVisibleTiles());
-    }
+    //if (scene.elevationManager()) {
+    //    scene.elevationManager()->renderTerrainDepth(renderState, view,
+    //                                                 scene.tileManager()->getVisibleTiles());
+    //}
 
     // Get background color for frame based on zoom level, if there are stops
     impl->background = scene.backgroundColor(view.getIntegerZoom());

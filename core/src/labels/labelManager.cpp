@@ -80,9 +80,16 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
         }
 
         // is label hidden behind terrain?
-        if (setElev && label->screenDepth() > _elevManager->getDepth(label->screenCenter()) + 0.001f) {
-            label->occlude();
-            continue;
+        if (setElev) {
+            float labelz = label->screenDepth();
+            float terrainz = _elevManager->getDepth(label->screenCenter());
+            //LOGW("Label %p at %.1f,%.1f depth: %f; terrain: %f (d: %f)", label.get(),
+            //     label->screenCenter().x, label->screenCenter().y, labelz, terrainz, labelz - terrainz);
+            if(labelz > terrainz + 0.005f) {
+                //label->occlude();
+                //label->skipTransitions();
+                continue;
+            }
         }
 
         if (_onlyRender) {

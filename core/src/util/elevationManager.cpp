@@ -3,6 +3,7 @@
 #include "style/polygonStyle.h"
 #include "gl/shaderSource.h"
 #include "gl/framebuffer.h"
+#include "gl/renderState.h"
 #include "view/view.h"
 #include "marker/marker.h"
 
@@ -23,6 +24,16 @@ void main(void) {
 #include "polygon_vs.h"
 
 namespace Tangram {
+
+class TerrainStyle : public PolygonStyle
+{
+public:
+  using PolygonStyle::PolygonStyle;
+  void constructShaderProgram() override {
+    PolygonStyle::constructShaderProgram();
+    m_shaderSource->setSourceStrings(terrain_depth_fs, polygon_vs);
+  }
+};
 
 static double readElevTex(const Texture& tex, int x, int y)
 {
@@ -97,7 +108,7 @@ double ElevationManager::getElevation(ProjectedMeters pos, bool& ok)
   return 0;
 }
 
-void ElevationManager::renderTerrainDepth(RenderState& _rs, View& _view,
+void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
                                           const std::vector<std::shared_ptr<Tile>>& _tiles)
 {
   static const GLenum drawbuffs[] = {GL_NONE, GL_COLOR_ATTACHMENT0};
@@ -108,6 +119,7 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, View& _view,
     m_depthData.resize(w * h);
   }
 
+  _rs.cacheDefaultFramebuffer();
   m_frameBuffer->applyAsRenderTarget(_rs);
   // VAO?
   GL::drawBuffers(2, &drawbuffs[0]);
@@ -117,12 +129,17 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, View& _view,
   // TODO: use PBO to make this async
   //GL::readPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, m_depthData.data());
   GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, m_depthData.data());
+  _rs.framebuffer(_rs.defaultFrameBuffer());
 }
 
 float ElevationManager::getDepth(glm::vec2 screenpos)
 {
+  // for now, clamp to screen bounds to handle offscreen labels (extendedBounds in processLabelUpdate())
+  int w = m_frameBuffer->getWidth(), h = m_frameBuffer->getHeight();
+  glm::vec2 pos = glm::clamp(screenpos, {0, 0}, {w-1, h-1});
   //GL::readPixels(floorf(screenpos.x), floorf(screenpos.y), 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel);
-  return m_depthData[floorf(screenpos.x) + floorf(screenpos.y)*m_frameBuffer->getWidth()];
+  // convert from 0..1 (glDepthRange) to -1..1 (NDC)
+  return 2*m_depthData[floorf(pos.x) + floorf(h - pos.y - 1)*w] - 1;
 }
 
 ElevationManager::ElevationManager(std::shared_ptr<RasterSource> src, Style& style) : m_elevationSource(src)
@@ -130,14 +147,15 @@ ElevationManager::ElevationManager(std::shared_ptr<RasterSource> src, Style& sty
   m_elevationSource->m_keepTextureData = true;
 
   // default blending mode is opaque, as desired
-  m_style = std::make_unique<PolygonStyle>("__terrain");
+  m_style = std::make_unique<TerrainStyle>("__terrain");
   m_style->getShaderSource() = style.getShaderSource();
   // direct assignment doesn't work (operator= deleted on std:pair!?)
   for(auto& uniform : style.styleUniforms()) {
     m_style->styleUniforms().emplace_back(uniform.first.name, uniform.second);
   }
   m_style->setID(style.getID());  // use same mesh
-  m_style->getShaderSource().setSourceStrings(terrain_depth_fs, polygon_vs);
+  m_style->setRasterType(RasterType::custom);
+  //m_style->getShaderSource().setSourceStrings(terrain_depth_fs, polygon_vs);
 }
 
 } // namespace Tangram

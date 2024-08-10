@@ -20,7 +20,7 @@ public:
   float getDepth(glm::vec2 screenpos);
   void setZoom(int z) { m_currZoom = z; }
 
-  void renderTerrainDepth(RenderState& _rs, View& _view,
+  void renderTerrainDepth(RenderState& _rs, const View& _view,
                           const std::vector<std::shared_ptr<Tile>>& _tiles);
 
   std::shared_ptr<RasterSource> m_elevationSource;

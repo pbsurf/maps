@@ -208,6 +208,7 @@ bool Scene::load() {
     LOGTO("<<< applyLayers");
 
     for (auto& style : m_styles) { style->build(*this); }
+    if (m_elevationManager) { m_elevationManager->m_style->build(*this); }
     LOGTO("<<< buildStyles");
 
     if (isCanceled(State::loading)) { return false; }
@@ -542,7 +543,7 @@ void Scene::runFontTasks() {
     }
 }
 
-Scene::UpdateState Scene::update(const View& _view, float _dt) {
+Scene::UpdateState Scene::update(RenderState& _rs, const View& _view, float _dt) {
 
     m_time += _dt;
 
@@ -564,6 +565,11 @@ Scene::UpdateState Scene::update(const View& _view, float _dt) {
         for (const auto& tile : tiles) {
             tile->update(_dt, _view);
         }
+
+        if (m_elevationManager) {
+            m_elevationManager->renderTerrainDepth(_rs, _view, tiles);
+        }
+
         m_labelManager->updateLabelSet(_view.state(), _dt, *this, tiles, markers);
     } else {
         m_labelManager->updateLabels(_view.state(), _dt, *this, tiles, markers);
