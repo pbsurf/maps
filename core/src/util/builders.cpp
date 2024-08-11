@@ -22,9 +22,9 @@ bool isOutsideTile(const glm::vec2& _a, const glm::vec2& _b) {
 
     // tweak this adjust if catching too few/many line segments near tile edges
     // TODO: make tolerance configurable by source if necessary
-    float tolerance = 0.0005;
-    float tile_min = 0.0 + tolerance;
-    float tile_max = 1.0 - tolerance;
+    float tolerance = 0.0005f;
+    float tile_min = 0.0f + tolerance;
+    float tile_max = 1.0f - tolerance;
 
     if ( (_a.x < tile_min && _b.x < tile_min) ||
          (_a.x > tile_max && _b.x > tile_max) ||
@@ -34,6 +34,14 @@ bool isOutsideTile(const glm::vec2& _a, const glm::vec2& _b) {
     }
 
     return false;
+}
+
+bool isOutsideTile(const glm::vec2& p) {
+    float tolerance = 0.0005f;
+    float tile_min = 0.0f + tolerance;
+    float tile_max = 1.0f - tolerance;
+    return ((p.x < tile_min) || (p.x > tile_max) ||
+            (p.y < tile_min) || (p.y > tile_max));
 }
 }
 
@@ -183,18 +191,19 @@ void Builders::buildPolygonExtrusion(const Polygon& _polygon, float _minHeight, 
 }
 
 // Get 2D perpendicular of two points
-glm::vec2 perp2d(const glm::vec2& _v1, const glm::vec2& _v2 ){
+static glm::vec2 perp2d(const glm::vec2& _v1, const glm::vec2& _v2 ){
     return glm::vec2(_v2.y - _v1.y, _v1.x - _v2.x);
 }
 
 // Helper function for polyline tesselation
-inline void addPolyLineVertex(const glm::vec2& _coord, const glm::vec2& _normal, const glm::vec2& _uv, PolyLineBuilder& _ctx) {
+static inline void addPolyLineVertex(const glm::vec2& _coord, const glm::vec2& _normal,
+                                     const glm::vec2& _uv, PolyLineBuilder& _ctx) {
     _ctx.numVertices++;
     _ctx.addVertex(_coord, _normal, _uv);
 }
 
 // Helper function for polyline tesselation; adds indices for pairs of vertices arranged like a line strip
-void indexPairs( int _nPairs, int _nVertices, std::vector<uint16_t>& _indicesOut) {
+static void indexPairs( int _nPairs, int _nVertices, std::vector<uint16_t>& _indicesOut) {
     for (int i = 0; i < _nPairs; i++) {
         _indicesOut.push_back(_nVertices - 2*i - 4);
         _indicesOut.push_back(_nVertices - 2*i - 2);
@@ -211,7 +220,7 @@ void indexPairs( int _nPairs, int _nVertices, std::vector<uint16_t>& _indicesOut
 //  and interpolating their UVs               \ p /
 //                                             \./
 //                                              C
-void addFan(const glm::vec2& _pC,
+static void addFan(const glm::vec2& _pC,
             const glm::vec2& _nA, const glm::vec2& _nB, const glm::vec2& _nC,
             const glm::vec2& _uA, const glm::vec2& _uB, const glm::vec2& _uC,
             int _numTriangles, PolyLineBuilder& _ctx) {
@@ -250,7 +259,7 @@ void addFan(const glm::vec2& _pC,
 }
 
 // Function to add the vertices for line caps
-void addCap(const glm::vec2& _coord, const glm::vec2& _normal, int _numCorners, bool _isBeginning, PolyLineBuilder& _ctx) {
+static void addCap(const glm::vec2& _coord, const glm::vec2& _normal, int _numCorners, bool _isBeginning, PolyLineBuilder& _ctx) {
 
     float v = _isBeginning ? 0.f : 1.f; // length-wise tex coord
 
@@ -279,8 +288,8 @@ void addCap(const glm::vec2& _coord, const glm::vec2& _normal, int _numCorners, 
     addFan(_coord, nA, nB, nC, uA, uB, uC, _numCorners, _ctx);
 }
 
-void buildPolyLineSegment(const Line& _line, PolyLineBuilder& _ctx, size_t _startIndex,
-                          size_t _endIndex, bool endCap = true) {
+static void buildPolyLineSegment(const Line& _line, PolyLineBuilder& _ctx, size_t _startIndex,
+                          size_t _endIndex, bool startCap = true, bool endCap = true) {
 
     float distance = 0; // Cumulative distance along the polyline.
 
@@ -303,7 +312,7 @@ void buildPolyLineSegment(const Line& _line, PolyLineBuilder& _ctx, size_t _star
     // Process first point in line with an end cap
     normNext = glm::normalize(perp2d(coordCurr, coordNext));
 
-    if (endCap) {
+    if (startCap) {
         addCap(coordCurr, normNext, cornersOnCap, true, _ctx);
     }
     addPolyLineVertex(coordCurr, normNext, {1.0f, 0.0f}, _ctx); // right corner
@@ -410,8 +419,8 @@ void Builders::buildPolyLine(const Line& _line, PolyLineBuilder& _ctx) {
 
     } else {
 
-        int cut = 0;
-        int firstCutEnd = 0;
+        size_t cut = 0;
+        size_t firstCutEnd = 0;
 
         // Determine cuts
         for (size_t i = 0; i < lineSize - 1; i++) {
@@ -423,6 +432,30 @@ void Builders::buildPolyLine(const Line& _line, PolyLineBuilder& _ctx) {
                 }
                 buildPolyLineSegment(_line, _ctx, cut, i + 1);
                 cut = i + 1;
+            } else if (!_ctx.closedPolygon) {
+                bool currOutside = isOutsideTile(coordCurr);
+                bool nextOutside = isOutsideTile(coordNext);
+
+                if (currOutside || nextOutside) {
+                    float tx0 = -coordCurr.x/(coordNext.x - coordCurr.x);
+                    float tx1 = (1 - coordCurr.x)/(coordNext.x - coordCurr.x);
+                    float ty0 = -coordCurr.y/(coordNext.y - coordCurr.y);
+                    float ty1 = (1 - coordCurr.y)/(coordNext.y - coordCurr.y);
+
+                    if (currOutside) {
+                        float tmax = std::max({
+                            tx0 < 1 ? tx0 : 0, tx1 < 1 ? tx1 : 0, ty0 < 1 ? ty0 : 0, ty1 < 1 ? ty1 : 0 });
+                        glm::vec2 p = coordCurr + tmax*(coordNext - coordCurr);
+                        buildPolyLineSegment({ p, coordNext }, _ctx, 0, 2, false, i+1 == lineSize-1);
+                    } else if (nextOutside) {
+                        float tmin = std::min({
+                            tx0 > 0 ? tx0 : 1, tx1 > 0 ? tx1 : 1, ty0 > 0 ? ty0 : 1, ty1 > 0 ? ty1 : 1 });
+                        glm::vec2 p = coordCurr + tmin*(coordNext - coordCurr);
+                        buildPolyLineSegment(_line, _ctx, cut, i + 1, true, false);
+                        buildPolyLineSegment({ coordCurr, p }, _ctx, 0, 2, i == 0, false);
+                    }
+                    cut = i + 1;
+                }
             }
         }
 
@@ -430,7 +463,7 @@ void Builders::buildPolyLine(const Line& _line, PolyLineBuilder& _ctx) {
             if (cut == 0) {
                 // no tile edge cuts!
                 // loop and close the polygon with no endcaps
-                buildPolyLineSegment(_line, _ctx, 0, lineSize+2, false);
+                buildPolyLineSegment(_line, _ctx, 0, lineSize+2, false, false);
             } else {
                 // merge first and last cut line-segments together
                 buildPolyLineSegment(_line, _ctx, cut, firstCutEnd);

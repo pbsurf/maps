@@ -420,7 +420,7 @@ bool PolylineStyleBuilder<V>::addFeature(const Feature& _feat, const DrawRule& _
 
     if (_feat.geometryType == GeometryType::lines) {
         // Line geometries are never clipped to tiles, so keep all segments
-        params.keepTileEdges = true;
+        //params.keepTileEdges = true;
 
         for (auto& line : _feat.lines) {
             addMesh(line, params);
