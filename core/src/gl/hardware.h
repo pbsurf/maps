@@ -12,6 +12,7 @@ extern bool supportsTextureNPOT;
 extern bool supportsGLRGBA8OES;
 extern uint32_t maxTextureSize;
 extern uint32_t maxCombinedTextureUnits;
+extern uint32_t depthBits;
 
 void loadCapabilities();
 void loadExtensions();

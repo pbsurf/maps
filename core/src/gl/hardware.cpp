@@ -19,6 +19,7 @@ bool supportsGLRGBA8OES = false;
 
 uint32_t maxTextureSize = 0;
 uint32_t maxCombinedTextureUnits = 0;
+uint32_t depthBits = 0;
 static char* s_glExtensions;
 
 bool isAvailable(std::string _extension) {
@@ -74,8 +75,12 @@ void loadCapabilities() {
     GL::getIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &val);
     maxCombinedTextureUnits = val;
 
+    GL::getIntegerv(GL_DEPTH_BITS, &val);
+    depthBits = val;
+
     LOG("Hardware max texture size %d", maxTextureSize);
     LOG("Hardware max combined texture units %d", maxCombinedTextureUnits);
+    LOG("Framebuffer depth bits %d", depthBits);
 }
 
 }

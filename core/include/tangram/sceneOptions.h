@@ -70,6 +70,7 @@ public:
 
     /// elevation source for 3D terrain; blank to disable
     std::string terrain3dSource;
+    std::vector<std::string> terrain3dStyles;
 
     /// global fallback fonts
     std::vector<FontSourceHandle> fallbackFonts;

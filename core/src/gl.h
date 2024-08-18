@@ -202,6 +202,7 @@ typedef char            GLchar;
 #define GL_DEPTH_WRITEMASK              0x0B72
 #define GL_DEPTH_COMPONENT              0x1902
 #define GL_DEPTH_COMPONENT16            0x81A5
+#define GL_DEPTH_COMPONENT24            0x81A6
 
 /* Stencil */
 #define GL_STENCIL_BITS                 0x0D57

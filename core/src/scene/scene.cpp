@@ -190,13 +190,20 @@ bool Scene::load() {
     if (!m_options.terrain3dSource.empty()) {
         auto terrainSrc = std::find_if(m_tileSources.begin(), m_tileSources.end(),
             [this](auto& src){ return src->isRaster() && src->name() == m_options.terrain3dSource; });
-        auto terrainStyle = std::find_if(m_styles.begin(), m_styles.end(),
-            [](auto& style){ return style->type() == StyleType::polygon && style->hasRasters(); });
-            //[this](auto& style){ return style->getName() == m_options.terrain3dStyle; });
+        // we need to select style that is actually used so that it will have a mesh, but very difficult to
+        //  figure this out until we have built tile(s), so require list of style names from config
+        auto terrainStyle = m_styles.end();
+        for(std::string& name : m_options.terrain3dStyles) {
+          terrainStyle = std::find_if(m_styles.begin(), m_styles.end(),
+              [&](auto& style){ return style->getName() == name; });
+          if(terrainStyle != m_styles.end()) break;
+        }
         if (terrainSrc != m_tileSources.end() && terrainStyle != m_styles.end()) {
             m_elevationManager = std::make_unique<ElevationManager>(
                 std::static_pointer_cast<RasterSource>(*terrainSrc), **terrainStyle);
         }
+        else
+          LOGE("Unable to find source and/or style needed for 3D terrain!");
     }
     LOGTO("<<< elevationManager");
 

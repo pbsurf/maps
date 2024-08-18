@@ -1,4 +1,5 @@
 #include "gl/shaderSource.h"
+#include "gl/hardware.h"
 #include "util/floatFormatter.h"
 
 #include <set>
@@ -14,8 +15,8 @@ int ShaderSource::glesVersion = 200;
 static const char* gl3FragHeader = R"RAW_GLSL(
 #define texture2D texture
 #define varying in
-#define gl_FragColor __FragColor
-layout (location = 0) out highp vec4 __FragColor;
+#define gl_FragColor TANGRAM_FragColor
+layout (location = 0) out highp vec4 TANGRAM_FragColor;
 )RAW_GLSL";
 
 void ShaderSource::setSourceStrings(const std::string& _fragSrc, const std::string& _vertSrc){
@@ -69,7 +70,8 @@ std::string ShaderSource::applySourceBlocks(const std::string& _source, bool _fr
     if (_fragShader) {
         out.append("#define TANGRAM_FRAGMENT_SHADER\n");
     } else {
-        out.append("#define TANGRAM_DEPTH_DELTA 0.00003052\n"); // 2^-15
+        out.append(Hardware::depthBits >= 124 ? "#define TANGRAM_DEPTH_DELTA 1.1921E-7\n"    // 2^-23
+                                             : "#define TANGRAM_DEPTH_DELTA 0.00003052\n"); // 2^-15
         out.append("#define TANGRAM_VERTEX_SHADER\n");
     }
     if (_selection) {
