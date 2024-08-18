@@ -63,7 +63,9 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
             if (_tile) {
                 setElev = label->m_elevationSet = label->setElevation(*_elevManager, _tile->getOrigin(), _tile->getScale());
             } else if (_marker) {
-                //setElev = label->setElevation(*_elevManager, _marker->origin(), _marker->extent());
+                double scale = _marker->extent();  // see Marker::setMesh()
+                if (scale <= 0) { scale = MapProjection::metersPerTileAtZoom(_marker->builtZoomLevel()); }
+                setElev = label->m_elevationSet = label->setElevation(*_elevManager, _marker->origin(), scale);
             }
         }
 

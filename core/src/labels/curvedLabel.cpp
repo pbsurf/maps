@@ -79,7 +79,6 @@ bool CurvedLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& 
         return false;
     }
 
-    auto oldcenter = sampler.point(m_anchorPoint);
     // Set center for repeatGroup distance calculations
     m_screenCenter = worldToScreenSpace(_mvp, glm::vec4(m_modelTransform[m_anchorPoint], 1.0),
                                         _viewState.viewportSize, clipped);
