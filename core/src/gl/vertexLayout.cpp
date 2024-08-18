@@ -50,24 +50,14 @@ size_t VertexLayout::getOffset(std::string _attribName) {
     return 0;
 }
 
-void VertexLayout::enable(const fastmap<std::string, GLuint>& _locations, size_t _byteOffset) {
+void VertexLayout::enable(size_t _byteOffset) {
 
-    for (auto& attrib : m_attribs) {
-        auto it = _locations.find(attrib.name);
-
-        if (it == _locations.end()) {
-            continue;
-        }
-
-        GLint location = it->second;
-
-        if (location != -1) {
-            void* offset = ((unsigned char*) attrib.offset) + _byteOffset;
-            GL::enableVertexAttribArray(location);
-            GL::vertexAttribPointer(location, attrib.size, attrib.type, attrib.normalized, m_stride, offset);
-        }
+    for (size_t location = 0; location < m_attribs.size(); ++location) {
+        auto& attrib = m_attribs[location];
+        void* offset = ((unsigned char*) attrib.offset) + _byteOffset;
+        GL::enableVertexAttribArray(location);
+        GL::vertexAttribPointer(location, attrib.size, attrib.type, attrib.normalized, m_stride, offset);
     }
-
 }
 
 void VertexLayout::enable(RenderState& rs, ShaderProgram& _program, size_t _byteOffset, void* _ptr) {
@@ -75,21 +65,18 @@ void VertexLayout::enable(RenderState& rs, ShaderProgram& _program, size_t _byte
     GLuint glProgram = _program.getGlProgram();
 
     // Enable all attributes for this layout
-    for (auto& attrib : m_attribs) {
+    for (size_t location = 0; location < m_attribs.size(); ++location) {
+        auto& attrib = m_attribs[location];
 
-        GLint location = _program.getAttribLocation(attrib.name);
-
-        if (location != -1) {
-            auto& loc = rs.attributeBindings[location];
-            // Track currently enabled attribs by the program to which they are bound
-            if (loc != glProgram) {
-                GL::enableVertexAttribArray(location);
-                loc = glProgram;
-            }
-
-            void* data = (unsigned char*)_ptr + attrib.offset + _byteOffset;
-            GL::vertexAttribPointer(location, attrib.size, attrib.type, attrib.normalized, m_stride, data);
+        auto& loc = rs.attributeBindings[location];
+        // Track currently enabled attribs by the program to which they are bound
+        if (loc != glProgram) {
+            GL::enableVertexAttribArray(location);
+            loc = glProgram;
         }
+
+        void* data = (unsigned char*)_ptr + attrib.offset + _byteOffset;
+        GL::vertexAttribPointer(location, attrib.size, attrib.type, attrib.normalized, m_stride, data);
     }
 
     // Disable previously bound and now-unneeded attributes

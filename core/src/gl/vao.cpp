@@ -14,14 +14,6 @@ void Vao::initialize(RenderState& rs, ShaderProgram& _program, const VertexOffse
 
     GL::genVertexArrays(m_glVAOs.size(), m_glVAOs.data());
 
-    fastmap<std::string, GLuint> locations;
-
-    // FIXME (use a bindAttrib instead of getLocation) to make those locations shader independent
-    for (auto& attrib : _layout.getAttribs()) {
-        GLint location = _program.getAttribLocation(attrib.name);
-        locations[attrib.name] = location;
-    }
-
     rs.vertexBuffer(_vertexBuffer);
 
     int vertexOffset = 0;
@@ -37,7 +29,7 @@ void Vao::initialize(RenderState& rs, ShaderProgram& _program, const VertexOffse
         }
 
         // Enable vertex layout on the specified locations
-        _layout.enable(locations, vertexOffset * _layout.getStride());
+        _layout.enable(vertexOffset * _layout.getStride());
 
         vertexOffset += nVerts;
     }

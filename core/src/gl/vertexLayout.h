@@ -29,7 +29,7 @@ public:
 
     void enable(RenderState& rs, ShaderProgram& _program, size_t _byteOffset, void* _ptr = nullptr);
 
-    void enable(const fastmap<std::string, GLuint>& _locations, size_t _bytOffset);
+    void enable(size_t _byteOffset);
 
     GLint getStride() const { return m_stride; };
 

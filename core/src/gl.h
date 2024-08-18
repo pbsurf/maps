@@ -323,6 +323,7 @@ struct GL {
     static void getProgramInfoLog(GLuint program, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
     static GLint getUniformLocation(GLuint program, const GLchar *name);
     static GLint getAttribLocation(GLuint program, const GLchar *name);
+    static void bindAttribLocation(GLuint program, GLuint index, const GLchar *name);
     static void getProgramiv(GLuint program, GLenum pname, GLint *params);
     static void getShaderiv(GLuint shader, GLenum pname, GLint *params);
 

@@ -14,6 +14,7 @@
 namespace Tangram {
 
 class RenderState;
+class VertexLayout;
 
 //
 // ShaderProgram - utility class representing an OpenGL shader program
@@ -22,20 +23,8 @@ class ShaderProgram {
 
 public:
 
-    ShaderProgram();
+    ShaderProgram(const std::string& _vertSrc, const std::string& _fragSrc, VertexLayout* _layout);
     ~ShaderProgram();
-
-    void setShaderSource(const std::string& _vertSrc, const std::string& _fragSrc) {
-        m_fragmentShaderSource = _fragSrc;
-        m_vertexShaderSource = _vertSrc;
-        m_needsBuild = true;
-    }
-
-    // Apply all source blocks to the source strings for this shader and attempt to compile
-    // and then link the resulting vertex and fragment shaders; if compiling or linking fails
-    // this prints the compiler log, returns false, and keeps the program's previous state; if
-    // successful it returns true.
-    bool build(RenderState& rs);
 
     // Getters
     GLuint getGlProgram() const { return m_glProgram; };
@@ -43,7 +32,7 @@ public:
     std::string getDescription() const { return m_description; }
 
     // Fetch the location of a shader attribute, caching the result.
-    GLint getAttribLocation(const std::string& _attribName);
+    //GLint getAttribLocation(const std::string& _attribName);
 
     // Fetch the location of a shader uniform, caching the result.
     GLint getUniformLocation(const UniformLocation& _uniformName);
@@ -84,13 +73,19 @@ public:
 
     void setDescription(std::string _description) { m_description = _description; }
 
-    static GLuint makeLinkedShaderProgram(GLint _fragShader, GLint _vertShader);
+    static GLuint makeLinkedShaderProgram(GLuint program, GLuint _fragShader, GLuint _vertShader);
     static GLuint makeCompiledShader(RenderState& rs, const std::string& _src, GLenum _type);
 
     const std::string& vertexShaderSource() { return m_vertexShaderSource; }
     const std::string& fragmentShaderSource() { return m_fragmentShaderSource; }
 
 private:
+
+    // Apply all source blocks to the source strings for this shader and attempt to compile
+    // and then link the resulting vertex and fragment shaders; if compiling or linking fails
+    // this prints the compiler log, returns false, and keeps the program's previous state; if
+    // successful it returns true.
+    bool build(RenderState& rs);
 
     // Get a uniform value from the cache, and returns false when it's a cache miss
     template <class T>
@@ -110,7 +105,7 @@ private:
     GLuint m_glFragmentShader = 0;
     GLuint m_glVertexShader = 0;
 
-    fastmap<std::string, GLint> m_attribMap;
+    VertexLayout* m_vertexLayout;
     fastmap<GLint, UniformValue> m_uniformCache;
 
     std::string m_fragmentShaderSource;

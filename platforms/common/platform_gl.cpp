@@ -129,6 +129,9 @@ GLint GL::getAttribLocation(GLuint program, const GLchar *name) {
     GL_CHECK({});
     return result;
 }
+void GL::bindAttribLocation(GLuint program, GLuint index, const GLchar *name) {
+    GL_CHECK(glBindAttribLocation(program, index, name));
+}
 void GL::getProgramiv(GLuint program, GLenum pname, GLint *params) {
     GL_CHECK(glGetProgramiv(program,pname,params));
 }

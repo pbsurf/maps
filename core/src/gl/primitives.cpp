@@ -36,24 +36,16 @@ void init() {
 
     // lazy init
     if (!s_initialized) {
-        s_shader = std::make_unique<ShaderProgram>();
-
-        s_shader->setShaderSource(debugPrimitive_vs, debugPrimitive_fs);
-
         s_layout = std::unique_ptr<VertexLayout>(new VertexLayout({
             {"a_position", 2, GL_FLOAT, false, 0},
         }));
-
-
-        s_textureShader = std::make_unique<ShaderProgram>();
-
-        s_textureShader->setShaderSource(debugTexture_vs, debugTexture_fs);
+        s_shader = std::make_unique<ShaderProgram>(debugPrimitive_vs, debugPrimitive_fs, s_layout.get());
 
         s_textureLayout = std::unique_ptr<VertexLayout>(new VertexLayout({
             {"a_position", 2, GL_FLOAT, false, 0},
             {"a_uv", 2, GL_FLOAT, false, 0},
         }));
-
+        s_textureShader = std::make_unique<ShaderProgram>(debugTexture_vs, debugTexture_fs, s_textureLayout.get());
 
         s_initialized = true;
         //GL::lineWidth(1.5f);  -- not supported in GL 3 core

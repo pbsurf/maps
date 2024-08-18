@@ -127,9 +127,8 @@ void Style::build(const Scene& _scene) {
         }
     }
     if (!m_shaderProgram) {
-        m_shaderProgram = std::make_shared<ShaderProgram>();
+        m_shaderProgram = std::make_shared<ShaderProgram>(vertSrc, fragSrc, m_vertexLayout.get());
         m_shaderProgram->setDescription("{style:" + m_name + "}");
-        m_shaderProgram->setShaderSource(vertSrc, fragSrc);
     }
 
     if (m_selection) {
@@ -148,9 +147,8 @@ void Style::build(const Scene& _scene) {
             }
         }
         if (!m_selectionProgram) {
-            m_selectionProgram = std::make_shared<ShaderProgram>();
+            m_selectionProgram = std::make_shared<ShaderProgram>(vertSrc, fragSrc, m_vertexLayout.get());
             m_selectionProgram->setDescription("selection_program {style:" + m_name + "}");
-            m_selectionProgram->setShaderSource(vertSrc, fragSrc);
         }
     }
 

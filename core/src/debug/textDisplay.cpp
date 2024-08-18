@@ -13,6 +13,8 @@
 
 namespace Tangram {
 
+static VertexLayout vertexLayout({{"a_position", 2, GL_FLOAT, false, 0}});
+
 TextDisplay::TextDisplay() : m_textDisplayResolution(350.0), m_initialized(false) {
     m_vertexBuffer = new char[VERTEX_BUFFER_SIZE];
 }
@@ -52,8 +54,7 @@ void TextDisplay::init() {
         }
     )END";
 
-    m_shader = std::make_unique<ShaderProgram>();
-    m_shader->setShaderSource(vertShaderSrcStr, fragShaderSrcStr);
+    m_shader = std::make_unique<ShaderProgram>(vertShaderSrcStr, fragShaderSrcStr, &vertexLayout);
 
     m_initialized = true;
 }
@@ -92,7 +93,6 @@ void TextDisplay::log(const char* fmt, ...) {
 }
 
 void TextDisplay::draw(RenderState& rs, const std::string& _text, int _posx, int _posy) {
-    static VertexLayout vertexLayout({{"a_position", 2, GL_FLOAT, false, 0}});
     std::vector<glm::vec2> vertices;
     int nquads;
 

@@ -2,6 +2,7 @@
 
 #include "gl/glError.h"
 #include "gl/renderState.h"
+#include "gl/vertexLayout.h"
 #include "glm/gtc/type_ptr.hpp"
 #include "scene/light.h"
 #include "log.h"
@@ -11,9 +12,10 @@
 
 namespace Tangram {
 
-ShaderProgram::ShaderProgram() {
-    // Nothing to do.
-}
+ShaderProgram::ShaderProgram(const std::string& _vertSrc,
+                             const std::string& _fragSrc,
+                             VertexLayout* _layout)
+    : m_vertexLayout(_layout), m_fragmentShaderSource(_fragSrc), m_vertexShaderSource(_vertSrc) { }
 
 ShaderProgram::~ShaderProgram() {
     if (m_rs) {
@@ -27,21 +29,6 @@ ShaderProgram::~ShaderProgram() {
     }
 }
 
-GLint ShaderProgram::getAttribLocation(const std::string& _attribName) {
-
-    auto it = m_attribMap.find(_attribName);
-
-    if (it == m_attribMap.end()) {
-        // If this is a new entry, get the actual location from OpenGL.
-        GLint location = GL::getAttribLocation(m_glProgram, _attribName.c_str());
-        m_attribMap[_attribName] = location;
-        return location;
-    } else {
-        return it->second;
-    }
-
-}
-
 GLint ShaderProgram::getUniformLocation(const UniformLocation& _uniform) {
 
     if (_uniform.location == -2) {
@@ -53,6 +40,7 @@ GLint ShaderProgram::getUniformLocation(const UniformLocation& _uniform) {
 bool ShaderProgram::use(RenderState& rs) {
 
     if (m_needsBuild) {
+        m_needsBuild = false;
         build(rs);
     }
 
@@ -66,41 +54,31 @@ bool ShaderProgram::use(RenderState& rs) {
 
 bool ShaderProgram::build(RenderState& rs) {
 
-    if (!m_needsBuild) { return false; }
-    m_needsBuild = false;
-
-    // Delete handle for old program and shaders.
-    if (m_glProgram) {
-        GL::deleteProgram(m_glProgram);
-        m_glProgram = 0;
-    }
-    if (m_glFragmentShader) {
-        GL::deleteShader(m_glFragmentShader);
-        m_glFragmentShader = 0;
-    }
-    if (m_glVertexShader) {
-        GL::deleteShader(m_glVertexShader);
-        m_glVertexShader = 0;
-    }
-
     auto& vertSrc = m_vertexShaderSource;
     auto& fragSrc = m_fragmentShaderSource;
 
     // Compile vertex and fragment shaders
-    GLint vertexShader = makeCompiledShader(rs, vertSrc, GL_VERTEX_SHADER);
+    GLuint vertexShader = makeCompiledShader(rs, vertSrc, GL_VERTEX_SHADER);
     if (vertexShader == 0) {
         LOGE("Shader compilation failed for %s", m_description.c_str());
         return false;
     }
 
-    GLint fragmentShader = makeCompiledShader(rs, fragSrc, GL_FRAGMENT_SHADER);
+    GLuint fragmentShader = makeCompiledShader(rs, fragSrc, GL_FRAGMENT_SHADER);
     if (fragmentShader == 0) {
         LOGE("Shader compilation failed for %s", m_description.c_str());
         return false;
     }
 
+    // Attrib locations must be set before program is linked
+    GLuint program = GL::createProgram();
+    auto& attribs = m_vertexLayout->getAttribs();
+    for (size_t ii = 0; ii < attribs.size(); ++ii) {
+        GL::bindAttribLocation(program, GLuint(ii), attribs[ii].name.c_str());
+    }
+
     // Link shaders into a program
-    GLint program = makeLinkedShaderProgram(fragmentShader, vertexShader);
+    program = makeLinkedShaderProgram(program, fragmentShader, vertexShader);
     if (program == 0) {
         LOGE("Shader compilation failed for %s", m_description.c_str());
         return false;
@@ -109,17 +87,12 @@ bool ShaderProgram::build(RenderState& rs) {
     m_glProgram = program;
     m_glFragmentShader = fragmentShader;
     m_glVertexShader = vertexShader;
-
-    // Clear any cached shader locations
-    m_attribMap.clear();
     m_rs = &rs;
 
     return true;
 }
 
-GLuint ShaderProgram::makeLinkedShaderProgram(GLint _fragShader, GLint _vertShader) {
-
-    GLuint program = GL::createProgram();
+GLuint ShaderProgram::makeLinkedShaderProgram(GLuint program, GLuint _fragShader, GLuint _vertShader) {
 
     GL::attachShader(program, _fragShader);
     GL::attachShader(program, _vertShader);
