@@ -47,8 +47,6 @@ static double readElevTex(const Texture& tex, int x, int y)
 
 static double elevationLerp(const Texture& tex, TileID tileId, ProjectedMeters meters)
 {
-  using namespace Tangram;
-
   double scale = MapProjection::metersPerTileAtZoom(tileId.z);
   ProjectedMeters tileOrigin = MapProjection::tileSouthWestCorner(tileId);
   //ProjectedMeters meters = MapProjection::lngLatToProjectedMeters(pos);  //glm::dvec2(tileCoord) * scale + tileOrigin;
@@ -71,13 +69,13 @@ static double elevationLerp(const Texture& tex, TileID tileId, ProjectedMeters m
   return t0 + fy*(t1 - t0);
 }
 
-static TileID lngLatTile(LngLat ll, int z)
-{
-  int x = int(floor((ll.longitude + 180.0) / 360.0 * (1 << z)));
-  double latrad = ll.latitude * M_PI/180.0;
-  int y = int(floor((1.0 - asinh(tan(latrad)) / M_PI) / 2.0 * (1 << z)));
-  return TileID(x, y, z);
-}
+//static TileID lngLatTile(LngLat ll, int z)
+//{
+//  int x = int(floor((ll.longitude + 180.0) / 360.0 * (1 << z)));
+//  double latrad = ll.latitude * M_PI/180.0;
+//  int y = int(floor((1.0 - asinh(tan(latrad)) / M_PI) / 2.0 * (1 << z)));
+//  return TileID(x, y, z);
+//}
 
 static TileID projMetersTile(ProjectedMeters ll, int z)
 {
@@ -140,6 +138,11 @@ float ElevationManager::getDepth(glm::vec2 screenpos)
   //GL::readPixels(floorf(screenpos.x), floorf(screenpos.y), 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel);
   // convert from 0..1 (glDepthRange) to -1..1 (NDC)
   return 2*m_depthData[floorf(pos.x) + floorf(h - pos.y - 1)*w] - 1;
+}
+
+void ElevationManager::setZoom(int z)
+{
+  m_currZoom = std::min(m_elevationSource->maxZoom(), z);
 }
 
 ElevationManager::ElevationManager(std::shared_ptr<RasterSource> src, Style& style) : m_elevationSource(src)

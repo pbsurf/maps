@@ -18,7 +18,7 @@ public:
   ElevationManager(std::shared_ptr<RasterSource> src, Style& style);
   double getElevation(ProjectedMeters pos, bool& ok);
   float getDepth(glm::vec2 screenpos);
-  void setZoom(int z) { m_currZoom = z; }
+  void setZoom(int z);
 
   void renderTerrainDepth(RenderState& _rs, const View& _view,
                           const std::vector<std::shared_ptr<Tile>>& _tiles);
