@@ -82,7 +82,9 @@ void ClientDataSource::PolygonBuilder::addPoint(LngLat point) {
 }
 
 std::shared_ptr<TileTask> ClientDataSource::createTask(TileID _tileId) {
-    return std::make_shared<TileTask>(_tileId, shared_from_this());
+    auto task = std::make_shared<TileTask>(_tileId, shared_from_this());
+    addRasterTasks(*task);
+    return task;
 }
 
 // TODO: pass scene's resourcePath to constructor to be used with `stringFromFile`
@@ -246,35 +248,57 @@ void ClientDataSource::addData(const std::string& _data) {
                              std::make_move_iterator(features.end()));
 }
 
-void ClientDataSource::addPointFeature(Properties&& properties, LngLat coordinates) {
+uint64_t ClientDataSource::addPointFeature(Properties&& properties, LngLat coordinates, uint64_t id) {
 
     std::lock_guard<std::mutex> lock(m_mutexStore);
 
     geometry::point<double> geom {coordinates.longitude, coordinates.latitude};
-
-    uint64_t id = m_store->features.size();
-    m_store->features.emplace_back(geom, id);
-    m_store->properties.emplace_back(properties);
+    if (id < m_store->features.size()) {
+      m_store->features[id] = {geom, id};
+      m_store->properties[id] = std::move(properties);
+    } else {
+      id = m_store->features.size();
+      m_store->features.emplace_back(geom, id);
+      m_store->properties.emplace_back(properties);
+    }
+    return id;
 }
 
-void ClientDataSource::addPolylineFeature(Properties&& properties, PolylineBuilder&& polyline) {
+uint64_t ClientDataSource::addPolylineFeature(Properties&& properties, PolylineBuilder&& polyline, uint64_t id) {
 
     std::lock_guard<std::mutex> lock(m_mutexStore);
 
-    uint64_t id = m_store->features.size();
     auto geom = std::move(polyline.data);
-    m_store->features.emplace_back(*geom, id);
-    m_store->properties.emplace_back(properties);
+    if (id < m_store->features.size()) {
+      m_store->features[id] = {*geom, id};
+      m_store->properties[id] = std::move(properties);
+    } else {
+      id = m_store->features.size();
+      m_store->features.emplace_back(*geom, id);
+      m_store->properties.emplace_back(properties);
+    }
+    return id;
 }
 
-void ClientDataSource::addPolygonFeature(Properties&& properties, PolygonBuilder&& polygon) {
+uint64_t ClientDataSource::addPolygonFeature(Properties&& properties, PolygonBuilder&& polygon, uint64_t id) {
 
     std::lock_guard<std::mutex> lock(m_mutexStore);
 
-    uint64_t id = m_store->features.size();
     auto geom = std::move(polygon.data);
-    m_store->features.emplace_back(*geom, id);
-    m_store->properties.emplace_back(properties);
+    if (id < m_store->features.size()) {
+      m_store->features[id] = {*geom, id};
+      m_store->properties[id] = std::move(properties);
+    } else {
+      id = m_store->features.size();
+      m_store->features.emplace_back(*geom, id);
+      m_store->properties.emplace_back(properties);
+    }
+    return id;
+}
+
+void ClientDataSource::setProperties(uint64_t id, Properties&& properties) {
+    if (id >= m_store->properties.size()) return;
+    m_store->properties[id] = std::move(properties);
 }
 
 struct add_geometry {

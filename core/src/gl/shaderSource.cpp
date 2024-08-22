@@ -70,7 +70,7 @@ std::string ShaderSource::applySourceBlocks(const std::string& _source, bool _fr
     if (_fragShader) {
         out.append("#define TANGRAM_FRAGMENT_SHADER\n");
     } else {
-        out.append(Hardware::depthBits >= 24 ? "#define TANGRAM_DEPTH_DELTA 1.9074E-6\n"    // 2^-19
+        out.append(!_selection && Hardware::depthBits >= 24 ? "#define TANGRAM_DEPTH_DELTA 1.9074E-6\n"    // 2^-19
                                              : "#define TANGRAM_DEPTH_DELTA 0.00003052\n"); // 2^-15
         out.append("#define TANGRAM_VERTEX_SHADER\n");
     }

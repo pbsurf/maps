@@ -181,7 +181,8 @@ public:
     void cancelTasks();
 
     /// Returns true when scene finished loading and completeScene() suceeded.
-    bool isReady() const { return m_state == State::ready; };
+    bool isReady() const { return m_state == State::ready; }
+    bool isPendingCompletion() const { return m_state == State::pending_completion; }
 
     /// Scene ID
     const int32_t id;
