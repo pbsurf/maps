@@ -125,7 +125,28 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
   GL::drawBuffers(1, &drawbuffs[1]);
 
   // TODO: use PBO to make this async
-  //GL::readPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, m_depthData.data());
+  // refs: songho.ca/opengl/gl_pbo.html ; roxlu.com/2014/048/fast-pixel-transfers-with-pixel-buffer-objects
+  //~// setup PBO
+  //~size_t nbytes = w*h*4;
+  //~GLuint pbo;
+  //~GL::genBuffers(1, &pbo);
+  //~GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo);
+  //~GL::bufferData(GL_PIXEL_PACK_BUFFER, nbytes, NULL, GL_STREAM_READ);  // NULL instructs GL to allocate buffer
+  //~GL::bindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+  //~
+  //~// read pixels
+  //~GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo);
+  //~GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, NULL);  // NULL to read into PBO
+  //~GL::bindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+  //~
+  //~// do some other stuff, ... then access pixels
+  //~GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo);
+  //~//GLubyte* ptr = (GLubyte*)GL::mapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
+  //~GLubyte* ptr = (GLubyte*)GL::mapBufferRange(GL_PIXEL_PACK_BUFFER, 0, nbytes, GL_MAP_READ_BIT)
+  //~if(ptr) { /* DO STUFF */ }
+  //~GL::unmapBuffer(GL_PIXEL_PACK_BUFFER);
+  //~GL::bindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+
   GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, m_depthData.data());
   _rs.framebuffer(_rs.defaultFrameBuffer());
 }

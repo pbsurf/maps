@@ -123,7 +123,7 @@ std::unique_ptr<Tile> TileBuilder::build(TileID _tileID, const TileData& _tileDa
 
     for (const auto& datalayer : m_scene.layers()) {
 
-        if (datalayer.source() != _source.name()) { continue; }
+        if (datalayer.source() != _source.name() || !datalayer.enabled()) { continue; }
 
         for (const auto& collection : _tileData.layers) {
 

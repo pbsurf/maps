@@ -25,6 +25,7 @@
 #include "util/base64.h"
 #include "util/util.h"
 #include "util/elevationManager.h"
+#include "util/skyManager.h"
 #include "log.h"
 #include "scene.h"
 
@@ -201,6 +202,8 @@ bool Scene::load() {
         if (terrainSrc != m_tileSources.end() && terrainStyle != m_styles.end()) {
             m_elevationManager = std::make_unique<ElevationManager>(
                 std::static_pointer_cast<RasterSource>(*terrainSrc), **terrainStyle);
+            // w/ default settings, seems horizon never visible w/o 3D terrain
+            m_skyManager = std::make_unique<SkyManager>();
         }
         else
           LOGE("Unable to find source and/or style needed for 3D terrain!");
@@ -596,6 +599,12 @@ void Scene::renderBeginFrame(RenderState& _rs) {
 bool Scene::render(RenderState& _rs, View& _view) {
 
     bool drawnAnimatedStyle = false;
+
+    // draw the sky (if horizon if visible)
+    if (m_skyManager) {
+        //m_skyManager->draw(_rs, _view);
+    }
+
     for (const auto& style : m_styles) {
 
         bool styleDrawn = style->draw(_rs, _view,

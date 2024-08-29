@@ -553,6 +553,17 @@ glm::dvec2 View::getRelativeMeters(glm::dvec2 projectedMeters) const {
     return {dx, dy};
 }
 
+float View::horizonScreenPosition() {
+    if (m_dirtyMatrices) { updateMatrices(); } // Need the view matrices to be up-to-date
+
+    glm::vec4 worldPosition(-1E6*m_eye.x, -1E6*m_eye.y, 0.0, 1.0);
+    glm::vec4 clip = worldToClipSpace(m_viewProj, worldPosition);
+    glm::vec3 ndc = clipSpaceToNdc(clip);
+    bool outsideViewport = clipSpaceIsBehindCamera(clip) || abs(ndc.x) > 1 || abs(ndc.y) > 1;
+    glm::vec2 screenPosition = ndcToScreenSpace(ndc, glm::vec2(m_vpWidth, m_vpHeight));
+    return screenPosition.y;
+}
+
 void View::getVisibleTiles(const std::function<void(TileID)>& _tileCb) const {
 
     int zoom = getIntegerZoom();

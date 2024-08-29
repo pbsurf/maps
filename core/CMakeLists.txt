@@ -169,6 +169,8 @@ add_library(tangram-core
   src/util/dashArray.cpp
   src/util/elevationManager.h
   src/util/elevationManager.cpp
+  src/util/skyManager.h
+  src/util/skyManager.cpp
   src/util/extrude.h
   src/util/extrude.cpp
   src/util/floatFormatter.h

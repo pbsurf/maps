@@ -220,6 +220,9 @@ public:
     // position, accounting for wrapping around the 180th meridian to get the smallest magnitude displacement.
     glm::dvec2 getRelativeMeters(glm::dvec2 projectedMeters) const;
 
+    // Get y screen position of horizon (< 0 or > screen height indicates horizon not visible)
+    float horizonScreenPosition();
+
     // Get the set of all tiles visible at the current position and zoom.
     void getVisibleTiles(const std::function<void(TileID)>& _tileCb) const;
 

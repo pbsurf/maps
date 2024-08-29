@@ -43,6 +43,7 @@ class Style;
 class Texture;
 class TileSource;
 class ElevationManager;
+class SkyManager;
 struct SceneLoader;
 
 struct SceneCamera : public Camera {
@@ -269,6 +270,7 @@ protected:
     std::unique_ptr<MarkerManager> m_markerManager;
     std::unique_ptr<LabelManager> m_labelManager;
     std::unique_ptr<ElevationManager> m_elevationManager;
+    std::unique_ptr<SkyManager> m_skyManager;
 
     std::mutex m_sceneLoadMutex;
     std::mutex m_taskMutex;
