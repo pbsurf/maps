@@ -446,10 +446,10 @@ void View::updateMatrices() {
     m_view = glm::lookAt(m_eye, at, up);
 
     float maxTileDistance = worldTileSize * invLodFunc(MAX_LOD + 1);
-    float near = m_pos.z / 50.f;
+    float near = m_pos.z / 50.0;
     float far = 1;
-    float hw = 0.5 * m_width;
-    float hh = 0.5 * m_height;
+    float hw = 0.5f * m_width;
+    float hh = 0.5f * m_height;
 
     glm::vec2 viewportSize = { m_vpWidth, m_vpHeight };
     glm::vec2 paddingOffset = { m_padding.right - m_padding.left, m_padding.top - m_padding.bottom };
@@ -458,7 +458,7 @@ void View::updateMatrices() {
     // Generate projection matrix based on camera type
     switch (m_type) {
         case CameraType::perspective:
-            far = 2. * m_pos.z / std::max(0., cos(m_pitch + 0.5 * fovy));
+            far = 2. * m_pos.z / std::max(0., cos(m_pitch + 0.5f * fovy));
             far = std::min(far, maxTileDistance);
             m_proj = glm::perspective(fovy, m_aspect, near, far);
             // Adjust projection center for edge padding.
@@ -556,7 +556,7 @@ glm::dvec2 View::getRelativeMeters(glm::dvec2 projectedMeters) const {
 float View::horizonScreenPosition() {
     if (m_dirtyMatrices) { updateMatrices(); } // Need the view matrices to be up-to-date
 
-    glm::vec4 worldPosition(-1E6*m_eye.x, -1E6*m_eye.y, 0.0, 1.0);
+    glm::vec4 worldPosition(-1E6f*m_eye.x, -1E6f*m_eye.y, 0.0, 1.0);
     glm::vec4 clip = worldToClipSpace(m_viewProj, worldPosition);
     glm::vec3 ndc = clipSpaceToNdc(clip);
     bool outsideViewport = clipSpaceIsBehindCamera(clip) || abs(ndc.x) > 1 || abs(ndc.y) > 1;
@@ -662,18 +662,87 @@ void View::getVisibleTiles(const std::function<void(TileID)>& _tileCb) const {
         if (tile != opt.last) {
             opt.last = tile;
 
+            //~TileCoordinates tc = {double(tile.x), double(tile.y), tile.z};
+            //~bool behind00, behind01, behind10, behind11;
+            //~auto r00 = tileCoordinatesToScreenPosition(tc, behind00);
+            //~auto r01 = tileCoordinatesToScreenPosition({tc.x, tc.y + 1, tc.z}, behind01);
+            //~auto r10 = tileCoordinatesToScreenPosition({tc.x + 1, tc.y, tc.z}, behind10);
+            //~auto r11 = tileCoordinatesToScreenPosition({tc.x + 1, tc.y + 1, tc.z}, behind11);
+            //~auto dr01 = r01 - r00;
+            //~auto dr10 = r10 - r00;
+            //~// note that w/ perspective projection, this is not just 0.25 * parent area
+            //~float area = std::abs(dr01.x*dr10.y - dr01.y*dr10.x);
+            //~LOGW("Tile %d/%d/%d screen area: %f^2", tile.z, tile.x, tile.y, std::sqrt(area));
+
             _tileCb(TileID(tile.x, tile.y, tile.z, tile.z));
         }
     };
 
+    //~LOGW("\n\n\n ********* START VISIBLE TILES *********");
     // Rasterize view trapezoid into tiles
     Rasterize::scanTriangle(a, b, c, 0, maxTileIndex, s);
     Rasterize::scanTriangle(c, d, a, 0, maxTileIndex, s);
 
+    //~LOGW("*** Tiles under eye ***");
     // Rasterize the area bounded by the point under the view center and the two nearest corners
     // of the view trapezoid. This is necessary to not cull any geometry with height in these tiles
     // (which should remain visible, even though the base of the tile is not).
     Rasterize::scanTriangle(a, b, e, 0, maxTileIndex, s);
+}
+
+glm::vec2 View::tileCoordsToScreenPosition(TileCoordinates tc, bool& behindCamera) const {
+
+    //if (m_dirtyMatrices) { updateMatrices(); } // Need the view matrices to be up-to-date
+
+    glm::dvec2 absoluteMeters = MapProjection::tileCoordinatesToProjectedMeters(tc);
+    glm::dvec2 relativeMeters = absoluteMeters - glm::dvec2(m_pos);  //getRelativeMeters(absoluteMeters);
+    glm::vec4 worldPosition(relativeMeters, 0.0, 1.0);
+    glm::vec4 clip = worldToClipSpace(m_viewProj, worldPosition);
+    glm::vec3 ndc = clipSpaceToNdc(clip);
+    behindCamera = clipSpaceIsBehindCamera(clip);
+    //if(clipSpaceIsBehindCamera(clip) || abs(ndc.x) > 1 || abs(ndc.y) > 1) { return {-1, -1} };
+    return ndcToScreenSpace(ndc, glm::vec2(m_vpWidth, m_vpHeight));
+}
+
+glm::vec4 View::tileCoordsToClipSpace(TileCoordinates tc) const
+{
+    glm::dvec2 absoluteMeters = MapProjection::tileCoordinatesToProjectedMeters(tc);
+    glm::dvec2 relativeMeters = absoluteMeters - glm::dvec2(m_pos);  //getRelativeMeters(absoluteMeters);
+    return worldToClipSpace(m_viewProj, glm::vec4(relativeMeters, 0.0, 1.0));
+}
+
+void View::getVisibleTiles2(TileID tile, int maxZoom, const std::function<void(TileID)>& _tileCb) const
+{
+    TileCoordinates tc = {double(tile.x), double(tile.y), tile.z};
+    auto c00 = tileCoordsToClipSpace(tc);
+    auto c01 = tileCoordsToClipSpace({tc.x, tc.y + 1, tc.z});
+    auto c10 = tileCoordsToClipSpace({tc.x + 1, tc.y, tc.z});
+    auto c11 = tileCoordsToClipSpace({tc.x + 1, tc.y + 1, tc.z});
+
+    if(c00.x < -c00.w && c01.x < -c01.w && c10.x < -c10.w && c11.x < -c11.w) return;
+    if(c00.x > c00.w && c01.x > c01.w && c10.x > c10.w && c11.x > c11.w) return;
+    if(c00.y < -c00.w && c01.y < -c01.w && c10.y < -c10.w && c11.y < -c11.w) return;
+    if(c00.y > c00.w && c01.y > c01.w && c10.y > c10.w && c11.y > c11.w) return;
+    if(c00.z < 0 && c01.z < 0 && c10.z < 0 && c11.z < 0) return;
+    if(c00.z > c00.w && c01.z > c01.w && c10.z > c10.w && c11.z > c11.w) return;
+
+    //    float area = std::numeric_limits<float>::max();
+    auto r00 = ndcToScreenSpace(clipSpaceToNdc(c00), glm::vec2(m_vpWidth, m_vpHeight));
+    auto r01 = ndcToScreenSpace(clipSpaceToNdc(c01), glm::vec2(m_vpWidth, m_vpHeight));
+    auto r10 = ndcToScreenSpace(clipSpaceToNdc(c10), glm::vec2(m_vpWidth, m_vpHeight));
+    auto dr01 = r01 - r00;
+    auto dr10 = r10 - r00;
+    float area = std::abs(dr01.x*dr10.y - dr01.y*dr10.x);
+
+    float maxArea = 2*MapProjection::tileSize()*MapProjection::tileSize();
+    if(tile.z < maxZoom && area > maxArea) {
+        for (int i = 0; i < 4; i++) {
+            getVisibleTiles2(tile.getChild(i, maxZoom), maxZoom, _tileCb);
+        }
+    }
+    else {
+        _tileCb(tile);
+    }
 }
 
 }

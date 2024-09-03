@@ -237,6 +237,10 @@ public:
     static float focalLengthToFieldOfView(float length);
     static float fieldOfViewToFocalLength(float radians);
 
+    glm::vec4 tileCoordsToClipSpace(TileCoordinates tc) const;
+    glm::vec2 tileCoordsToScreenPosition(TileCoordinates tc, bool& behindCamera) const;
+    void getVisibleTiles2(TileID tile, int maxZoom, const std::function<void(TileID)>& _tileCb) const;
+
 protected:
 
     void updateMatrices();

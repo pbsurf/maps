@@ -51,10 +51,9 @@ std::unique_ptr<StyledMesh> DebugTextStyleBuilder::build() {
     }
 
     TextStyle::Parameters params;
-
+    params.wordWrap = false;
     params.text = m_tileID;
     params.fontSize = 30.f;
-
     params.font = m_style.context()->getFont("sans-serif", "regular", "400", 32 * m_style.pixelScale());
 
     TextStyleBuilder::LabelAttributes attrib;
@@ -65,6 +64,7 @@ std::unique_ptr<StyledMesh> DebugTextStyleBuilder::build() {
     DrawRule rule({"", 0, {}}, "", 0);
     addLabel(Label::Type::debug, {{ glm::vec3(0.5f, 0.5f, 0.f) }}, params, attrib, rule);
 
+    for(auto& l : m_labels) { l->m_elevationSet = true; }  // prevent floating tile labels
     m_textLabels->setLabels(m_labels);
 
     std::vector<GlyphQuad> quads(m_quads);

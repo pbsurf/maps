@@ -40,7 +40,7 @@ struct ClientDataSource::Storage {
     std::vector<Properties> properties;
 };
 
-struct ClientDataSource::PolylineBuilderData : mapbox::geometry::line_string<double> {
+struct ClientDataSource::PolylineBuilderData : mapbox::geometry::multi_line_string<double> {
     virtual ~PolylineBuilderData() = default;
 };
 
@@ -51,11 +51,12 @@ ClientDataSource::PolylineBuilder::PolylineBuilder() {
 ClientDataSource::PolylineBuilder::~PolylineBuilder() = default;
 
 void ClientDataSource::PolylineBuilder::beginPolyline(size_t numberOfPoints) {
-    data->reserve(numberOfPoints);
+    data->emplace_back();
+    data->back().reserve(numberOfPoints);
 }
 
 void ClientDataSource::PolylineBuilder::addPoint(Tangram::LngLat point) {
-    data->emplace_back(point.longitude, point.latitude);
+    data->back().emplace_back(point.longitude, point.latitude);
 }
 
 struct ClientDataSource::PolygonBuilderData : mapbox::geometry::polygon<double> {

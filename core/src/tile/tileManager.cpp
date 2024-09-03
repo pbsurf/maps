@@ -315,6 +315,15 @@ void TileManager::updateTileSets(const View& _view) {
             }
         };
 
+
+
+        //_view.getVisibleTiles2(TileID(0, 0, 0), _view.getIntegerZoom(), tileCb);
+        //for (auto& tileSet : m_tileSets) {
+        //    tileSet.visibleTiles.clear();
+        //}
+
+
+
         _view.getVisibleTiles(tileCb);
     }
 
