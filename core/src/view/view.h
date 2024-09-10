@@ -241,6 +241,9 @@ public:
     glm::vec2 tileCoordsToScreenPosition(TileCoordinates tc, bool& behindCamera) const;
     void getVisibleTiles2(TileID tile, int maxZoom, const std::function<void(TileID)>& _tileCb) const;
 
+    // set elevation (camera height will be prevented from going below this value)
+    void setElevation(float ele);
+
 protected:
 
     void updateMatrices();
@@ -272,6 +275,8 @@ protected:
 
     float m_zoom = 0.f;
     float m_worldBoundsMinZoom = 0.f;
+
+    float m_elevation = 0.f;
 
     float m_width;
     float m_height;

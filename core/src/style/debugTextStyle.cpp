@@ -64,7 +64,6 @@ std::unique_ptr<StyledMesh> DebugTextStyleBuilder::build() {
     DrawRule rule({"", 0, {}}, "", 0);
     addLabel(Label::Type::debug, {{ glm::vec3(0.5f, 0.5f, 0.f) }}, params, attrib, rule);
 
-    for(auto& l : m_labels) { l->m_elevationSet = true; }  // prevent floating tile labels
     m_textLabels->setLabels(m_labels);
 
     std::vector<GlyphQuad> quads(m_quads);

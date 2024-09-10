@@ -6,6 +6,7 @@
 #include "gl/renderState.h"
 #include "view/view.h"
 #include "marker/marker.h"
+#include "log.h"
 
 // with depth test enabled and no blending, final value of output should be correct depth (if larger depth
 //  written first, will be overwritten; if smaller depth written first, depth test will discard larger depth)
@@ -102,6 +103,7 @@ double ElevationManager::getElevation(ProjectedMeters pos, bool& ok)
     prevTex = newtex;
     return elevationLerp(*newtex, tileId, pos);
   }
+  //LOGD("Elevation request failed for %s", tileId.toString().c_str());
   ok = false;
   return 0;
 }

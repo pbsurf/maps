@@ -257,6 +257,14 @@ MapState Map::update(float _dt) {
     } else {
         impl->view.update();
 
+        if(scene.elevationManager()) {
+            //LOGD("Checking eye elevation");
+            bool ok;
+            scene.elevationManager()->setZoom(impl->view.getIntegerZoom());
+            auto pos = glm::dvec2(impl->view.getPosition()) + glm::dvec2(impl->view.getEye());
+            impl->view.setElevation(scene.elevationManager()->getElevation(pos, ok));
+        }
+
         // Sync ClientTileSource changes with TileManager
         bool firstUpdate = !wasReady;
         impl->syncClientTileSources(firstUpdate);

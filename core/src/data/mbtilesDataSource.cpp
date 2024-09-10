@@ -138,7 +138,10 @@ bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb
     if (_task->rawSource == this->level) {
 
         m_worker->enqueue([this, _task, _cb](){
-            if (_task->isCanceled()) { return; }  // task may have been canceled while in queue
+            if (_task->isCanceled()) {  // task may have been canceled while in queue
+              LOGD("%s - canceled tile: %s", m_name.c_str(), _task->tileId().toString().c_str());
+              return;
+            }
             TileID tileId = _task->tileId();
             LOGTO(">>> DB query for %s %s", _task->source()->name().c_str(), tileId.toString().c_str());
 
@@ -152,11 +155,12 @@ bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb
 
             if (!tileData->empty()) {
                 task.rawTileData = std::move(tileData);
-                LOGV("loaded tile: %s, %d bytes", tileId.toString().c_str(), task.rawTileData->size());
+                LOGD("%s - loaded tile: %s, %d bytes", m_name.c_str(), tileId.toString().c_str(), task.rawTileData->size());
 
                 _cb.func(_task);
 
             } else if (next) {
+                LOGD("%s - requesting tile: %s", m_name.c_str(), tileId.toString().c_str());
 
                 // Don't try this source again
                 _task->rawSource = next->level;
@@ -168,7 +172,7 @@ bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb
                     m_platform.requestRender();
                 }
             } else {
-                LOGD("missing tile: %s", _task->tileId().toString().c_str());
+                LOGD("%s - missing tile: %s", m_name.c_str(), _task->tileId().toString().c_str());
                 _cb.func(_task);  // added 2022-09-27 ... were doing this in loadNextSource, why not here?
             }
         });
@@ -195,7 +199,7 @@ bool MBTilesDataSource::loadNextSource(std::shared_ptr<TileTask> _task, TileTask
 
                         auto& task = static_cast<BinaryTileTask&>(*_task);
 
-                        LOGD("store tile: %s, %d", _task->tileId().toString().c_str(), task.hasData());
+                        LOGD("%s - store tile: %s, %d", m_name.c_str(), _task->tileId().toString().c_str(), task.hasData());
 
                         storeTileData(_task->tileId(), *task.rawTileData, task.offlineId);
                     });
@@ -219,7 +223,7 @@ bool MBTilesDataSource::loadNextSource(std::shared_ptr<TileTask> _task, TileTask
 
             });
         } else {
-            LOGD("missing tile: %s", _task->tileId().toString().c_str());
+            LOGD("%s - missing tile: %s", m_name.c_str(), _task->tileId().toString().c_str());
             _cb.func(_task);
         }
     }};

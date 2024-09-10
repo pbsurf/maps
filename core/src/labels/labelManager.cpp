@@ -49,7 +49,8 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
                       _viewState.viewportSize.x,
                       _viewState.viewportSize.y);
 
-    bool setElev = _elevManager && (_tile || _marker);
+    // use blendOrder == INT_MAX to indicate debug style
+    bool setElev = _elevManager && (_tile || _marker) && _style->blendOrder() < INT_MAX;
     if (setElev) {
         _elevManager->setZoom(_tile ? _tile->getID().z : _marker->builtZoomLevel());
     }

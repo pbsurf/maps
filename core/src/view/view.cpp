@@ -415,6 +415,13 @@ float View::fieldOfViewToFocalLength(float radians) {
     return 1.f / tanf(radians / 2.f);
 }
 
+void View::setElevation(float ele) {
+    m_elevation = ele;
+    if (m_eye.z < ele + 2) {
+        updateMatrices();
+    }
+}
+
 void View::updateMatrices() {
 
     // find dimensions of tiles in world space at new zoom level
@@ -441,6 +448,10 @@ void View::updateMatrices() {
     m_eye = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 0.f, m_pos.z), m_pitch), m_roll);
     glm::vec3 at = { 0.f, 0.f, 0.f };
     glm::vec3 up = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 1.f, 0.f), m_pitch), m_roll);
+
+    // keep eye above terrain
+    if(m_eye.z < m_elevation + 1000)
+      m_eye.z = m_elevation + 1000;
 
     // Generate view matrix
     m_view = glm::lookAt(m_eye, at, up);
@@ -600,6 +611,8 @@ void View::getVisibleTiles(const std::function<void(TileID)>& _tileCb) const {
     // Location of the view center in tile space
     glm::dvec2 e = (glm::dvec2(m_pos.x + m_eye.x, m_pos.y + m_eye.y) - tileSpaceOrigin) * tileSpaceAxes;
 
+    LOGW("Eye position in tile space: %f/%f/%d", e.x, e.y, zoom);
+
     static const int imax = std::numeric_limits<int>::max();
     static const int imin = std::numeric_limits<int>::min();
 
@@ -673,6 +686,7 @@ void View::getVisibleTiles(const std::function<void(TileID)>& _tileCb) const {
             //~// note that w/ perspective projection, this is not just 0.25 * parent area
             //~float area = std::abs(dr01.x*dr10.y - dr01.y*dr10.x);
             //~LOGW("Tile %d/%d/%d screen area: %f^2", tile.z, tile.x, tile.y, std::sqrt(area));
+            //LOGW("Tile %s", TileID(tile.x, tile.y, tile.z, tile.z).toString().c_str());
 
             _tileCb(TileID(tile.x, tile.y, tile.z, tile.z));
         }
@@ -713,34 +727,41 @@ glm::vec4 View::tileCoordsToClipSpace(TileCoordinates tc) const
 
 void View::getVisibleTiles2(TileID tile, int maxZoom, const std::function<void(TileID)>& _tileCb) const
 {
+    if(tile.z == 0)
+      LOGW("\n\n\n*** getVisibleTiles2 ***");
+
     TileCoordinates tc = {double(tile.x), double(tile.y), tile.z};
     auto c00 = tileCoordsToClipSpace(tc);
     auto c01 = tileCoordsToClipSpace({tc.x, tc.y + 1, tc.z});
     auto c10 = tileCoordsToClipSpace({tc.x + 1, tc.y, tc.z});
     auto c11 = tileCoordsToClipSpace({tc.x + 1, tc.y + 1, tc.z});
 
-    if(c00.x < -c00.w && c01.x < -c01.w && c10.x < -c10.w && c11.x < -c11.w) return;
-    if(c00.x > c00.w && c01.x > c01.w && c10.x > c10.w && c11.x > c11.w) return;
-    if(c00.y < -c00.w && c01.y < -c01.w && c10.y < -c10.w && c11.y < -c11.w) return;
-    if(c00.y > c00.w && c01.y > c01.w && c10.y > c10.w && c11.y > c11.w) return;
+    float w00 = std::abs(c00.w), w01 = std::abs(c01.w), w10 = std::abs(c10.w), w11 = std::abs(c11.w);
+    if(c00.x < -w00 && c01.x < -w01 && c10.x < -w10 && c11.x < -w11) return;
+    if(c00.x >  w00 && c01.x >  w01 && c10.x >  w10 && c11.x >  w11) return;
+    if(c00.y < -w00 && c01.y < -w01 && c10.y < -w10 && c11.y < -w11) return;
+    if(c00.y >  w00 && c01.y >  w01 && c10.y >  w10 && c11.y >  w11) return;
     if(c00.z < 0 && c01.z < 0 && c10.z < 0 && c11.z < 0) return;
-    if(c00.z > c00.w && c01.z > c01.w && c10.z > c10.w && c11.z > c11.w) return;
-
-    //    float area = std::numeric_limits<float>::max();
-    auto r00 = ndcToScreenSpace(clipSpaceToNdc(c00), glm::vec2(m_vpWidth, m_vpHeight));
-    auto r01 = ndcToScreenSpace(clipSpaceToNdc(c01), glm::vec2(m_vpWidth, m_vpHeight));
-    auto r10 = ndcToScreenSpace(clipSpaceToNdc(c10), glm::vec2(m_vpWidth, m_vpHeight));
-    auto dr01 = r01 - r00;
-    auto dr10 = r10 - r00;
-    float area = std::abs(dr01.x*dr10.y - dr01.y*dr10.x);
+    if(c00.z > w00 && c01.z > w01 && c10.z > w10 && c11.z > w11) return;
 
     float maxArea = 2*MapProjection::tileSize()*MapProjection::tileSize();
+    float area = std::numeric_limits<float>::max();
+    if(c00.w > 0 && c01.w > 0 && c10.w > 0 && c11.w > 0) {
+      glm::vec2 screenSize(m_vpWidth, m_vpHeight);
+      auto r00 = ndcToScreenSpace(clipSpaceToNdc(c00), screenSize);
+      auto r01 = ndcToScreenSpace(clipSpaceToNdc(c01), screenSize);
+      auto r10 = ndcToScreenSpace(clipSpaceToNdc(c10), screenSize);
+      auto dr01 = r01 - r00;
+      auto dr10 = r10 - r00;
+      area = std::abs(dr01.x*dr10.y - dr01.y*dr10.x);
+    }
     if(tile.z < maxZoom && area > maxArea) {
         for (int i = 0; i < 4; i++) {
             getVisibleTiles2(tile.getChild(i, maxZoom), maxZoom, _tileCb);
         }
     }
     else {
+        LOGW("Tile %s area: %g", tile.toString().c_str(), area);
         _tileCb(tile);
     }
 }
