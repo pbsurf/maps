@@ -172,7 +172,7 @@ TileManager::~TileManager() {
     m_tileSets.clear();
 }
 
-void TileManager::setTileSources(const std::vector<std::shared_ptr<TileSource>>& _sources) {
+/*void TileManager::setTileSources(const std::vector<std::shared_ptr<TileSource>>& _sources) {
 
     m_tileCache->clear();
 
@@ -204,6 +204,19 @@ void TileManager::setTileSources(const std::vector<std::shared_ptr<TileSource>>&
             m_tileSets.push_back({ source, false });
         } else {
             LOGW("Duplicate named datasource (not added): %s", source->name().c_str());
+        }
+    }
+}*/
+
+void TileManager::setTileSources(const std::vector<std::shared_ptr<TileSource>>& _sources) {
+
+    m_tileCache->clear();
+    assert(m_tileSets.empty() && m_auxTileSets.empty() && "setTileSources() should only be called once!");
+    for (const auto& source : _sources) {
+        if (source->generateGeometry()) {
+            m_tileSets.push_back({ source, false });
+        } else {
+            m_auxTileSets.push_back({ source, false });
         }
     }
 }
@@ -332,6 +345,17 @@ void TileManager::updateTileSets(const View& _view) {
         // check if tile set is active for zoom (zoom might be below min_zoom)
         if (tileSet.source->isActiveForZoom(_view.getZoom()) && tileSet.source->isVisible()) {
             updateTileSet(tileSet, _view.state());
+        }
+    }
+
+    for (auto& tileSet : m_auxTileSets) {
+        auto it = tileSet.tiles.begin();
+        while (it != tileSet.tiles.end()) {
+            if (!it->second.task || it->second.task->isReady()) {
+                it = tileSet.tiles.erase(it);
+            } else {
+                ++it;
+            }
         }
     }
 
@@ -548,49 +572,49 @@ void TileManager::enqueueTask(TileSet& _tileSet, const TileID& _tileID,
     m_loadTasks.insert(it, {distance, &_tileSet, _tileID});
 }
 
-void TileManager::findDuplicateTasks(size_t masterIdx, std::shared_ptr<TileTask> masterTask)
+TileManager::TileSet* TileManager::findTileSet(int64_t sourceId)
 {
-    double dist = m_loadTasks[masterIdx].dist;
-    auto masterSrc = masterTask->sourceId();
-    for (size_t jj = masterIdx+1; jj < m_loadTasks.size(); ++jj) {
-        auto& loadTask = m_loadTasks[jj];
-        if (loadTask.dist > dist) break;
-        if (loadTask.tileID != masterTask->tileId()) continue;
-        auto tileIt = loadTask.tileSet->tiles.find(loadTask.tileID);
-        auto tileTask = tileIt->second.task;
-
-        if (tileTask->sourceId() == masterSrc) {
-            tileTask->setMasterTask(masterTask);  // calls startedLoading()
-        }
-
-        for (auto& subtask : tileTask->subTasks()) {
-            if (subtask->sourceId() == masterSrc && subtask->tileId() == masterTask->tileId()) {
-                subtask->setMasterTask(masterTask);  // calls startedLoading()
-            }
-        }
+    for (auto& ts : m_tileSets) {
+        if (ts.source->id() == sourceId) { return &ts; }
     }
+    for (auto& ts : m_auxTileSets) {
+        if (ts.source->id() == sourceId) { return &ts; }
+    }
+    return nullptr;
 }
 
 void TileManager::loadTiles() {
 
     if (m_loadTasks.empty()) { return; }
 
-    for (size_t ii = 0; ii < m_loadTasks.size(); ++ii) {
-        auto& loadTask = m_loadTasks[ii];
+    for (auto& loadTask : m_loadTasks) {
         TileSet* tileSet = loadTask.tileSet;
         auto tileIt = tileSet->tiles.find(loadTask.tileID);
         auto tileTask = tileIt->second.task;
 
         for (auto subtask : tileTask->subTasks()) {
-            if(subtask->needsLoading()) {
-                findDuplicateTasks(ii, subtask);
+            // needsLoading() will be false if, e.g., texture was already cached by RasterSource
+            if (!subtask->needsLoading()) { continue; }
+            TileSet* ts = findTileSet(subtask->sourceId());
+            if (!ts) { continue; }  // should never happen
+
+            auto it = ts->tiles.find(subtask->tileId());
+            if (it != ts->tiles.end()) {
+                if (it->second.task && !it->second.task->isReady()) {
+                    subtask->setMasterTask(it->second.task);
+                //} else {
+                //    LOGW("Tile found in aux tile set, but no task or task is ready!");
+                }
+            } else if (!ts->source->generateGeometry()) {
+                // add to aux tile set - this will be the master task for any subsequent duplicates
+                auto res = ts->tiles.emplace(subtask->tileId(), nullptr);
+                if (res.second) {
+                    res.first->second.task = subtask;
+                }
             }
         }
 
-        if (tileTask->needsLoading()) {
-            findDuplicateTasks(ii, tileTask);
-            tileSet->source->loadTileData(tileTask, m_dataCallback);
-        }
+        tileSet->source->loadTileData(tileTask, m_dataCallback);
 
         LOGTO("Load Tile: %s %s", tileSet->source->name().c_str(), loadTask.tileID.toString().c_str());
     }

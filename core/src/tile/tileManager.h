@@ -129,6 +129,7 @@ protected:
     int32_t m_tilesInProgress = 0;
 
     std::vector<TileSet> m_tileSets;
+    std::vector<TileSet> m_auxTileSets;
 
     /* Current tiles ready for rendering */
     std::vector<std::shared_ptr<Tile>> m_tiles;
