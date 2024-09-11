@@ -19,6 +19,8 @@ public:
     std::unique_ptr<Texture> texture;
     std::unique_ptr<Raster> raster;
 
+    std::shared_ptr<TileTask> masterTask;
+
     RasterTileTask(const TileID& _tileId, std::shared_ptr<TileSource> _source, bool _subTask)
         : BinaryTileTask(_tileId, _source),
           subTask(_subTask) {}
@@ -36,6 +38,10 @@ public:
     bool isReady() const override {
         if (!subTask) {
             return bool(m_tile);
+
+        } else if (masterTask) {
+            return masterTask->isReady();
+
         } else {
             return bool(texture) || bool(raster);
         }
@@ -67,14 +73,11 @@ public:
         auto source = rasterSource();
         if (!source) { return; }
 
-        auto& rasters = _tile.rasters();
-
-        if (raster) {
-            rasters.emplace_back(raster->tileID, raster->texture);
-        } else {
-            auto tex = source->cacheTexture(m_tileId, std::move(texture));
-            rasters.emplace_back(m_tileId, tex);
+        if (!raster) {
+          auto tex = source->cacheTexture(m_tileId, std::move(texture));
+          raster = std::make_unique<Raster>(m_tileId, tex);
         }
+        _tile.rasters().emplace_back(raster->tileID, raster->texture);
     }
 
     void complete() override {
@@ -90,9 +93,20 @@ public:
     void complete(TileTask& _mainTask) override {
         if (!isReady()) {  //isCanceled()?
             _mainTask.tile()->rasters().emplace_back(tileId(), rasterSource()->m_emptyTexture);
+
+        } else if (masterTask) {
+            if (masterTask->source()->isRaster()) {
+                static_cast<RasterTileTask*>(masterTask.get())->addRaster(*_mainTask.tile());
+            }
+
         } else {
             addRaster(*_mainTask.tile());
         }
+    }
+
+    void setMasterTask(std::shared_ptr<TileTask> master) override {
+        masterTask = master;
+        startedLoading();
     }
 };
 

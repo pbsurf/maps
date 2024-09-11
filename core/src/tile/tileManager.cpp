@@ -1,6 +1,7 @@
 #include "tile/tileManager.h"
 
 #include "data/tileSource.h"
+#include "data/rasterSource.h"
 #include "map.h"
 #include "platform.h"
 #include "tile/tile.h"
@@ -542,28 +543,56 @@ void TileManager::enqueueTask(TileSet& _tileSet, const TileID& _tileID,
     double distance = glm::length2(tileCenter - _view.center);
 
     auto it = std::upper_bound(m_loadTasks.begin(), m_loadTasks.end(), distance,
-                               [](auto& distance, auto& other){
-                                   return distance < std::get<0>(other);
-                               });
+        [](double& d, TileLoadTask& other){ return d < other.dist; });
 
-    m_loadTasks.insert(it, std::make_tuple(distance, &_tileSet, _tileID));
+    m_loadTasks.insert(it, {distance, &_tileSet, _tileID});
+}
+
+void TileManager::findDuplicateTasks(size_t masterIdx, std::shared_ptr<TileTask> masterTask)
+{
+    double dist = m_loadTasks[masterIdx].dist;
+    auto masterSrc = masterTask->sourceId();
+    for (size_t jj = masterIdx+1; jj < m_loadTasks.size(); ++jj) {
+        auto& loadTask = m_loadTasks[jj];
+        if (loadTask.dist > dist) break;
+        if (loadTask.tileID != masterTask->tileId()) continue;
+        auto tileIt = loadTask.tileSet->tiles.find(loadTask.tileID);
+        auto tileTask = tileIt->second.task;
+
+        if (tileTask->sourceId() == masterSrc) {
+            tileTask->setMasterTask(masterTask);  // calls startedLoading()
+        }
+
+        for (auto& subtask : tileTask->subTasks()) {
+            if (subtask->sourceId() == masterSrc && subtask->tileId() == masterTask->tileId()) {
+                subtask->setMasterTask(masterTask);  // calls startedLoading()
+            }
+        }
+    }
 }
 
 void TileManager::loadTiles() {
 
     if (m_loadTasks.empty()) { return; }
 
-    for (auto& loadTask : m_loadTasks) {
+    for (size_t ii = 0; ii < m_loadTasks.size(); ++ii) {
+        auto& loadTask = m_loadTasks[ii];
+        TileSet* tileSet = loadTask.tileSet;
+        auto tileIt = tileSet->tiles.find(loadTask.tileID);
+        auto tileTask = tileIt->second.task;
 
-        auto tileId = std::get<2>(loadTask);
-        auto& tileSet = *std::get<1>(loadTask);
-        auto tileIt = tileSet.tiles.find(tileId);
-        auto& entry = tileIt->second;
+        for (auto subtask : tileTask->subTasks()) {
+            if(subtask->needsLoading()) {
+                findDuplicateTasks(ii, subtask);
+            }
+        }
 
-        tileSet.source->loadTileData(entry.task, m_dataCallback);
+        if (tileTask->needsLoading()) {
+            findDuplicateTasks(ii, tileTask);
+            tileSet->source->loadTileData(tileTask, m_dataCallback);
+        }
 
-        LOGTO("Load Tile: %s %s", tileSet.source->name().c_str(), tileId.toString().c_str());
-
+        LOGTO("Load Tile: %s %s", tileSet->source->name().c_str(), loadTask.tileID.toString().c_str());
     }
 
     // DBG("loading:%d cache: %fMB",

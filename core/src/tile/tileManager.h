@@ -145,7 +145,8 @@ protected:
     TileTaskCb m_dataCallback;
 
     /* Temporary list of tiles that need to be loaded */
-    std::vector<std::tuple<double, TileSet*, TileID>> m_loadTasks;
+    struct TileLoadTask { double dist; TileSet* tileSet; TileID tileID; };
+    std::vector<TileLoadTask> m_loadTasks;  //std::tuple<double, TileSet*, TileID>
 
 };
 

@@ -87,6 +87,8 @@ public:
 
     void startedLoading() { m_needsLoading = false; }
 
+    virtual void setMasterTask(std::shared_ptr<TileTask>) {}
+
 protected:
 
     const TileID m_tileId;
