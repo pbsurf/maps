@@ -126,6 +126,8 @@ protected:
      */
     void clearProxyTiles(TileSet& _tileSet, const TileID& _tileID, TileEntry& _tile, std::vector<TileID>& _removes);
 
+    TileSet* findTileSet(int64_t sourceId);
+
     int32_t m_tilesInProgress = 0;
 
     std::vector<TileSet> m_tileSets;

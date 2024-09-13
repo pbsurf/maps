@@ -258,11 +258,23 @@ MapState Map::update(float _dt) {
         impl->view.update();
 
         if(scene.elevationManager()) {
-            //LOGD("Checking eye elevation");
-            bool ok;
+            bool ok1 = false;  //, ok2 = false;
             scene.elevationManager()->setZoom(impl->view.getIntegerZoom());
-            auto pos = glm::dvec2(impl->view.getPosition()) + glm::dvec2(impl->view.getEye());
-            impl->view.setElevation(scene.elevationManager()->getElevation(pos, ok));
+            auto viewPos = impl->view.getPosition();
+            auto viewEye = impl->view.getEye();
+            auto pos = glm::dvec2(viewPos) + glm::dvec2(viewEye);
+            double eleEye = scene.elevationManager()->getElevation(pos, ok1, true);
+            auto viewbnds = impl->view.getBoundsRect();
+            double viewh = viewbnds[1][1] - viewbnds[0][1];
+            // just keep previous elevation if current value unavailable (instead of setting to 0)
+            // viewh/100 is the height of the near clipping plane
+            if(ok1)
+              impl->view.setElevation(eleEye + viewh/100 + 2);
+
+            //auto near = glm::dvec2(viewPos) + glm::dvec2(impl->view.getEye())*(1 - viewPos.z/50);
+            //double eleNear = scene.elevationManager()->getElevation(near, ok2, true);
+            //if(ok1 || ok2)
+            //  impl->view.setElevation(std::max(eleEye, eleNear) + std::cos(impl->view.getPitch())*viewPos.z/50 + 2);
         }
 
         // Sync ClientTileSource changes with TileManager

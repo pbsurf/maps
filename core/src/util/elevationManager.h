@@ -16,7 +16,7 @@ class ElevationManager
 {
 public:
   ElevationManager(std::shared_ptr<RasterSource> src, Style& style);
-  double getElevation(ProjectedMeters pos, bool& ok);
+  double getElevation(ProjectedMeters pos, bool& ok, bool ascend = false);
   float getDepth(glm::vec2 screenpos);
   void setZoom(int z);
 

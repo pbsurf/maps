@@ -139,7 +139,7 @@ bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb
 
         m_worker->enqueue([this, _task, _cb](){
             if (_task->isCanceled()) {  // task may have been canceled while in queue
-              LOGD("%s - canceled tile: %s", m_name.c_str(), _task->tileId().toString().c_str());
+              LOGV("%s - canceled tile: %s", m_name.c_str(), _task->tileId().toString().c_str());
               return;
             }
             TileID tileId = _task->tileId();
@@ -155,12 +155,12 @@ bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb
 
             if (!tileData->empty()) {
                 task.rawTileData = std::move(tileData);
-                LOGD("%s - loaded tile: %s, %d bytes", m_name.c_str(), tileId.toString().c_str(), task.rawTileData->size());
+                LOGV("%s - loaded tile: %s, %d bytes", m_name.c_str(), tileId.toString().c_str(), task.rawTileData->size());
 
                 _cb.func(_task);
 
             } else if (next) {
-                LOGD("%s - requesting tile: %s", m_name.c_str(), tileId.toString().c_str());
+                LOGV("%s - requesting tile: %s", m_name.c_str(), tileId.toString().c_str());
 
                 // Don't try this source again
                 _task->rawSource = next->level;

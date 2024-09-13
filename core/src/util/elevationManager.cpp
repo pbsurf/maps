@@ -85,7 +85,7 @@ static TileID projMetersTile(ProjectedMeters ll, int z)
   return TileID(int((ll.x + hc)/metersPerTile), int((hc - ll.y)/metersPerTile), z);
 }
 
-double ElevationManager::getElevation(ProjectedMeters pos, bool& ok)
+double ElevationManager::getElevation(ProjectedMeters pos, bool& ok, bool ascend)
 {
   static std::weak_ptr<Texture> prevTex;
   static TileID prevTileId = {0, 0, 0, 0};
@@ -93,17 +93,21 @@ double ElevationManager::getElevation(ProjectedMeters pos, bool& ok)
   ok = true;
   //TileID llId = lngLatTile(MapProjection::projectedMetersToLngLat(pos), m_currZoom);
   TileID tileId = projMetersTile(pos, m_currZoom);
-  auto tex = prevTex.lock();
-  if(tex && tileId == prevTileId)
-    return elevationLerp(*tex.get(), tileId, pos);
-
-  auto newtex = m_elevationSource->getTexture(tileId);
-  if(newtex) {
-    prevTileId = tileId;
-    prevTex = newtex;
-    return elevationLerp(*newtex, tileId, pos);
+  if(tileId == prevTileId) {
+    if(auto tex = prevTex.lock())
+      return elevationLerp(*tex.get(), tileId, pos);
   }
-  //LOGD("Elevation request failed for %s", tileId.toString().c_str());
+
+  int minz = std::max(0, tileId.z - 6);  // MAX_LOD
+  do {
+    auto newtex = m_elevationSource->getTexture(tileId);
+    if(newtex) {
+      prevTileId = tileId;
+      prevTex = newtex;
+      return elevationLerp(*newtex, tileId, pos);
+    }
+    tileId = tileId.getParent();
+  } while(ascend && tileId.z >= minz);
   ok = false;
   return 0;
 }

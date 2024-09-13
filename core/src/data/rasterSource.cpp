@@ -38,10 +38,8 @@ public:
     bool isReady() const override {
         if (!subTask) {
             return bool(m_tile);
-
         } else if (masterTask) {
             return masterTask->isReady();
-
         } else {
             return bool(texture) || bool(raster);
         }
@@ -72,7 +70,6 @@ public:
     void addRaster(Tile& _tile) {
         auto source = rasterSource();
         if (!source) { return; }
-
         if (!raster) {
           auto tex = source->cacheTexture(m_tileId, std::move(texture));
           raster = std::make_unique<Raster>(m_tileId, tex);
@@ -93,12 +90,10 @@ public:
     void complete(TileTask& _mainTask) override {
         if (!isReady()) {  //isCanceled()?
             _mainTask.tile()->rasters().emplace_back(tileId(), rasterSource()->m_emptyTexture);
-
         } else if (masterTask) {
             if (masterTask->source()->isRaster()) {
                 static_cast<RasterTileTask*>(masterTask.get())->addRaster(*_mainTask.tile());
             }
-
         } else {
             addRaster(*_mainTask.tile());
         }

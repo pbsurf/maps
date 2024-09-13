@@ -351,7 +351,7 @@ void TileManager::updateTileSets(const View& _view) {
     for (auto& tileSet : m_auxTileSets) {
         auto it = tileSet.tiles.begin();
         while (it != tileSet.tiles.end()) {
-            if (!it->second.task || it->second.task->isReady()) {
+            if (!it->second.task || it->second.task->isReady() || it->second.task->isCanceled()) {
                 it = tileSet.tiles.erase(it);
             } else {
                 ++it;
@@ -567,7 +567,7 @@ void TileManager::enqueueTask(TileSet& _tileSet, const TileID& _tileID,
     double distance = glm::length2(tileCenter - _view.center);
 
     auto it = std::upper_bound(m_loadTasks.begin(), m_loadTasks.end(), distance,
-        [](double& d, TileLoadTask& other){ return d < other.dist; });
+        [](const double& d, const TileLoadTask& other){ return d < other.dist; });
 
     m_loadTasks.insert(it, {distance, &_tileSet, _tileID});
 }
@@ -600,14 +600,15 @@ void TileManager::loadTiles() {
 
             auto it = ts->tiles.find(subtask->tileId());
             if (it != ts->tiles.end()) {
-                if (it->second.task && !it->second.task->isReady()) {
+                if (it->second.task && !it->second.task->isReady() && !it->second.task->isCanceled()) {
                     subtask->setMasterTask(it->second.task);
                 //} else {
                 //    LOGW("Tile found in aux tile set, but no task or task is ready!");
                 }
             } else if (!ts->source->generateGeometry()) {
                 // add to aux tile set - this will be the master task for any subsequent duplicates
-                auto res = ts->tiles.emplace(subtask->tileId(), nullptr);
+                std::shared_ptr<Tile> dummy;
+                auto res = ts->tiles.emplace(subtask->tileId(), dummy);
                 if (res.second) {
                     res.first->second.task = subtask;
                 }

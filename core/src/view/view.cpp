@@ -417,7 +417,7 @@ float View::fieldOfViewToFocalLength(float radians) {
 
 void View::setElevation(float ele) {
     m_elevation = ele;
-    if (m_eye.z < ele + 2) {
+    if (m_eye.z < ele) {
         updateMatrices();
     }
 }
@@ -450,8 +450,8 @@ void View::updateMatrices() {
     glm::vec3 up = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 1.f, 0.f), m_pitch), m_roll);
 
     // keep eye above terrain
-    if(m_eye.z < m_elevation + 1000)
-      m_eye.z = m_elevation + 1000;
+    if(m_eye.z < m_elevation)
+      m_eye.z = m_elevation;
 
     // Generate view matrix
     m_view = glm::lookAt(m_eye, at, up);
@@ -610,8 +610,6 @@ void View::getVisibleTiles(const std::function<void(TileID)>& _tileCb) const {
 
     // Location of the view center in tile space
     glm::dvec2 e = (glm::dvec2(m_pos.x + m_eye.x, m_pos.y + m_eye.y) - tileSpaceOrigin) * tileSpaceAxes;
-
-    LOGW("Eye position in tile space: %f/%f/%d", e.x, e.y, zoom);
 
     static const int imax = std::numeric_limits<int>::max();
     static const int imin = std::numeric_limits<int>::min();
