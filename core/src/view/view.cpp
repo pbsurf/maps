@@ -3,6 +3,7 @@
 #include "log.h"
 #include "scene/stops.h"
 #include "util/rasterize.h"
+#include "util/elevationManager.h"
 
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtx/rotate_vector.hpp"
@@ -209,6 +210,7 @@ void View::setPosition(double _x, double _y) {
     // Clamp vertical position to the span of the map, which is +/- HALF_CIRCUMFERENCE meters.
     m_pos.y = glm::clamp(_y, -MapProjection::EARTH_HALF_CIRCUMFERENCE_METERS, MapProjection::EARTH_HALF_CIRCUMFERENCE_METERS);
     m_dirtyTiles = true;
+    if (m_elevationManager) { m_dirtyMatrices = true; }  // elevation under pos and eye changed
     if (m_constrainToWorldBounds) {
         applyWorldBounds();
     }
@@ -221,7 +223,14 @@ void View::setCenterCoordinates(Tangram::LngLat center) {
 
 void View::setZoom(float _z) {
     // ensure zoom value is allowed
+    float prevZoom = m_zoom;
     m_zoom = glm::clamp(_z, m_minZoom, m_maxZoom);
+
+    if (!m_elevationManager)  //||m_baseZoom == prevZoom)
+        m_baseZoom = m_zoom;
+    else
+        m_baseZoom = -log2(exp2(-m_zoom) - exp2(-prevZoom) + exp2(-m_baseZoom));
+
     m_dirtyMatrices = true;
     m_dirtyTiles = true;
     if (m_constrainToWorldBounds) {
@@ -283,7 +292,7 @@ void View::applyWorldBounds() {
         m_dirtyWorldBoundsMinZoom = false;
     }
     if (m_zoom < m_worldBoundsMinZoom) {
-        m_zoom = m_worldBoundsMinZoom;
+        m_baseZoom = m_zoom = m_worldBoundsMinZoom;
     }
     // Constrain by moving map center to keep view in bounds.
     m_constraint.setRadius(0.5 * viewDiameterPixels / pixelsPerMeter());
@@ -415,47 +424,57 @@ float View::fieldOfViewToFocalLength(float radians) {
     return 1.f / tanf(radians / 2.f);
 }
 
-void View::setElevation(float ele) {
-    m_elevation = ele;
-    if (m_eye.z < ele) {
-        updateMatrices();
-    }
-}
-
 void View::updateMatrices() {
 
-    // find dimensions of tiles in world space at new zoom level
-    float worldTileSize = MapProjection::EARTH_CIRCUMFERENCE_METERS * exp2(-m_zoom);
-
     // viewport height in world space is such that each tile is [m_pixelsPerTile] px square in screen space
-    float screenTileSize = MapProjection::tileSize() * m_pixelScale;
-    m_height = (float)m_vpHeight * worldTileSize / screenTileSize;
-    m_width = m_height * m_aspect;
+    double screenTileSize = MapProjection::tileSize() * m_pixelScale;
+    double worldHeight = m_vpHeight * MapProjection::EARTH_CIRCUMFERENCE_METERS / screenTileSize;
 
-    // set vertical field-of-view
-    float fovy = getFieldOfView();
+    // set vertical field-of-view, applying intended FOV to wider dimension
+    float fovy = m_aspect > 1 ? getFieldOfView()/m_aspect : getFieldOfView();
 
-    // we assume portrait orientation by default, so in landscape
-    // mode we scale the vertical FOV such that the wider dimension
-    // gets the intended FOV
-    if (m_width > m_height) {
-        fovy /= m_aspect;
-    }
+    double worldToCameraHeight = worldHeight * 0.5 / tan(fovy * 0.5);
 
     // set camera z to produce desired viewable area
-    m_pos.z = m_height * 0.5 / tan(fovy * 0.5);
+    m_pos.z = exp2(-m_baseZoom) * worldToCameraHeight;
 
+    double posElev = 0;
+    bool elevOk = false;
+    if (m_elevationManager) {
+        m_elevationManager->setZoom(20);  //getIntegerZoom());
+        double minCameraDist = exp2(-m_maxZoom) * worldToCameraHeight;
+        posElev = m_elevationManager->getElevation(glm::dvec2(m_pos), elevOk, true);
+        // decrease base zoom if too close to terrain (but never increase)
+        if (elevOk && m_pos.z < minCameraDist + posElev) {
+            m_pos.z = minCameraDist + posElev;
+            m_baseZoom = -log2( m_pos.z / worldToCameraHeight );
+        }
+    }
+
+    // m_baseZoom now has final value
+    m_height = exp2(-m_baseZoom) * worldHeight;
+    m_width = m_height * m_aspect;
+
+    //glm::vec3 at = { 0.f, 0.f, posElev };
+    //m_eye = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 0.f, m_pos.z) - at, m_pitch), m_roll) + at;
     m_eye = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 0.f, m_pos.z), m_pitch), m_roll);
     glm::vec3 at = { 0.f, 0.f, 0.f };
     glm::vec3 up = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 1.f, 0.f), m_pitch), m_roll);
 
     // keep eye above terrain
-    if(m_eye.z < m_elevation)
-      m_eye.z = m_elevation;
+    if (m_elevationManager && elevOk) {
+        double eyeElev = m_elevationManager->getElevation(glm::dvec2(m_eye) + glm::dvec2(m_pos), elevOk, true);
+        if (elevOk && m_eye.z < eyeElev + 2) {
+            m_eye.z = eyeElev + 2;
+        }
+        m_zoom = -log2( glm::length(m_eye - glm::vec3(0, 0, posElev)) / worldToCameraHeight );
+    }
 
     // Generate view matrix
     m_view = glm::lookAt(m_eye, at, up);
 
+    // find dimensions of tiles in world space at new zoom level
+    float worldTileSize = MapProjection::EARTH_CIRCUMFERENCE_METERS * exp2(-m_baseZoom);
     float maxTileDistance = worldTileSize * invLodFunc(MAX_LOD + 1);
     float near = m_pos.z / 50.0;
     float far = 1;

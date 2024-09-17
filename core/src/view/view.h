@@ -47,6 +47,8 @@ struct ViewState {
     float tileSize;
 };
 
+class ElevationManager;
+
 // View
 // 1. Stores a representation of the current view into the map world
 // 2. Determines which tiles are visible in the current view
@@ -242,7 +244,8 @@ public:
     void getVisibleTiles2(TileID tile, int maxZoom, const std::function<void(TileID)>& _tileCb) const;
 
     // set elevation (camera height will be prevented from going below this value)
-    void setElevation(float ele);
+    //void setElevation(float ele);
+    ElevationManager* m_elevationManager = nullptr;
 
 protected:
 
@@ -276,7 +279,7 @@ protected:
     float m_zoom = 0.f;
     float m_worldBoundsMinZoom = 0.f;
 
-    float m_elevation = 0.f;
+    float m_baseZoom = 0.f;  // zoom referenced to elevation = 0
 
     float m_width;
     float m_height;

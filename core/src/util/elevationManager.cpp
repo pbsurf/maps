@@ -90,6 +90,12 @@ double ElevationManager::getElevation(ProjectedMeters pos, bool& ok, bool ascend
   static std::weak_ptr<Texture> prevTex;
   static TileID prevTileId = {0, 0, 0, 0};
 
+  //constexpr double hc = MapProjection::EARTH_HALF_CIRCUMFERENCE_METERS;
+  //double metersPerTile = MapProjection::metersPerTileAtZoom(m_currZoom);
+  //double tile_x = (pos.x + hc)/metersPerTile;
+  //double tile_y = (hc - pos.y)/metersPerTile;
+
+
   ok = true;
   //TileID llId = lngLatTile(MapProjection::projectedMetersToLngLat(pos), m_currZoom);
   TileID tileId = projMetersTile(pos, m_currZoom);
@@ -107,7 +113,7 @@ double ElevationManager::getElevation(ProjectedMeters pos, bool& ok, bool ascend
       return elevationLerp(*newtex, tileId, pos);
     }
     tileId = tileId.getParent();
-  } while(ascend && tileId.z >= minz);
+  } while(/*ascend &&*/ tileId.z >= minz);
   ok = false;
   return 0;
 }

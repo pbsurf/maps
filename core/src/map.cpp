@@ -141,6 +141,7 @@ SceneID Map::Impl::loadScene(SceneOptions&& _sceneOptions) {
     Scene* oldScene = scene.release();
     scene = std::make_unique<Scene>(platform, std::move(_sceneOptions), nullptr, oldScene);
     // oldScene may have been loaded async, so dispose on worker thread (after loading complete)
+    view.m_elevationManager = nullptr;
     asyncWorker->enqueue([oldScene](){ delete oldScene; });
     scene->load();
 
@@ -156,8 +157,8 @@ SceneID Map::Impl::loadSceneAsync(SceneOptions&& _sceneOptions) {
     // Move the previous scene into a shared_ptr so that it can be captured in a std::function
     // (unique_ptr can't be captured because std::function is copyable).
     std::shared_ptr<Scene> oldScene = std::move(scene);
-
     oldScene->cancelTasks();
+    view.m_elevationManager = nullptr;
 
     // Add callback for tile prefetching
     auto prefetchCallback = [&](Scene* _scene) {
@@ -256,26 +257,6 @@ MapState Map::update(float _dt) {
 
     } else {
         impl->view.update();
-
-        if(scene.elevationManager()) {
-            bool ok1 = false;  //, ok2 = false;
-            scene.elevationManager()->setZoom(impl->view.getIntegerZoom());
-            auto viewPos = impl->view.getPosition();
-            auto viewEye = impl->view.getEye();
-            auto pos = glm::dvec2(viewPos) + glm::dvec2(viewEye);
-            double eleEye = scene.elevationManager()->getElevation(pos, ok1, true);
-            auto viewbnds = impl->view.getBoundsRect();
-            double viewh = viewbnds[1][1] - viewbnds[0][1];
-            // just keep previous elevation if current value unavailable (instead of setting to 0)
-            // viewh/100 is the height of the near clipping plane
-            if(ok1)
-              impl->view.setElevation(eleEye + viewh/100 + 2);
-
-            //auto near = glm::dvec2(viewPos) + glm::dvec2(impl->view.getEye())*(1 - viewPos.z/50);
-            //double eleNear = scene.elevationManager()->getElevation(near, ok2, true);
-            //if(ok1 || ok2)
-            //  impl->view.setElevation(std::max(eleEye, eleNear) + std::cos(impl->view.getPitch())*viewPos.z/50 + 2);
-        }
 
         // Sync ClientTileSource changes with TileManager
         bool firstUpdate = !wasReady;

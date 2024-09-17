@@ -359,6 +359,7 @@ bool Scene::completeScene(View& _view) {
     if (m_state == State::ready) { return true; }
     if (m_state != State::pending_completion) { return false; }
 
+    _view.m_elevationManager = m_elevationManager.get();
     _view.setCamera(m_camera);
 
     if (m_options.useScenePosition) {

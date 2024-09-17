@@ -89,9 +89,13 @@ public:
 
     void complete(TileTask& _mainTask) override {
         if (!isReady()) {  //isCanceled()?
-            _mainTask.tile()->rasters().emplace_back(tileId(), rasterSource()->m_emptyTexture);
+            auto source = rasterSource();
+            if (source) {
+                _mainTask.tile()->rasters().emplace_back(tileId(), source->m_emptyTexture);
+            }
         } else if (masterTask) {
-            if (masterTask->source()->isRaster()) {
+            auto source = masterTask->source();
+            if (source && source->isRaster()) {
                 static_cast<RasterTileTask*>(masterTask.get())->addRaster(*_mainTask.tile());
             }
         } else {
