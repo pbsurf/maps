@@ -584,10 +584,13 @@ glm::dvec2 View::getRelativeMeters(glm::dvec2 projectedMeters) const {
 }
 
 float View::horizonScreenPosition() {
+    if (m_pitch == 0) { return std::numeric_limits<float>::infinity(); }
     if (m_dirtyMatrices) { updateMatrices(); } // Need the view matrices to be up-to-date
 
-    glm::vec4 worldPosition(-1E6f*m_eye.x, -1E6f*m_eye.y, 0.0, 1.0);
-    glm::vec4 clip = worldToClipSpace(m_viewProj, worldPosition);
+    float worldTileSize = MapProjection::EARTH_CIRCUMFERENCE_METERS * exp2(-m_baseZoom);
+    float maxTileDistance = worldTileSize * invLodFunc(MAX_LOD + 1);
+    glm::vec2 maxPos = -maxTileDistance*glm::normalize(glm::vec2(m_eye));
+    glm::vec4 clip = worldToClipSpace(m_viewProj, glm::vec4(maxPos, 0., 1.));
     glm::vec3 ndc = clipSpaceToNdc(clip);
     bool outsideViewport = clipSpaceIsBehindCamera(clip) || abs(ndc.x) > 1 || abs(ndc.y) > 1;
     glm::vec2 screenPosition = ndcToScreenSpace(ndc, glm::vec2(m_vpWidth, m_vpHeight));

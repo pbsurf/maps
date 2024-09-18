@@ -13,18 +13,21 @@ static const char* sky_vs = R"RAW_GLSL(
 precision mediump float;
 #endif
 
+uniform float u_horizon_y;
+
 //#pragma tangram: defines
 //#pragma tangram: uniforms
 
-attribute vec4 a_position;
+attribute vec2 a_position;
 
 varying vec4 v_position;
 
 //#pragma tangram: global
 
 void main() {
-    v_position = a_position;
-    gl_Position = a_position;
+    vec4 pos = vec4(a_position, 0., 1.);
+    v_position = pos;
+    gl_Position = pos + vec4(0., u_horizon_y, 0., 0.);
 }
 )RAW_GLSL";
 
@@ -55,7 +58,7 @@ void main(void) {
 
     #pragma tangram: color
 
-    vec4 color = mix(horizon_color, zenith_color, v_position.y);
+    vec4 color = mix(u_horizon_color, u_zenith_color, v_position.y);
 
     #pragma tangram: filter
 
@@ -80,8 +83,8 @@ void SkyManager::setupUniforms(RenderState& rs, const View& _view)
     m_shaderProgram->setUniformf(rs, m_uniforms.uResolution, _view.getWidth(), _view.getHeight());
 
     // probably want to use something like StyleUniform for these
-    m_shaderProgram->setUniformf(rs, m_uniforms.uHorizonColor, glm::vec4(0.5, 0.5, 1.0, 1.0));  //m_horizonColor);
-    m_shaderProgram->setUniformf(rs, m_uniforms.uZenithColor, glm::vec4(0.0, 0.0, 1.0, 1.0));  //m_zenithColor);
+    m_shaderProgram->setUniformf(rs, m_uniforms.uHorizonColor, glm::vec4(0.7, 0.8, 0.9, 1.0));  //m_horizonColor);
+    m_shaderProgram->setUniformf(rs, m_uniforms.uZenithColor, glm::vec4(0.4, 0.6, 0.9, 1.0));  //m_zenithColor);
 }
 
 void SkyManager::buildProgram()
@@ -104,16 +107,11 @@ void SkyManager::buildProgram()
     m_shaderSource.reset();
 }
 
-void SkyManager::buildMesh(float x0, float y0, float x1, float y1)
+void SkyManager::buildMesh()  //float x0, float y0, float x1, float y1)
 {
-    MeshData<SkyVertex> meshData;
+    MeshData<SkyVertex> meshData({ 0, 1, 2, 3 }, {{-1, 0}, {1, 0}, {-1, 1}, {1, 1}});
+    //{{-1, -1}, {1, -1}, {-1, 1}, {1, 1}}); //{{x0, y0}, {x1, y0}, {x0, y1}, {x1, y1}});
 
-    meshData.vertices.push_back({x0, y0});
-    meshData.vertices.push_back({x0, y1});
-    meshData.vertices.push_back({x1, y0});
-    meshData.vertices.push_back({x1, y1});
-
-    meshData.offsets.emplace_back(meshData.indices.size(), meshData.vertices.size());
     // Create mesh from vertices.
     auto mesh = std::make_unique<Mesh<SkyVertex>>(m_vertexLayout, GL_TRIANGLE_STRIP);
     mesh->compile(meshData);
@@ -124,14 +122,17 @@ void SkyManager::buildMesh(float x0, float y0, float x1, float y1)
 
 void SkyManager::draw(RenderState& rs, View& _view)
 {
-    float horizon = _view.horizonScreenPosition();
-    if(horizon < 0 || horizon > _view.getHeight()) { return; }
-    buildMesh(0, horizon, _view.getWidth(), _view.getHeight());
-
-    if (!m_mesh) { return; }
+    float horizon = _view.horizonScreenPosition()/_view.getHeight();
+    if(horizon < 0 || horizon > 1) { return; }
     if (!m_shaderProgram) { buildProgram(); }
 
+    //buildMesh(0, 0, _view.getWidth(), _view.getHeight());  //horizon
+    //buildMesh(-1, -1, 1, 1);
+    //if (!m_mesh) { return; }
+    if (!m_mesh) { buildMesh(); }
+
     setupUniforms(rs, _view);
+    m_shaderProgram->setUniformf(rs, m_uniforms.uHorizonY, 1 - 2*horizon);
 
     rs.blending(GL_FALSE);
     //rs.blendingFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

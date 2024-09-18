@@ -603,7 +603,7 @@ bool Scene::render(RenderState& _rs, View& _view) {
 
     // draw the sky (if horizon if visible)
     if (m_skyManager) {
-        //m_skyManager->draw(_rs, _view);
+        m_skyManager->draw(_rs, _view);
     }
 
     for (const auto& style : m_styles) {

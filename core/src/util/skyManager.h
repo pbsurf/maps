@@ -22,7 +22,7 @@ public:
 private:
     void buildProgram();
     void setupUniforms(RenderState& rs, const View& _view);
-    void buildMesh(float x0, float y0, float x1, float y1);
+    void buildMesh();  //float x0, float y0, float x1, float y1);
 
     std::unique_ptr<ShaderSource> m_shaderSource;
     std::unique_ptr<ShaderProgram> m_shaderProgram;
@@ -34,6 +34,7 @@ private:
         UniformLocation uDevicePixelRatio{"u_device_pixel_ratio"};
         UniformLocation uResolution{"u_resolution"};
 
+        UniformLocation uHorizonY{"u_horizon_y"};
         UniformLocation uHorizonColor{"u_horizon_color"};
         UniformLocation uZenithColor{"u_zenith_color"};
     } m_uniforms;
