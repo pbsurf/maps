@@ -19,6 +19,7 @@ public:
   double getElevation(ProjectedMeters pos, bool& ok, bool ascend = false);
   float getDepth(glm::vec2 screenpos);
   void setZoom(int z);
+  bool hasTile(TileID tileId);
 
   void renderTerrainDepth(RenderState& _rs, const View& _view,
                           const std::vector<std::shared_ptr<Tile>>& _tiles);

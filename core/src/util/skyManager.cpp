@@ -96,7 +96,7 @@ void SkyManager::buildProgram()
     m_shaderSource->setSourceStrings(sky_fs, sky_vs);
 
     // add defines ...
-    //m_shaderSource->addSourceBlock("defines", "#define TANGRAM_TERRAIN_3D\n", false);
+    //m_shaderSource->addSourceBlock("defines", "#define TANGRAM_SKY\n", false);
 
     std::string vertSrc = m_shaderSource->buildVertexSource();
     std::string fragSrc = m_shaderSource->buildFragmentSource();
@@ -125,10 +125,6 @@ void SkyManager::draw(RenderState& rs, View& _view)
     float horizon = _view.horizonScreenPosition()/_view.getHeight();
     if(horizon < 0 || horizon > 1) { return; }
     if (!m_shaderProgram) { buildProgram(); }
-
-    //buildMesh(0, 0, _view.getWidth(), _view.getHeight());  //horizon
-    //buildMesh(-1, -1, 1, 1);
-    //if (!m_mesh) { return; }
     if (!m_mesh) { buildMesh(); }
 
     setupUniforms(rs, _view);

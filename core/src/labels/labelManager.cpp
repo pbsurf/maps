@@ -50,7 +50,8 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
                       _viewState.viewportSize.y);
 
     // use blendOrder == INT_MAX to indicate debug style
-    bool setElev = _elevManager && (_tile || _marker) && _style->blendOrder() < INT_MAX;
+    bool useElev = _elevManager && (_tile || _marker) && _style->blendOrder() < INT_MAX;
+    bool setElev = useElev && (_marker || _elevManager->hasTile(_tile->getID()));
     if (setElev) {
         _elevManager->setZoom(_tile ? _tile->getID().z : _marker->builtZoomLevel());
     }
@@ -62,11 +63,11 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
 
         if (setElev && !label->m_elevationSet) {
             if (_tile) {
-                setElev = label->m_elevationSet = label->setElevation(*_elevManager, _tile->getOrigin(), _tile->getScale());
+                label->m_elevationSet = label->setElevation(*_elevManager, _tile->getOrigin(), _tile->getScale());
             } else if (_marker) {
                 double scale = _marker->extent();  // see Marker::setMesh()
                 if (scale <= 0) { scale = MapProjection::metersPerTileAtZoom(_marker->builtZoomLevel()); }
-                setElev = label->m_elevationSet = label->setElevation(*_elevManager, _marker->origin(), scale);
+                label->m_elevationSet = label->setElevation(*_elevManager, _marker->origin(), scale);
             }
         }
 
@@ -83,7 +84,7 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
         }
 
         // is label hidden behind terrain?
-        if (setElev) {
+        if (useElev) {
             float labelz = label->screenDepth();
             float terrainz = _elevManager->getDepth(label->screenCenter());
             //LOGW("Label %p at %.1f,%.1f depth: %f; terrain: %f (d: %f)", label.get(),

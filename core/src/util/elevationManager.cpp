@@ -118,6 +118,11 @@ double ElevationManager::getElevation(ProjectedMeters pos, bool& ok, bool ascend
   return 0;
 }
 
+bool ElevationManager::hasTile(TileID tileId)
+{
+  return bool(m_elevationSource->getTexture(tileId));
+}
+
 void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
                                           const std::vector<std::shared_ptr<Tile>>& _tiles)
 {

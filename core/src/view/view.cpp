@@ -542,7 +542,9 @@ glm::vec2 View::lngLatToScreenPosition(double lng, double lat, bool& outsideView
 
     glm::dvec2 absoluteMeters = MapProjection::lngLatToProjectedMeters({lng, lat});
     glm::dvec2 relativeMeters = getRelativeMeters(absoluteMeters);
-    glm::vec4 worldPosition(relativeMeters, 0.0, 1.0);
+    bool ok;
+    double elev = m_elevationManager ? m_elevationManager->getElevation(absoluteMeters, ok) : 0;
+    glm::vec4 worldPosition(relativeMeters, elev, 1.0);
     glm::vec4 clip = worldToClipSpace(m_viewProj, worldPosition);
     glm::vec3 ndc = clipSpaceToNdc(clip);
     outsideViewport = clipSpaceIsBehindCamera(clip) || abs(ndc.x) > 1 || abs(ndc.y) > 1;
@@ -564,8 +566,19 @@ LngLat View::screenPositionToLngLat(float x, float y, bool& _intersection) {
     if (m_dirtyMatrices) { updateMatrices(); } // Need the view matrices to be up-to-date
 
     double dx = x, dy = y;
-    double distance = screenToGroundPlaneInternal(dx, dy);
-    _intersection = (distance >= 0);
+    if (m_elevationManager) {
+        // ref: https://www.khronos.org/opengl/wiki/GluProject_and_gluUnProject_code (gluUnProject)
+        double ndcZ = m_elevationManager->getDepth({x, y});
+        glm::dvec4 target_clip = { 2. * dx / m_vpWidth - 1., 1. - 2. * dy / m_vpHeight, ndcZ, 1. };
+        glm::dvec4 target_world = m_invViewProj * target_clip;
+        target_world /= target_world.w;
+        dx = target_world.x;
+        dy = target_world.y;
+        _intersection = ndcZ > -1;
+    } else {
+        double distance = screenToGroundPlaneInternal(dx, dy);
+        _intersection = (distance >= 0);
+    }
     glm::dvec2 meters(dx + m_pos.x, dy + m_pos.y);
     LngLat lngLat = MapProjection::projectedMetersToLngLat(meters);
     return lngLat.wrapped();
