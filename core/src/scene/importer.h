@@ -72,9 +72,6 @@ protected:
     // loads all the imported scenes and the master scene and returns a unified YAML root node.
     void importScenesRecursive(Node& root, const Url& sceneUrl, std::unordered_set<Url>& imported);
 
-    void mergeMapFields(Node& target, const Node& import);
-
-
     // Scene files must be parsed into YAML nodes to find further imports.
     // The parsed scenes are stored in a map with their URLs to be merged once
     // all imports are found and parsed.

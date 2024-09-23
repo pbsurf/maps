@@ -104,5 +104,27 @@ bool getBoolOrDefault(const YAML::Node& node, bool defaultValue) {
     return defaultValue;
 }
 
+void mergeMapFields(YAML::Node& target, const YAML::Node& import) {
+    if (!target.IsMap() || !import.IsMap()) {
+
+        if (target.IsDefined() && !target.IsNull() && (target.Type() != import.Type())) {
+            LOGN("Merging different node types: \n'%s'\n<--\n'%s'",
+                 Dump(target).c_str(), Dump(import).c_str());
+        }
+
+        target = import;
+
+    } else {
+        for (const auto& entry : import) {
+
+            const auto& key = entry.first.Scalar();
+            const auto& source = entry.second;
+            auto dest = target[key];
+            //if(dest.isMap() && source.IsNull) continue;  -- don't replace map w/ empty node?
+            mergeMapFields(dest, source);
+        }
+    }
+}
+
 } // namespace YamlUtil
 } // namespace Tangram

@@ -27,6 +27,8 @@ bool getBool(const YAML::Node& node, bool& result);
 
 bool getBoolOrDefault(const YAML::Node& node, bool defaultValue);
 
+void mergeMapFields(YAML::Node& target, const YAML::Node& import);
+
 template<typename T>
 bool parseVec(const YAML::Node& sequence, T& result) {
     if (!sequence.IsSequence()) {

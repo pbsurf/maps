@@ -121,7 +121,11 @@ double ElevationManager::getElevation(ProjectedMeters pos, bool& ok, bool ascend
 
 bool ElevationManager::hasTile(TileID tileId)
 {
-  return bool(m_elevationSource->getTexture(tileId));
+  bool ok = false;
+  setZoom(tileId.z);
+  getElevation(MapProjection::tileCenter(tileId), ok);
+  return ok;
+  //return bool(m_elevationSource->getTexture(tileId));
 }
 
 void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
@@ -140,14 +144,14 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
     m_depthData.resize(w * h, 1.0f);
 
     // setup PBO
-    if(pbo[0] > 0) { GL::deleteBuffers(2, pbo); }
-
-    GL::genBuffers(2, pbo);
-    GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[0]);
-    GL::bufferData(GL_PIXEL_PACK_BUFFER, nbytes, NULL, GL_STREAM_READ);  // NULL instructs GL to allocate buffer
-    GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[1]);
-    GL::bufferData(GL_PIXEL_PACK_BUFFER, nbytes, NULL, GL_STREAM_READ);  // NULL instructs GL to allocate buffer
-    GL::bindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+    //~if(pbo[0] > 0) { GL::deleteBuffers(2, pbo); }
+    //~
+    //~GL::genBuffers(2, pbo);
+    //~GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[0]);
+    //~GL::bufferData(GL_PIXEL_PACK_BUFFER, nbytes, NULL, GL_STREAM_READ);  // NULL instructs GL to allocate buffer
+    //~GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[1]);
+    //~GL::bufferData(GL_PIXEL_PACK_BUFFER, nbytes, NULL, GL_STREAM_READ);  // NULL instructs GL to allocate buffer
+    //~GL::bindBuffer(GL_PIXEL_PACK_BUFFER, 0);
   //} else {
   //  GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[0]);
   //  GLubyte* ptr = (GLubyte*)GL::mapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
@@ -164,15 +168,14 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
 
   FrameInfo::begin("renderTerrainDepth");
 
-  /*
   _rs.cacheDefaultFramebuffer();
   m_frameBuffer->applyAsRenderTarget(_rs);
   // VAO?
   GL::drawBuffers(2, &drawbuffs[0]);
   m_style->draw(_rs, _view, _tiles, {});
   GL::drawBuffers(1, &drawbuffs[1]);
-  */
 
+  /*
   // TODO: use PBO to make this async
   // refs: songho.ca/opengl/gl_pbo.html ; roxlu.com/2014/048/fast-pixel-transfers-with-pixel-buffer-objects
 
@@ -194,12 +197,12 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
   }
   GL::unmapBuffer(GL_PIXEL_PACK_BUFFER);
   GL::bindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+  */
 
-  FrameInfo::end("renderTerrainDepth");
-
-  //~GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, m_depthData.data());
+  GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, m_depthData.data());
   _rs.framebuffer(_rs.defaultFrameBuffer());
 
+  FrameInfo::end("renderTerrainDepth");
 }
 
 float ElevationManager::getDepth(glm::vec2 screenpos)
