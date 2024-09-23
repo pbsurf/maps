@@ -237,6 +237,7 @@ void Map::setViewport(int _newX, int _newY, int _newWidth, int _newHeight) {
 MapState Map::update(float _dt) {
 
     FrameInfo::beginUpdate();
+    FrameInfo::begin("Update");
 
     impl->jobQueue.runJobs();
 
@@ -274,6 +275,7 @@ MapState Map::update(float _dt) {
     }
 
     FrameInfo::endUpdate();
+    FrameInfo::end("Update");
 
     return { state };
 }

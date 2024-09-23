@@ -13,6 +13,7 @@ extern bool supportsGLRGBA8OES;
 extern uint32_t maxTextureSize;
 extern uint32_t maxCombinedTextureUnits;
 extern uint32_t depthBits;
+extern uint32_t glVersion;
 
 void loadCapabilities();
 void loadExtensions();

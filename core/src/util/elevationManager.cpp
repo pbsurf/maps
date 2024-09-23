@@ -7,6 +7,7 @@
 #include "view/view.h"
 #include "marker/marker.h"
 #include "log.h"
+#include "debug/frameInfo.h"
 
 // with depth test enabled and no blending, final value of output should be correct depth (if larger depth
 //  written first, will be overwritten; if smaller depth written first, depth test will discard larger depth)
@@ -128,44 +129,77 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
 {
   static const GLenum drawbuffs[] = {GL_NONE, GL_COLOR_ATTACHMENT0};
 
+  static GLuint pbo[2] = {0, 0};
+
   int w = _view.getWidth(), h = _view.getHeight();
+
+  size_t nbytes = w*h*4;
+
   if (!m_frameBuffer || m_frameBuffer->getWidth() != w || m_frameBuffer->getHeight() != h) {
     m_frameBuffer = std::make_unique<FrameBuffer>(w, h, false, GL_R32UI);
-    m_depthData.resize(w * h);
+    m_depthData.resize(w * h, 1.0f);
+
+    // setup PBO
+    if(pbo[0] > 0) { GL::deleteBuffers(2, pbo); }
+
+    GL::genBuffers(2, pbo);
+    GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[0]);
+    GL::bufferData(GL_PIXEL_PACK_BUFFER, nbytes, NULL, GL_STREAM_READ);  // NULL instructs GL to allocate buffer
+    GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[1]);
+    GL::bufferData(GL_PIXEL_PACK_BUFFER, nbytes, NULL, GL_STREAM_READ);  // NULL instructs GL to allocate buffer
+    GL::bindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+  //} else {
+  //  GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[0]);
+  //  GLubyte* ptr = (GLubyte*)GL::mapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
+  //  //~GLubyte* ptr = (GLubyte*)GL::mapBufferRange(GL_PIXEL_PACK_BUFFER, 0, nbytes, GL_MAP_READ_BIT)
+  //  if(ptr) { /* DO STUFF */
+  //    memcpy(m_depthData.data(), ptr, nbytes);
+  //  }
+  //  GL::unmapBuffer(GL_PIXEL_PACK_BUFFER);
+  //  GL::bindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+  //  std::swap(pbo[0], pbo[1]);
   }
 
+  //GL::finish();
+
+  FrameInfo::begin("renderTerrainDepth");
+
+  /*
   _rs.cacheDefaultFramebuffer();
   m_frameBuffer->applyAsRenderTarget(_rs);
   // VAO?
   GL::drawBuffers(2, &drawbuffs[0]);
   m_style->draw(_rs, _view, _tiles, {});
   GL::drawBuffers(1, &drawbuffs[1]);
+  */
 
   // TODO: use PBO to make this async
   // refs: songho.ca/opengl/gl_pbo.html ; roxlu.com/2014/048/fast-pixel-transfers-with-pixel-buffer-objects
-  //~// setup PBO
-  //~size_t nbytes = w*h*4;
-  //~GLuint pbo;
-  //~GL::genBuffers(1, &pbo);
-  //~GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo);
-  //~GL::bufferData(GL_PIXEL_PACK_BUFFER, nbytes, NULL, GL_STREAM_READ);  // NULL instructs GL to allocate buffer
-  //~GL::bindBuffer(GL_PIXEL_PACK_BUFFER, 0);
-  //~
-  //~// read pixels
-  //~GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo);
-  //~GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, NULL);  // NULL to read into PBO
-  //~GL::bindBuffer(GL_PIXEL_PACK_BUFFER, 0);
-  //~
-  //~// do some other stuff, ... then access pixels
-  //~GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo);
-  //~//GLubyte* ptr = (GLubyte*)GL::mapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
-  //~GLubyte* ptr = (GLubyte*)GL::mapBufferRange(GL_PIXEL_PACK_BUFFER, 0, nbytes, GL_MAP_READ_BIT)
-  //~if(ptr) { /* DO STUFF */ }
-  //~GL::unmapBuffer(GL_PIXEL_PACK_BUFFER);
-  //~GL::bindBuffer(GL_PIXEL_PACK_BUFFER, 0);
 
-  GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, m_depthData.data());
+  // read pixels
+  GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[0]);
+  //GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, NULL);  // NULL to read into PBO
+  GL::readPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, NULL);  // NULL to read into PBO
+
+  //~GL::bindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+  //~// do some other stuff, ... then access pixels
+
+  std::swap(pbo[0], pbo[1]);
+  GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[0]);
+
+  GLubyte* ptr = (GLubyte*)GL::mapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
+  //~GLubyte* ptr = (GLubyte*)GL::mapBufferRange(GL_PIXEL_PACK_BUFFER, 0, nbytes, GL_MAP_READ_BIT)
+  if(ptr) {
+    //memcpy(m_depthData.data(), ptr, nbytes);
+  }
+  GL::unmapBuffer(GL_PIXEL_PACK_BUFFER);
+  GL::bindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+
+  FrameInfo::end("renderTerrainDepth");
+
+  //~GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, m_depthData.data());
   _rs.framebuffer(_rs.defaultFrameBuffer());
+
 }
 
 float ElevationManager::getDepth(glm::vec2 screenpos)

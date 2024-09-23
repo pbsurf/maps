@@ -10,8 +10,6 @@
 
 namespace Tangram {
 
-int ShaderSource::glesVersion = 200;
-
 static const char* gl3FragHeader = R"RAW_GLSL(
 #define texture2D texture
 #define varying in
@@ -56,7 +54,7 @@ std::string ShaderSource::applySourceBlocks(const std::string& _source, bool _fr
     std::string out;
     std::set<std::string> pragmas;
 
-    if (glesVersion >= 300) {
+    if (Hardware::glVersion >= 300) {
         out.append("#version 300 es\n");
         out.append(_fragShader ? gl3FragHeader :
                    "#define attribute in\n"  // vertex shader
@@ -157,7 +155,7 @@ void ShaderSource::addExtensionDeclaration(const std::string& _extension) {
 }
 
 std::string ShaderSource::buildSelectionFragmentSource() const {
-    if (glesVersion < 300) return selection_fs;
+    if (Hardware::glVersion < 300) return selection_fs;
     return (std::string("#version 300 es\n") + gl3FragHeader) + selection_fs;
 }
 

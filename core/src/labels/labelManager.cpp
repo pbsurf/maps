@@ -348,7 +348,7 @@ bool LabelManager::zOrderComparator(const LabelEntry& _a, const LabelEntry& _b) 
     return bool(_a.tile);
 }
 
-void LabelManager::handleOcclusions(const ViewState& _viewState, bool _hideExtraLabels) {
+void LabelManager::handleOcclusions(const ViewState& _viewState, const Scene& _scene) {
 
     m_isect2d.clear();
     m_repeatGroups.clear();
@@ -378,7 +378,7 @@ void LabelManager::handleOcclusions(const ViewState& _viewState, bool _hideExtra
         l->obbs(transform, obbs);
 
         // if requested, hide extra labels indicated by transition.selected < 0
-        if (_hideExtraLabels && l->options().selectTransition.time < 0) {
+        if (_scene.hideExtraLabels && l->options().selectTransition.time < 0) {
           l->occlude();
           l->skipTransitions();
           continue;
@@ -517,7 +517,7 @@ void LabelManager::updateLabelSet(const ViewState& _viewState, float _dt, const 
     m_isect2d.resize({_viewState.viewportSize.x / 256, _viewState.viewportSize.y / 256},
                      {_viewState.viewportSize.x, _viewState.viewportSize.y});
 
-    handleOcclusions(_viewState, _scene.hideExtraLabels);
+    handleOcclusions(_viewState, _scene);
 
     // Update label state
     for (auto& entry : m_labels) {
