@@ -963,9 +963,8 @@ void Map::setupGL() {
     Primitives::setColor(impl->renderState, 0xffffff);
 
     // Load GL extensions and capabilities
-    Hardware::loadExtensions();
     Hardware::loadCapabilities();
-
+    Hardware::loadExtensions();
     // Hardware::printAvailableExtensions();
 }
 

@@ -488,7 +488,7 @@ void View::updateMatrices() {
     // Generate projection matrix based on camera type
     switch (m_type) {
         case CameraType::perspective:
-            far = 2. * m_pos.z / std::max(0., cos(m_pitch + 0.5f * fovy));
+            far = 2. * m_pos.z / std::max(0.f, std::cos(m_pitch + 0.5f * fovy));
             far = std::min(far, maxTileDistance);
             m_proj = glm::perspective(fovy, m_aspect, near, far);
             // Adjust projection center for edge padding.

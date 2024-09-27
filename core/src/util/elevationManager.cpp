@@ -11,12 +11,12 @@
 
 // with depth test enabled and no blending, final value of output should be correct depth (if larger depth
 //  written first, will be overwritten; if smaller depth written first, depth test will discard larger depth)
-const static char* terrain_depth_fs = R"RAW_GLSL(
+const static char* terrain_depth_fs = R"RAW_GLSL(#version 300 es
 #ifdef GL_ES
 precision highp float;
 #endif
 
-layout (location = 1) out highp uint depthOut;
+layout (location = 0) out highp uint depthOut;
 
 void main(void) {
   depthOut = floatBitsToUint(gl_FragCoord.z);
@@ -25,15 +25,52 @@ void main(void) {
 
 #include "polygon_vs.h"
 
+#include "rasters_glsl.h"
+#include "scene/scene.h"
+#include "gl/shaderProgram.h"
+
+#include "../../platforms/common/platform_gl.h"
+
 namespace Tangram {
 
 class TerrainStyle : public PolygonStyle
 {
 public:
   using PolygonStyle::PolygonStyle;
-  void constructShaderProgram() override {
-    PolygonStyle::constructShaderProgram();
-    m_shaderSource->setSourceStrings(terrain_depth_fs, polygon_vs);
+  //void constructShaderProgram() override {
+  //  PolygonStyle::constructShaderProgram();
+  //  m_shaderSource->setSourceStrings(terrain_depth_fs, polygon_vs);
+  //}
+
+  void build(const Scene& _scene) override {
+
+      constructVertexLayout();
+      m_shaderSource->setSourceStrings(terrain_depth_fs, polygon_vs);
+
+      m_shaderSource->addSourceBlock("defines", "#define TANGRAM_TERRAIN_3D\n", false);
+
+      if (m_rasterType != RasterType::none) {
+          int numRasterSource = 0;
+          for (const auto& source : _scene.tileSources()) {
+              if (source->isRaster()) { numRasterSource++; }
+          }
+          if (numRasterSource > 0) {
+              m_shaderSource->addSourceBlock("defines", "#define TANGRAM_NUM_RASTER_SOURCES "
+                                             + std::to_string(numRasterSource) + "\n", false);
+              m_shaderSource->addSourceBlock("defines", "#define TANGRAM_MODEL_POSITION_BASE_ZOOM_VARYING\n", false);
+
+              m_shaderSource->addSourceBlock("raster", rasters_glsl);
+          }
+      }
+
+      std::string vertSrc = m_shaderSource->buildVertexSource();
+      std::string fragSrc = terrain_depth_fs;  //m_shaderSource->buildFragmentSource();
+
+      m_shaderProgram = std::make_shared<ShaderProgram>(vertSrc, fragSrc, m_vertexLayout.get());
+      m_shaderProgram->setDescription("{style:" + m_name + "}");
+
+      // Clear ShaderSource builder
+      m_shaderSource.reset();
   }
 };
 
@@ -131,7 +168,9 @@ bool ElevationManager::hasTile(TileID tileId)
 void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
                                           const std::vector<std::shared_ptr<Tile>>& _tiles)
 {
-  static const GLenum drawbuffs[] = {GL_NONE, GL_COLOR_ATTACHMENT0};
+  //static const GLenum drawbuffs[] = {GL_NONE, GL_COLOR_ATTACHMENT0};
+
+  static GLsync sync = 0;
 
   static GLuint pbo[2] = {0, 0};
 
@@ -144,14 +183,14 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
     m_depthData.resize(w * h, 1.0f);
 
     // setup PBO
-    //~if(pbo[0] > 0) { GL::deleteBuffers(2, pbo); }
-    //~
-    //~GL::genBuffers(2, pbo);
-    //~GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[0]);
-    //~GL::bufferData(GL_PIXEL_PACK_BUFFER, nbytes, NULL, GL_STREAM_READ);  // NULL instructs GL to allocate buffer
-    //~GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[1]);
-    //~GL::bufferData(GL_PIXEL_PACK_BUFFER, nbytes, NULL, GL_STREAM_READ);  // NULL instructs GL to allocate buffer
-    //~GL::bindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+    if(pbo[0] > 0) { GL::deleteBuffers(2, pbo); }
+
+    GL::genBuffers(2, pbo);
+    GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[0]);
+    GL::bufferData(GL_PIXEL_PACK_BUFFER, nbytes, NULL, GL_STREAM_READ);  // NULL instructs GL to allocate buffer
+    GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[1]);
+    GL::bufferData(GL_PIXEL_PACK_BUFFER, nbytes, NULL, GL_STREAM_READ);  // NULL instructs GL to allocate buffer
+    GL::bindBuffer(GL_PIXEL_PACK_BUFFER, 0);
   //} else {
   //  GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[0]);
   //  GLubyte* ptr = (GLubyte*)GL::mapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
@@ -166,40 +205,60 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
 
   //GL::finish();
 
+  if(sync != 0) {
+    GLenum status = glClientWaitSync(sync, GL_SYNC_FLUSH_COMMANDS_BIT, 0);
+    LOG("Status later: %x", status);
+    if(status == GL_TIMEOUT_EXPIRED) {
+      return;
+    }
+    glDeleteSync(sync);
+  }
+
   FrameInfo::begin("renderTerrainDepth");
 
   _rs.cacheDefaultFramebuffer();
   m_frameBuffer->applyAsRenderTarget(_rs);
   // VAO?
-  GL::drawBuffers(2, &drawbuffs[0]);
+  //GL::drawBuffers(2, &drawbuffs[0]);
   m_style->draw(_rs, _view, _tiles, {});
-  GL::drawBuffers(1, &drawbuffs[1]);
+  //GL::drawBuffers(1, &drawbuffs[1]);
 
-  /*
+  GLsync sync2 = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+  GLenum status2 = glClientWaitSync(sync2, GL_SYNC_FLUSH_COMMANDS_BIT, 0);
+  LOG("Status after draw: %x", status2	);
+  glDeleteSync(sync2);
+
   // TODO: use PBO to make this async
   // refs: songho.ca/opengl/gl_pbo.html ; roxlu.com/2014/048/fast-pixel-transfers-with-pixel-buffer-objects
 
   // read pixels
+  glReadBuffer(GL_COLOR_ATTACHMENT0);
   GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[0]);
-  //GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, NULL);  // NULL to read into PBO
-  GL::readPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, NULL);  // NULL to read into PBO
+  GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, NULL);  // NULL to read into PBO
+  //GL::readPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, NULL);  // NULL to read into PBO
 
-  //~GL::bindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+  sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+
+  GLenum status = glClientWaitSync(sync, GL_SYNC_FLUSH_COMMANDS_BIT, 0);
+  LOG("Status: %x", status);
+
+  GL::bindBuffer(GL_PIXEL_PACK_BUFFER, 0);
   //~// do some other stuff, ... then access pixels
 
   std::swap(pbo[0], pbo[1]);
+  /*
   GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[0]);
 
-  GLubyte* ptr = (GLubyte*)GL::mapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
-  //~GLubyte* ptr = (GLubyte*)GL::mapBufferRange(GL_PIXEL_PACK_BUFFER, 0, nbytes, GL_MAP_READ_BIT)
+  //GLubyte* ptr = (GLubyte*)GL::mapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
+  GLubyte* ptr = (GLubyte*)GL::mapBufferRange(GL_PIXEL_PACK_BUFFER, 0, nbytes, GL_MAP_READ_BIT);
   if(ptr) {
-    //memcpy(m_depthData.data(), ptr, nbytes);
+    memcpy(m_depthData.data(), ptr, nbytes);
   }
   GL::unmapBuffer(GL_PIXEL_PACK_BUFFER);
   GL::bindBuffer(GL_PIXEL_PACK_BUFFER, 0);
   */
 
-  GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, m_depthData.data());
+  //GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, m_depthData.data());
   _rs.framebuffer(_rs.defaultFrameBuffer());
 
   FrameInfo::end("renderTerrainDepth");

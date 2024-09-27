@@ -51,18 +51,20 @@ void loadExtensions() {
 
     if (s_glExtensions == NULL) {
         LOGW("glGetString( GL_EXTENSIONS ) returned NULL");
-        return;
+        s_glExtensions = "";
     }
 
-    supportsMapBuffer = isAvailable("mapbuffer");
-    supportsVAOs = isAvailable("vertex_array_object");
-    supportsTextureNPOT = isAvailable("texture_non_power_of_two");
-    supportsGLRGBA8OES = isAvailable("rgb8_rgba8");
+    supportsMapBuffer = /*glVersion >= 300 || */ isAvailable("mapbuffer");
+    supportsVAOs = glVersion >= 300 || isAvailable("vertex_array_object");
+    supportsTextureNPOT = glVersion >= 300 || isAvailable("texture_non_power_of_two");
+    supportsGLRGBA8OES = glVersion >= 300 || isAvailable("rgb8_rgba8");
 
-    LOG("Driver supports map buffer: %d", supportsMapBuffer);
-    LOG("Driver supports vaos: %d", supportsVAOs);
-    LOG("Driver supports rgb8_rgba8: %d", supportsGLRGBA8OES);
-    LOG("Driver supports NPOT texture: %d", supportsTextureNPOT);
+    if (glVersion < 300) {
+        LOG("Driver supports map buffer: %d", supportsMapBuffer);
+        LOG("Driver supports vaos: %d", supportsVAOs);
+        LOG("Driver supports rgb8_rgba8: %d", supportsGLRGBA8OES);
+        LOG("Driver supports NPOT texture: %d", supportsTextureNPOT);
+    }
 
     // find extension symbols if needed
     initGLExtensions();
@@ -79,10 +81,12 @@ void loadCapabilities() {
     GL::getIntegerv(GL_DEPTH_BITS, &val);
     depthBits = val;
 
+    float ver = 3.0f; // assume GL 3
     const char* verstr = (const char*) GL::getString(GL_VERSION);
-    if (verstr && strlen(verstr) > 3) {
-        glVersion = uint32_t(std::stof(std::string(verstr, 4)) * 100 + 0.5f);
+    if (verstr) {
+        sscanf(verstr, "%*[^123456789]%f", &ver);
     }
+    glVersion = ver*100 + 0.5f;
 
     LOG("Hardware max texture size %d", maxTextureSize);
     LOG("Hardware max combined texture units %d", maxCombinedTextureUnits);

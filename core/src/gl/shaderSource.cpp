@@ -10,6 +10,12 @@
 
 namespace Tangram {
 
+static const char* gl3VertHeader = R"RAW_GLSL(
+#define texture2D texture
+#define attribute in
+#define varying out
+)RAW_GLSL";
+
 static const char* gl3FragHeader = R"RAW_GLSL(
 #define texture2D texture
 #define varying in
@@ -56,9 +62,7 @@ std::string ShaderSource::applySourceBlocks(const std::string& _source, bool _fr
 
     if (Hardware::glVersion >= 300) {
         out.append("#version 300 es\n");
-        out.append(_fragShader ? gl3FragHeader :
-                   "#define attribute in\n"  // vertex shader
-                   "#define varying out\n");
+        out.append(_fragShader ? gl3FragHeader : gl3VertHeader);
     }
 
     out.append("#define TANGRAM_EPSILON 0.00001\n");

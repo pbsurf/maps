@@ -90,7 +90,8 @@ void MeshBase::subDataUpload(RenderState& rs, GLbyte* _data) {
     // invalidate/orphane the data store on the driver
     GL::bufferData(GL_ARRAY_BUFFER, vertexBytes, NULL, m_hint);
 
-    if (Hardware::supportsMapBuffer) {
+    // Don't see any reason to use glMapBuffer + memcpy of whole buffer on same thread instead of glBufferData
+    if (0) {  //Hardware::supportsMapBuffer) {
         GLvoid* dataStore = GL::mapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
 
         // write memory client side

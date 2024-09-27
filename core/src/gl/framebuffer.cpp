@@ -110,7 +110,7 @@ FrameBuffer::PixelRect FrameBuffer::readRect(float _normalizedX, float _normaliz
 
 void FrameBuffer::init(RenderState& _rs) {
 
-    if (m_colorRenderBuffer && Hardware::glVersion < 300 && !Hardware::supportsGLRGBA8OES) {
+    if (m_colorRenderBuffer && !Hardware::supportsGLRGBA8OES) {
         LOGW("Driver doesn't support GL_OES_rgb8_rgba8");
         LOGW("Falling back to color texture attachment");
         m_colorRenderBuffer = false;
