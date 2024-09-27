@@ -183,14 +183,14 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
     m_depthData.resize(w * h, 1.0f);
 
     // setup PBO
-    if(pbo[0] > 0) { GL::deleteBuffers(2, pbo); }
+    /*if(pbo[0] > 0) { GL::deleteBuffers(2, pbo); }
 
     GL::genBuffers(2, pbo);
     GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[0]);
     GL::bufferData(GL_PIXEL_PACK_BUFFER, nbytes, NULL, GL_STREAM_READ);  // NULL instructs GL to allocate buffer
     GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[1]);
     GL::bufferData(GL_PIXEL_PACK_BUFFER, nbytes, NULL, GL_STREAM_READ);  // NULL instructs GL to allocate buffer
-    GL::bindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+    GL::bindBuffer(GL_PIXEL_PACK_BUFFER, 0);*/
   //} else {
   //  GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[0]);
   //  GLubyte* ptr = (GLubyte*)GL::mapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
@@ -205,14 +205,14 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
 
   //GL::finish();
 
-  if(sync != 0) {
+  /*if(sync != 0) {
     GLenum status = glClientWaitSync(sync, GL_SYNC_FLUSH_COMMANDS_BIT, 0);
     LOG("Status later: %x", status);
     if(status == GL_TIMEOUT_EXPIRED) {
       return;
     }
     glDeleteSync(sync);
-  }
+  }*/
 
   FrameInfo::begin("renderTerrainDepth");
 
@@ -223,6 +223,7 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
   m_style->draw(_rs, _view, _tiles, {});
   //GL::drawBuffers(1, &drawbuffs[1]);
 
+  /*
   GLsync sync2 = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
   GLenum status2 = glClientWaitSync(sync2, GL_SYNC_FLUSH_COMMANDS_BIT, 0);
   LOG("Status after draw: %x", status2	);
@@ -246,7 +247,7 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
   //~// do some other stuff, ... then access pixels
 
   std::swap(pbo[0], pbo[1]);
-  /*
+
   GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[0]);
 
   //GLubyte* ptr = (GLubyte*)GL::mapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
@@ -258,7 +259,7 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
   GL::bindBuffer(GL_PIXEL_PACK_BUFFER, 0);
   */
 
-  //GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, m_depthData.data());
+  GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, m_depthData.data());
   _rs.framebuffer(_rs.defaultFrameBuffer());
 
   FrameInfo::end("renderTerrainDepth");

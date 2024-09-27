@@ -360,7 +360,6 @@ struct GL {
     static void deleteFramebuffers(GLsizei n, const GLuint *framebuffers);
     static void deleteRenderbuffers(GLsizei n, const GLuint *renderbuffers);
     static GLenum checkFramebufferStatus(GLenum target);
-    static void drawBuffers(GLsizei n, const GLuint *drawbuffers);
 
     // Texture
     static void bindTexture(GLenum target, GLuint texture );

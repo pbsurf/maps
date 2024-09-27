@@ -340,12 +340,4 @@ GLenum GL::checkFramebufferStatus(GLenum target) {
     return status;
 }
 
-void GL::drawBuffers(GLsizei n, const GLuint *drawbuffers) {
-#ifdef GL_VERSION_3_0
-  GL_CHECK(glDrawBuffers(n, drawbuffers));
-#else
-#error "GLES 3 required for 3D terrain"
-#endif
-}
-
 }
