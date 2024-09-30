@@ -71,6 +71,14 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
             }
         }
 
+        // terrain depth is from previous frame, so we must compare label position before Label::update()
+        bool isBehindTerrain = false;
+        if (useElev) {
+            float labelz = label->screenDepth();
+            float terrainz = _elevManager->getDepth(label->screenCenter());
+            isBehindTerrain = labelz > terrainz + 0.005f;
+        }
+
         Range transformRange;
         ScreenTransform transform { m_transforms, transformRange };
 
@@ -83,18 +91,7 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
             continue;
         }
 
-        // is label hidden behind terrain?
-        if (useElev) {
-            float labelz = label->screenDepth();
-            float terrainz = _elevManager->getDepth(label->screenCenter());
-            //LOGW("Label %p at %.1f,%.1f depth: %f; terrain: %f (d: %f)", label.get(),
-            //     label->screenCenter().x, label->screenCenter().y, labelz, terrainz, labelz - terrainz);
-            if(labelz > terrainz + 0.005f) {
-                //label->occlude();
-                //label->skipTransitions();
-                continue;
-            }
-        }
+        if(isBehindTerrain) { continue; }
 
         if (_onlyRender) {
             if (label->occludedLastFrame()) { label->occlude(); }

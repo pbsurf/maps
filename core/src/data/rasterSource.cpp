@@ -7,8 +7,6 @@
 #include "util/mapProjection.h"
 #include "log.h"
 
-#include "scene/scene.h"
-
 namespace Tangram {
 
 class RasterTileTask : public BinaryTileTask {
@@ -59,10 +57,7 @@ public:
 
         // Create tile geometries
         if (!subTask) {
-            if(_tileBuilder.scene().elevationManager())
-              m_tile = _tileBuilder.build(m_tileId, *(source->m_gridData), *source);
-            else
-              m_tile = _tileBuilder.build(m_tileId, *(source->m_tileData), *source);
+            m_tile = _tileBuilder.build(m_tileId, *(source->m_tileData), *source);
             m_ready = true;
         }
     }
@@ -141,28 +136,6 @@ void RasterSource::generateGeometry(bool _generateGeometry) {
         m_tileData = std::make_shared<TileData>();
         m_tileData->layers.emplace_back("");
         m_tileData->layers.back().features.push_back(rasterFeature);
-
-        // grid for 3D terrain
-        uint32_t resolution = 64;
-        float w = 1.f / resolution;
-        Feature gridFeature;
-        gridFeature.geometryType = GeometryType::polygons;
-        gridFeature.props = Properties();
-        for (uint32_t col = 0; col < resolution; col++) {
-          for (uint32_t row = 0; row < resolution; row++) {
-            float x0 = w*row, y0 = w*col;
-            gridFeature.polygons.push_back({ {
-                {x0,   y0},
-                {x0+w, y0},
-                {x0+w, y0+w},
-                {x0,   y0+w},
-                {x0,   y0} } });
-          }
-        }
-
-        m_gridData = std::make_shared<TileData>();
-        m_gridData->layers.emplace_back("");
-        m_gridData->layers.back().features.push_back(gridFeature);
     }
 }
 

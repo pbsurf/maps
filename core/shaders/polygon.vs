@@ -20,9 +20,16 @@ uniform float u_proxy_depth;
 
 #pragma tangram: uniforms
 
-attribute vec4 a_position;
-attribute vec4 a_color;
-attribute vec3 a_normal;
+#ifdef TANGRAM_RASTER_STYLE
+    uniform float u_order;
+    attribute vec2 a_position;
+#else
+    attribute vec4 a_position;
+    attribute vec4 a_color;
+    attribute vec3 a_normal;
+
+    varying vec4 v_color;
+#endif
 
 #ifdef TANGRAM_USE_TEX_COORDS
     attribute vec2 a_texcoord;
@@ -39,7 +46,6 @@ attribute vec3 a_normal;
 
 varying vec4 v_world_position;
 varying vec4 v_position;
-varying vec4 v_color;
 varying vec3 v_normal;
 
 #ifdef TANGRAM_LIGHTING_VERTEX
@@ -48,20 +54,28 @@ varying vec3 v_normal;
 
 #define UNPACK_POSITION(x) (x / 8192.0)
 
-vec4 modelPosition() {
-    return vec4(UNPACK_POSITION(a_position.xyz) * exp2(u_tile_origin.z - u_tile_origin.w), 1.0);
-}
-
 vec4 worldPosition() {
     return v_world_position;
 }
 
 vec3 worldNormal() {
-    return a_normal;
+    #ifdef TANGRAM_RASTER_STYLE
+        return vec3(0.0, 0.0, 1.0);
+    #else
+        return a_normal;
+    #endif
 }
 
 vec4 modelPositionBaseZoom() {
-    return vec4(UNPACK_POSITION(a_position.xyz), 1.0);
+    #ifdef TANGRAM_RASTER_STYLE
+        return vec4(UNPACK_POSITION(a_position.xy), 0.0, 1.0);
+    #else
+        return vec4(UNPACK_POSITION(a_position.xyz), 1.0);
+    #endif
+}
+
+vec4 modelPosition() {
+    return vec4(modelPositionBaseZoom().xyz * exp2(u_tile_origin.z - u_tile_origin.w), 1.0);
 }
 
 #ifdef TANGRAM_MODEL_POSITION_BASE_ZOOM_VARYING
@@ -75,7 +89,7 @@ vec4 modelPositionBaseZoom() {
 
 void main() {
 
-    vec4 position = vec4(UNPACK_POSITION(a_position.xyz), 1.0);
+    vec4 position = modelPositionBaseZoom();
 
     #ifdef TANGRAM_FEATURE_SELECTION
         v_selection_color = a_selection_color;
@@ -89,7 +103,9 @@ void main() {
         #pragma tangram: setup
     #endif
 
-    v_color = a_color;
+    #ifndef TANGRAM_RASTER_STYLE
+        v_color = a_color;
+    #endif
 
     #ifdef TANGRAM_USE_TEX_COORDS
         v_texcoord = a_texcoord;
@@ -99,7 +115,7 @@ void main() {
         v_modelpos_base_zoom = modelPositionBaseZoom();
     #endif
 
-    v_normal = normalize(u_normal_matrix * a_normal);
+    v_normal = normalize(u_normal_matrix * worldNormal());
 
     // Transform position into meters relative to map center
     position = u_model * position;
@@ -131,7 +147,11 @@ void main() {
     gl_Position.z += TANGRAM_DEPTH_DELTA * gl_Position.w * u_proxy_depth;
 
     #ifdef TANGRAM_DEPTH_DELTA
-        float layer = a_position.w;
+        #ifdef TANGRAM_RASTER_STYLE
+            float layer = u_order;
+        #else
+            float layer = a_position.w;
+        #endif
         gl_Position.z -= layer * TANGRAM_DEPTH_DELTA * gl_Position.w;
     #endif
 }

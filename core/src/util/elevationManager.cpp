@@ -1,4 +1,5 @@
 #include "util/elevationManager.h"
+#include "util/asyncWorker.h"
 #include "data/rasterSource.h"
 #include "style/polygonStyle.h"
 #include "gl/shaderSource.h"
@@ -28,15 +29,20 @@ void main(void) {
 #include "rasters_glsl.h"
 #include "scene/scene.h"
 #include "gl/shaderProgram.h"
+#include "gl/hardware.h"
 
 #include "../../platforms/common/platform_gl.h"
 
 namespace Tangram {
 
+// smaller FBO greatly improves FPS
+static float bufferScale = 2;
+AsyncWorker* ElevationManager::offscreenWorker = NULL;
+
 class TerrainStyle : public PolygonStyle
 {
 public:
-  using PolygonStyle::PolygonStyle;
+  using PolygonStyle::PolygonStyle;  // should set m_selection = false, but doesn't matter currently
   //void constructShaderProgram() override {
   //  PolygonStyle::constructShaderProgram();
   //  m_shaderSource->setSourceStrings(terrain_depth_fs, polygon_vs);
@@ -165,114 +171,67 @@ bool ElevationManager::hasTile(TileID tileId)
   //return bool(m_elevationSource->getTexture(tileId));
 }
 
+//static std::atomic<int> nqueued {0};
+
 void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
                                           const std::vector<std::shared_ptr<Tile>>& _tiles)
 {
-  //static const GLenum drawbuffs[] = {GL_NONE, GL_COLOR_ATTACHMENT0};
+  FrameInfo::scope _trace("renderTerrainDepth");
 
-  static GLsync sync = 0;
-
-  static GLuint pbo[2] = {0, 0};
-
-  int w = _view.getWidth(), h = _view.getHeight();
-
-  size_t nbytes = w*h*4;
-
+  /*
+  int w = _view.getWidth()/bufferScale, h = _view.getHeight()/bufferScale;
   if (!m_frameBuffer || m_frameBuffer->getWidth() != w || m_frameBuffer->getHeight() != h) {
     m_frameBuffer = std::make_unique<FrameBuffer>(w, h, false, GL_R32UI);
     m_depthData.resize(w * h, 1.0f);
 
-    // setup PBO
-    /*if(pbo[0] > 0) { GL::deleteBuffers(2, pbo); }
-
-    GL::genBuffers(2, pbo);
-    GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[0]);
-    GL::bufferData(GL_PIXEL_PACK_BUFFER, nbytes, NULL, GL_STREAM_READ);  // NULL instructs GL to allocate buffer
-    GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[1]);
-    GL::bufferData(GL_PIXEL_PACK_BUFFER, nbytes, NULL, GL_STREAM_READ);  // NULL instructs GL to allocate buffer
-    GL::bindBuffer(GL_PIXEL_PACK_BUFFER, 0);*/
-  //} else {
-  //  GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[0]);
-  //  GLubyte* ptr = (GLubyte*)GL::mapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
-  //  //~GLubyte* ptr = (GLubyte*)GL::mapBufferRange(GL_PIXEL_PACK_BUFFER, 0, nbytes, GL_MAP_READ_BIT)
-  //  if(ptr) { /* DO STUFF */
-  //    memcpy(m_depthData.data(), ptr, nbytes);
-  //  }
-  //  GL::unmapBuffer(GL_PIXEL_PACK_BUFFER);
-  //  GL::bindBuffer(GL_PIXEL_PACK_BUFFER, 0);
-  //  std::swap(pbo[0], pbo[1]);
+    _rs.m_terrainDepthTexture = m_frameBuffer->getTextureHandle();
   }
-
-  //GL::finish();
-
-  /*if(sync != 0) {
-    GLenum status = glClientWaitSync(sync, GL_SYNC_FLUSH_COMMANDS_BIT, 0);
-    LOG("Status later: %x", status);
-    if(status == GL_TIMEOUT_EXPIRED) {
-      return;
-    }
-    glDeleteSync(sync);
-  }*/
-
-  FrameInfo::begin("renderTerrainDepth");
 
   _rs.cacheDefaultFramebuffer();
   m_frameBuffer->applyAsRenderTarget(_rs);
-  // VAO?
-  //GL::drawBuffers(2, &drawbuffs[0]);
   m_style->draw(_rs, _view, _tiles, {});
-  //GL::drawBuffers(1, &drawbuffs[1]);
 
-  /*
-  GLsync sync2 = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-  GLenum status2 = glClientWaitSync(sync2, GL_SYNC_FLUSH_COMMANDS_BIT, 0);
-  LOG("Status after draw: %x", status2	);
-  glDeleteSync(sync2);
-
-  // TODO: use PBO to make this async
-  // refs: songho.ca/opengl/gl_pbo.html ; roxlu.com/2014/048/fast-pixel-transfers-with-pixel-buffer-objects
-
-  // read pixels
-  glReadBuffer(GL_COLOR_ATTACHMENT0);
-  GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[0]);
-  GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, NULL);  // NULL to read into PBO
-  //GL::readPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, NULL);  // NULL to read into PBO
-
-  sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-
-  GLenum status = glClientWaitSync(sync, GL_SYNC_FLUSH_COMMANDS_BIT, 0);
-  LOG("Status: %x", status);
-
-  GL::bindBuffer(GL_PIXEL_PACK_BUFFER, 0);
-  //~// do some other stuff, ... then access pixels
-
-  std::swap(pbo[0], pbo[1]);
-
-  GL::bindBuffer(GL_PIXEL_PACK_BUFFER, pbo[0]);
-
-  //GLubyte* ptr = (GLubyte*)GL::mapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
-  GLubyte* ptr = (GLubyte*)GL::mapBufferRange(GL_PIXEL_PACK_BUFFER, 0, nbytes, GL_MAP_READ_BIT);
-  if(ptr) {
-    memcpy(m_depthData.data(), ptr, nbytes);
-  }
-  GL::unmapBuffer(GL_PIXEL_PACK_BUFFER);
-  GL::bindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+  //GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, m_depthData.data());
+  _rs.framebuffer(_rs.defaultFrameBuffer());
   */
 
-  GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, m_depthData.data());
-  _rs.framebuffer(_rs.defaultFrameBuffer());
+  std::mutex drawMutex;
+  std::condition_variable drawCond;
+  bool drawFinished = false;
+  std::unique_lock<std::mutex> mainLock(drawMutex); //, std::defer_lock);
 
-  FrameInfo::end("renderTerrainDepth");
+  offscreenWorker->enqueue([&](){
+    std::unique_lock<std::mutex> workerLock(drawMutex);
+    int w = _view.getWidth()/bufferScale, h = _view.getHeight()/bufferScale;
+    if (!m_frameBuffer || m_frameBuffer->getWidth() != w || m_frameBuffer->getHeight() != h) {
+      m_frameBuffer = std::make_unique<FrameBuffer>(w, h, false, GL_R32UI);
+      m_depthData.resize(w * h, 1.0f);
+    }
+    m_frameBuffer->applyAsRenderTarget(*m_renderState);
+    // VAOs can't be shared between contexts
+    Hardware::supportsVAOs = false;
+    m_style->draw(*m_renderState, _view, _tiles, {});
+    Hardware::supportsVAOs = true;
+
+    drawFinished = true;
+    workerLock.unlock();
+    drawCond.notify_all();
+
+    GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, m_depthData.data());
+  });
+
+  // wait for draw to finish to avoid, e.g., duplicate texture uploads
+  drawCond.wait(mainLock, [&]{ return drawFinished; });
 }
 
 float ElevationManager::getDepth(glm::vec2 screenpos)
 {
   // for now, clamp to screen bounds to handle offscreen labels (extendedBounds in processLabelUpdate())
   int w = m_frameBuffer->getWidth(), h = m_frameBuffer->getHeight();
-  glm::vec2 pos = glm::clamp(screenpos, {0, 0}, {w-1, h-1});
+  glm::vec2 pos = glm::clamp(glm::round(screenpos/bufferScale), {0, 0}, {w-1, h-1});
   //GL::readPixels(floorf(screenpos.x), floorf(screenpos.y), 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel);
   // convert from 0..1 (glDepthRange) to -1..1 (NDC)
-  return 2*m_depthData[floorf(pos.x) + floorf(h - pos.y - 1)*w] - 1;
+  return 2*m_depthData[int(pos.x) + int(h - pos.y - 1)*w] - 1;
 }
 
 void ElevationManager::setZoom(int z)
@@ -283,6 +242,8 @@ void ElevationManager::setZoom(int z)
 ElevationManager::ElevationManager(std::shared_ptr<RasterSource> src, Style& style) : m_elevationSource(src)
 {
   m_elevationSource->m_keepTextureData = true;
+
+  m_renderState = std::make_unique<RenderState>();
 
   // default blending mode is opaque, as desired
   m_style = std::make_unique<TerrainStyle>("__terrain");

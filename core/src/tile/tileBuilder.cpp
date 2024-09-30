@@ -54,15 +54,15 @@ void TileBuilder::applyStyling(const Feature& _feature, const SceneLayer& _layer
     // build the feature with the rule's parameters
     for (auto& rule : m_ruleSet.matchedRules()) {
 
-        StyleBuilder* style = getStyleBuilder(rule.getStyleName());
+        StyleBuilder* builder = getStyleBuilder(rule.getStyleName());
 
-        if (!style) {
+        if (!builder) {
             LOGN("Invalid style %s", rule.getStyleName().c_str());
             continue;
         }
 
         // Apply default draw rules defined for this style
-        style->style().applyDefaultDrawRules(rule);
+        builder->style().applyDefaultDrawRules(rule);
 
         if (!m_ruleSet.evaluateRuleForContext(rule, *m_styleContext)) {
             continue;
@@ -94,7 +94,7 @@ void TileBuilder::applyStyling(const Feature& _feature, const SceneLayer& _layer
         }
 
         // build feature with style
-        added |= style->addFeature(_feature, rule);
+        added |= builder->addFeature(_feature, rule);
     }
 
     if (added && (selectionColor != 0)) {

@@ -191,4 +191,6 @@ void FrameBuffer::drawDebug(RenderState& _rs, glm::vec2 _dim) {
     }
 }
 
+GLuint FrameBuffer::getTextureHandle() const { return m_texture ? m_texture->glHandle() : 0; }
+
 }

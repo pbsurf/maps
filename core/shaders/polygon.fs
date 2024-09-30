@@ -22,8 +22,13 @@ uniform mat3 u_inverse_normal_matrix;
 
 varying vec4 v_world_position;
 varying vec4 v_position;
-varying vec4 v_color;
 varying vec3 v_normal;
+
+#ifdef TANGRAM_RASTER_STYLE
+    uniform vec4 u_color;
+#else
+    varying vec4 v_color;
+#endif
 
 #ifdef TANGRAM_USE_TEX_COORDS
     varying vec2 v_texcoord;
@@ -56,7 +61,11 @@ void main(void) {
     // Initialize globals
     #pragma tangram: setup
 
-    vec4 color = v_color;
+    #ifdef TANGRAM_RASTER_STYLE
+        vec4 color = u_color;
+    #else
+        vec4 color = v_color;
+    #endif
     vec3 normal = v_normal;
 
     #ifdef TANGRAM_RASTER_TEXTURE_COLOR

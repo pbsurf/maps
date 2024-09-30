@@ -19,6 +19,12 @@ struct FrameInfo {
     static void end(const std::string& tag);
 
     static void draw(RenderState& rs, const View& _view, const TileManager& _tileManager);
+
+    struct scope {
+        std::string tag;
+        scope(const std::string& _tag) : tag(_tag) { begin(tag); }
+        ~scope() { end(tag); }
+    };
 };
 
 }

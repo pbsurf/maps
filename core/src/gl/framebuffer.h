@@ -44,6 +44,9 @@ public:
 
     void drawDebug(RenderState& _rs, glm::vec2 _dim);
 
+    GLuint getHandle() const { return m_glFrameBufferHandle; }
+    GLuint getTextureHandle() const;
+
 private:
 
     void init(RenderState& _rs);

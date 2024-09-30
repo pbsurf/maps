@@ -325,11 +325,6 @@ void Map::render() {
         impl->selectionQueries.clear();
     }
 
-    //if (scene.elevationManager()) {
-    //    scene.elevationManager()->renderTerrainDepth(renderState, view,
-    //                                                 scene.tileManager()->getVisibleTiles());
-    //}
-
     // Get background color for frame based on zoom level, if there are stops
     impl->background = scene.backgroundColor(view.getIntegerZoom());
 

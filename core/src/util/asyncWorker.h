@@ -4,6 +4,8 @@
 #include <deque>
 #include <mutex>
 #include <thread>
+#include <functional>
+#include <atomic>
 
 namespace Tangram {
 

@@ -74,6 +74,8 @@ void PointStyle::onBeginDrawFrame(RenderState& rs, const View& _view) {
     m_shaderProgram->setUniformMatrix4f(rs, m_mainUniforms.uOrtho,
                                         _view.getOrthoViewportMatrix());
 
+    //auto texUnit2 = rs.nextAvailableTextureUnit();
+    //rs.texture(rs.m_terrainDepthTexture, texUnit2, GL_TEXTURE_2D);
 
     size_t vertexPos = 0;
     for (auto& batch : m_batches) {

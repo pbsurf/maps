@@ -81,6 +81,7 @@ void FrameInfo::end(const std::string& tag)
   float dtCpu = TIME_TO_MS(entry.startCpu, endCpu);
   entry.startCpu = endCpu;
 
+  if(dtReal > 2000) { return; }
   entry.avgReal = entry.avgReal*(1 - alpha) + dtReal*alpha;
   entry.avgCpu = entry.avgCpu*(1 - alpha) + dtCpu*alpha;
 }

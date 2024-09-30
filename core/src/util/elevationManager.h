@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 #include "util/mapProjection.h"
 
 namespace Tangram {
@@ -11,6 +12,7 @@ class FrameBuffer;
 class RenderState;
 class View;
 class Tile;
+class AsyncWorker;
 
 class ElevationManager
 {
@@ -30,6 +32,11 @@ public:
   std::unique_ptr<Style> m_style;
   std::vector<float> m_depthData;
   std::unique_ptr<FrameBuffer> m_frameBuffer;
+  std::unique_ptr<RenderState> m_renderState;
+
+  //std::mutex m_workerMutex;
+
+  static AsyncWorker* offscreenWorker;
 };
 
 }

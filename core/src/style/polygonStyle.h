@@ -2,9 +2,6 @@
 
 #include "style/style.h"
 
-#include <mutex>
-#include <tuple>
-
 namespace Tangram {
 
 class PolygonStyle : public Style {
