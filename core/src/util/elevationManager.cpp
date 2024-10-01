@@ -1,7 +1,7 @@
 #include "util/elevationManager.h"
 #include "util/asyncWorker.h"
 #include "data/rasterSource.h"
-#include "style/polygonStyle.h"
+#include "style/rasterStyle.h"
 #include "gl/shaderSource.h"
 #include "gl/framebuffer.h"
 #include "gl/renderState.h"
@@ -35,48 +35,87 @@ void main(void) {
 
 namespace Tangram {
 
-// smaller FBO greatly improves FPS
+// smaller target greatly improves FPS
 static float bufferScale = 2;
-std::unique_ptr<AsyncWorker> ElevationManager::offscreenWorker = NULL;
+std::unique_ptr<AsyncWorker> ElevationManager::offscreenWorker;
 
-class TerrainStyle : public PolygonStyle
+class TerrainStyle : public RasterStyle
 {
 public:
-  using PolygonStyle::PolygonStyle;  // should set m_selection = false, but doesn't matter currently
-  //void constructShaderProgram() override {
-  //  PolygonStyle::constructShaderProgram();
-  //  m_shaderSource->setSourceStrings(terrain_depth_fs, polygon_vs);
-  //}
+  using RasterStyle::RasterStyle;
 
   void build(const Scene& _scene) override {
+      RasterStyle::build(_scene);
+      m_shaderProgram = std::make_shared<ShaderProgram>(
+          m_shaderProgram->vertexShaderSource(), terrain_depth_fs, vertexLayout().get());
+  }
 
-      constructVertexLayout();
-      m_shaderSource->setSourceStrings(terrain_depth_fs, polygon_vs);
+  bool draw(RenderState& rs, const Tile& _tile) {
 
-      m_shaderSource->addSourceBlock("defines", "#define TANGRAM_TERRAIN_3D\n", false);
+      // need to check for mesh of cloned style to determine if we should draw tile
+      auto& styleMesh = _tile.getMesh(*this);
+      if (!styleMesh) { return false; }
 
-      if (m_rasterType != RasterType::none) {
-          int numRasterSource = 0;
-          for (const auto& source : _scene.tileSources()) {
-              if (source->isRaster()) { numRasterSource++; }
+      bool styleMeshDrawn = true;
+      TileID tileID = _tile.getID();
+
+      if (hasRasters()) {
+          UniformTextureArray textureIndexUniform;
+          UniformArray2f rasterSizeUniform;
+          UniformArray3f rasterOffsetsUniform;
+
+          for (auto& raster : _tile.rasters()) {
+
+              auto& texture = raster.texture;
+              auto texUnit = rs.nextAvailableTextureUnit();
+              texture->bind(rs, texUnit);
+
+              textureIndexUniform.slots.push_back(texUnit);
+              rasterSizeUniform.push_back({texture->width(), texture->height()});
+
+              float x = 0.f;
+              float y = 0.f;
+              float z = 1.f;
+
+              if (tileID.z > raster.tileID.z) {
+                  float dz = tileID.z - raster.tileID.z;
+                  float dz2 = powf(2.f, dz);
+                  x = fmodf(tileID.x, dz2) / dz2;
+                  y = (dz2 - 1.f - fmodf(tileID.y, dz2)) / dz2;
+                  z = 1.f / dz2;
+              }
+              rasterOffsetsUniform.emplace_back(x, y, z);
           }
-          if (numRasterSource > 0) {
-              m_shaderSource->addSourceBlock("defines", "#define TANGRAM_NUM_RASTER_SOURCES "
-                                             + std::to_string(numRasterSource) + "\n", false);
-              m_shaderSource->addSourceBlock("defines", "#define TANGRAM_MODEL_POSITION_BASE_ZOOM_VARYING\n", false);
 
-              m_shaderSource->addSourceBlock("raster", rasters_glsl);
+          m_shaderProgram->setUniformi(rs, m_mainUniforms.uRasters, textureIndexUniform);
+          m_shaderProgram->setUniformf(rs, m_mainUniforms.uRasterSizes, rasterSizeUniform);
+          m_shaderProgram->setUniformf(rs, m_mainUniforms.uRasterOffsets, rasterOffsetsUniform);
+      }
+
+      m_shaderProgram->setUniformMatrix4f(rs, m_mainUniforms.uModel, _tile.getModelMatrix());
+      m_shaderProgram->setUniformf(rs, m_mainUniforms.uProxyDepth, _tile.isProxy() ? 1.f : 0.f);
+      m_shaderProgram->setUniformf(rs, m_mainUniforms.uTileOrigin,
+                                   _tile.getOrigin().x,
+                                   _tile.getOrigin().y,
+                                   tileID.s,
+                                   tileID.z);
+
+      m_shaderProgram->setUniformf(rs, m_uOrder, 0.f);
+
+      if (!rasterMesh()->draw(rs, *m_shaderProgram)) {
+          LOGN("Mesh built by style %s cannot be drawn", m_name.c_str());
+          styleMeshDrawn = false;
+      }
+
+      if (hasRasters()) {
+          for (auto& raster : _tile.rasters()) {
+              if (raster.isValid()) {
+                  rs.releaseTextureUnit();
+              }
           }
       }
 
-      std::string vertSrc = m_shaderSource->buildVertexSource();
-      std::string fragSrc = terrain_depth_fs;  //m_shaderSource->buildFragmentSource();
-
-      m_shaderProgram = std::make_shared<ShaderProgram>(vertSrc, fragSrc, m_vertexLayout.get());
-      m_shaderProgram->setDescription("{style:" + m_name + "}");
-
-      // Clear ShaderSource builder
-      m_shaderSource.reset();
+      return styleMeshDrawn;
   }
 };
 
@@ -212,11 +251,12 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
       m_frameBuffer = std::make_unique<FrameBuffer>(w, h, false, GL_R32UI);
       m_depthData.resize(w * h, 1.0f);
     }
-    m_frameBuffer->applyAsRenderTarget(*m_renderState);
-    // VAOs can't be shared between contexts
-    Hardware::supportsVAOs = false;
+    m_frameBuffer->applyAsRenderTarget(*m_renderState);  // this does the glClear()
+
+    // originally, we were reusing mesh from another style, but this will use the uniform location for the
+    //  other style (since SharedMesh saves Style*); also creates problems when deleting Scene if
+    //  first raster tile was drawn by offscreen worker; also, VAOs can't be shared between contexts
     m_style->draw(*m_renderState, _view, _tiles, {});
-    Hardware::supportsVAOs = true;
 
     drawFinished = true;
     workerLock.unlock();
@@ -260,7 +300,15 @@ ElevationManager::ElevationManager(std::shared_ptr<RasterSource> src, Style& sty
   }
   m_style->setID(style.getID());  // use same mesh
   m_style->setRasterType(RasterType::custom);
-  //m_style->getShaderSource().setSourceStrings(terrain_depth_fs, polygon_vs);
+}
+
+ElevationManager::~ElevationManager()
+{
+  offscreenWorker->enqueue([_style=m_style.release(), _rs=m_renderState.release(), _fb=m_frameBuffer.release()](){
+    delete _style;
+    delete _fb;
+    delete _rs;
+  });
 }
 
 } // namespace Tangram
