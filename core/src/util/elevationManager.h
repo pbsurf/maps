@@ -34,9 +34,7 @@ public:
   std::unique_ptr<FrameBuffer> m_frameBuffer;
   std::unique_ptr<RenderState> m_renderState;
 
-  //std::mutex m_workerMutex;
-
-  static AsyncWorker* offscreenWorker;
+  static std::unique_ptr<AsyncWorker> offscreenWorker;
 };
 
 }

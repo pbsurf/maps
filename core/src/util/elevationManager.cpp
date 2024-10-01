@@ -37,7 +37,7 @@ namespace Tangram {
 
 // smaller FBO greatly improves FPS
 static float bufferScale = 2;
-AsyncWorker* ElevationManager::offscreenWorker = NULL;
+std::unique_ptr<AsyncWorker> ElevationManager::offscreenWorker = NULL;
 
 class TerrainStyle : public PolygonStyle
 {
@@ -195,6 +195,11 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
   _rs.framebuffer(_rs.defaultFrameBuffer());
   */
 
+  if(!offscreenWorker) {
+    LOGE("Offscreen worker has not been created!");
+    return;
+  }
+
   std::mutex drawMutex;
   std::condition_variable drawCond;
   bool drawFinished = false;
@@ -226,6 +231,7 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
 
 float ElevationManager::getDepth(glm::vec2 screenpos)
 {
+  if(!m_frameBuffer || m_depthData.empty()) { return 0; }
   // for now, clamp to screen bounds to handle offscreen labels (extendedBounds in processLabelUpdate())
   int w = m_frameBuffer->getWidth(), h = m_frameBuffer->getHeight();
   glm::vec2 pos = glm::clamp(glm::round(screenpos/bufferScale), {0, 0}, {w-1, h-1});
