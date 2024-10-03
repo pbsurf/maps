@@ -33,8 +33,8 @@ public:
   std::unique_ptr<Style> m_style;
   std::vector<float> m_depthData;
   std::unique_ptr<FrameBuffer> m_frameBuffer;
-  std::unique_ptr<RenderState> m_renderState;
 
+  static std::unique_ptr<RenderState> m_renderState;
   static std::unique_ptr<AsyncWorker> offscreenWorker;
 };
 

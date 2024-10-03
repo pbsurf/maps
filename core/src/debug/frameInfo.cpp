@@ -5,10 +5,8 @@
 #include "gl/glError.h"
 #include "gl/primitives.h"
 #include "map.h"
-#include "tile/tileManager.h"
-#include "tile/tile.h"
+#include "scene/scene.h"
 #include "tile/tileCache.h"
-#include "view/view.h"
 
 #include <deque>
 #include <ctime>
@@ -86,7 +84,7 @@ void FrameInfo::end(const std::string& tag)
   entry.avgCpu = entry.avgCpu*(1 - alpha) + dtCpu*alpha;
 }
 
-void FrameInfo::draw(RenderState& rs, const View& _view, const TileManager& _tileManager) {
+void FrameInfo::draw(RenderState& rs, const View& _view, const Scene& _scene) {
 
     if (!getDebugFlag(DebugFlags::tangram_infos) && !getDebugFlag(DebugFlags::tangram_stats)) { return; }
 
@@ -136,6 +134,7 @@ void FrameInfo::draw(RenderState& rs, const View& _view, const TileManager& _til
         avgTimeUpdate /= 60;
     }
 
+    TileManager& _tileManager = *_scene.tileManager();
     size_t memused = 0;
     size_t features = 0;
     for (const auto& tile : _tileManager.getVisibleTiles()) {
@@ -146,8 +145,18 @@ void FrameInfo::draw(RenderState& rs, const View& _view, const TileManager& _til
     if (getDebugFlag(DebugFlags::tangram_infos)) {
         std::vector<std::string> debuginfos;
 
-        debuginfos.push_back("visible tiles:"
-                             + std::to_string(_tileManager.getVisibleTiles().size()));
+        auto& tiles = _tileManager.getVisibleTiles();
+        std::map<int, int> sourceCounts;
+        for (auto& tile : tiles) { ++sourceCounts[tile->sourceID()]; }
+
+        std::string countsStr;
+        for (auto count : sourceCounts) {
+            countsStr += " " + _tileManager.getClientTileSource(count.first)->name() + ":" + std::to_string(count.second);
+        }
+
+        debuginfos.push_back("zoom:" + std::to_string(_view.getZoom())
+                             + "; pxscale: " + std::to_string(_view.pixelScale()));
+        debuginfos.push_back("tiles:" + std::to_string(tiles.size()) + ";" + countsStr);
         debuginfos.push_back("selectable features:"
                              + std::to_string(features));
         debuginfos.push_back("tile cache size:"
@@ -164,13 +173,11 @@ void FrameInfo::draw(RenderState& rs, const View& _view, const TileManager& _til
             debuginfos.push_back("avg frame cpu time:" + to_string_with_precision(avgTimeCpu, 2) + "ms");
             debuginfos.push_back("avg frame render time:" + to_string_with_precision(avgTimeRender, 2) + "ms");
             debuginfos.push_back("avg frame update time:" + to_string_with_precision(avgTimeUpdate, 2) + "ms");
-            debuginfos.push_back("zoom:" + std::to_string(_view.getZoom()));
             debuginfos.push_back("pos:" + std::to_string(_view.getPosition().x) + "/"
                                  + std::to_string(_view.getPosition().y));
             auto center = _view.getCenterCoordinates();
             debuginfos.push_back("LngLat:" + std::to_string(center.longitude) + ", " + std::to_string(center.latitude));
             debuginfos.push_back("tilt:" + std::to_string(_view.getPitch() * 57.3) + "deg");
-            debuginfos.push_back("pixel scale:" + std::to_string(_view.pixelScale()));
         }
 
         TextDisplay::Instance().draw(rs, debuginfos);

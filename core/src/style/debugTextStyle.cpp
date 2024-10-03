@@ -26,7 +26,7 @@ private:
 };
 
 void DebugTextStyleBuilder::setup(const Tile& _tile) {
-    if (!Tangram::getDebugFlag(Tangram::DebugFlags::tile_infos)) {
+    if (!Tangram::getDebugFlag(Tangram::DebugFlags::tile_bounds)) {
         return;
     }
 
@@ -36,7 +36,7 @@ void DebugTextStyleBuilder::setup(const Tile& _tile) {
 }
 
 void DebugTextStyleBuilder::setup(const Marker& _marker, int zoom) {
-    if (!Tangram::getDebugFlag(Tangram::DebugFlags::tile_infos)) {
+    if (!Tangram::getDebugFlag(Tangram::DebugFlags::tile_bounds)) {
         return;
     }
 
@@ -46,7 +46,7 @@ void DebugTextStyleBuilder::setup(const Marker& _marker, int zoom) {
 }
 
 std::unique_ptr<StyledMesh> DebugTextStyleBuilder::build() {
-    if (!Tangram::getDebugFlag(Tangram::DebugFlags::tile_infos)) {
+    if (!Tangram::getDebugFlag(Tangram::DebugFlags::tile_bounds)) {
         return nullptr;
     }
 

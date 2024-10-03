@@ -303,42 +303,21 @@ void TileManager::updateTileSets(const View& _view) {
             tileSet.visibleTiles.clear();
         }
 
-        auto tileCb = [&, zoom = _view.getZoom()](TileID _tileID){
+        int minZoomBias = 0;
+        for (auto& tileSet : m_tileSets) {
+            minZoomBias = std::min(minZoomBias, tileSet.source->zoomBias());
+        }
+
+        auto tileCb = [&](TileID _tileID){
             for (auto& tileSet : m_tileSets) {
                 auto zoomBias = tileSet.source->zoomBias();
                 auto maxZoom = tileSet.source->maxZoom();
-
-                if (zoomBias < 0) {
-                    std::function<void(TileID, int32_t)> addChildren;
-                    addChildren = [&](TileID tid, int32_t bias){
-                        if(bias < 0) {
-                            for (int i = 0; i < 4; i++) {
-                                auto child = tid.getChild(i, maxZoom);
-                                child.s = tid.s;
-                                addChildren(child, bias+1);
-                            }
-                        } else {
-                            tileSet.visibleTiles.insert(tid);
-                        }
-                    };
-                    addChildren(_tileID, zoomBias);
-                } else {
-                    // Insert scaled and maxZoom mapped tileID in the visible set
-                    tileSet.visibleTiles.insert(_tileID.zoomBiasAdjusted(zoomBias).withMaxSourceZoom(maxZoom));
-                }
+                tileSet.visibleTiles.insert(_tileID.zoomBiasAdjusted(zoomBias - minZoomBias).withMaxSourceZoom(maxZoom));
             }
         };
 
-
-
-        //_view.getVisibleTiles2(TileID(0, 0, 0), _view.getIntegerZoom(), tileCb);
-        //for (auto& tileSet : m_tileSets) {
-        //    tileSet.visibleTiles.clear();
-        //}
-
-
-
-        _view.getVisibleTiles(tileCb);
+        //_view.getVisibleTiles(tileCb, minZoomBias);
+        _view.getVisibleTiles2(TileID(0,0,0), minZoomBias, tileCb);
     }
 
     for (auto& tileSet : m_tileSets) {

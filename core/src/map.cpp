@@ -334,7 +334,7 @@ void Map::render() {
 
     if (drawSelectionDebug) {
         impl->selectionBuffer->drawDebug(renderState, {viewport.z, viewport.w});
-        FrameInfo::draw(renderState, view, *scene.tileManager());
+        FrameInfo::draw(renderState, view, scene);
         return;
     }
 
@@ -347,7 +347,7 @@ void Map::render() {
     }
 
     scene.labelManager()->drawDebug(renderState, view);
-    FrameInfo::draw(renderState, view, *scene.tileManager());
+    FrameInfo::draw(renderState, view, scene);
 
     // if almost out of font atlas textures, reset
     if (scene.fontContext()->glyphTextureCount() > FontContext::max_textures - 2) {

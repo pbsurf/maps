@@ -5,7 +5,7 @@
 namespace Tangram {
 
 class RenderState;
-class TileManager;
+class Scene;
 class View;
 
 struct FrameInfo {
@@ -18,7 +18,7 @@ struct FrameInfo {
     static void begin(const std::string& tag);
     static void end(const std::string& tag);
 
-    static void draw(RenderState& rs, const View& _view, const TileManager& _tileManager);
+    static void draw(RenderState& rs, const View& _view, const Scene& _scene);
 
     struct scope {
         std::string tag;

@@ -560,11 +560,11 @@ Scene::UpdateState Scene::update(RenderState& _rs, const View& _view, float _dt)
 
     bool markersChanged = m_markerManager->update(_view, _dt);
 
+    m_tileManager->updateTileSets(_view);
+
     for (const auto& style : m_styles) {
         style->onBeginUpdate();
     }
-
-    m_tileManager->updateTileSets(_view);
 
     auto& tiles = m_tileManager->getVisibleTiles();
     auto& markers = m_markerManager->markers();

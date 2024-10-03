@@ -37,6 +37,7 @@ namespace Tangram {
 
 // smaller target greatly improves FPS
 static float bufferScale = 2;
+std::unique_ptr<RenderState> ElevationManager::m_renderState;
 std::unique_ptr<AsyncWorker> ElevationManager::offscreenWorker;
 
 class TerrainStyle : public RasterStyle
@@ -50,7 +51,7 @@ public:
           m_shaderProgram->vertexShaderSource(), terrain_depth_fs, vertexLayout().get());
   }
 
-  bool draw(RenderState& rs, const Tile& _tile) {
+  bool draw(RenderState& rs, const Tile& _tile) override {
 
       // need to check for mesh of cloned style to determine if we should draw tile
       auto& styleMesh = _tile.getMesh(*this);
@@ -239,6 +240,9 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
     return;
   }
 
+  if(!m_renderState)
+    m_renderState = std::make_unique<RenderState>();
+
   std::mutex drawMutex;
   std::condition_variable drawCond;
   bool drawFinished = false;
@@ -246,6 +250,7 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
 
   offscreenWorker->enqueue([&](){
     std::unique_lock<std::mutex> workerLock(drawMutex);
+    m_renderState->flushResourceDeletion();
     int w = _view.getWidth()/bufferScale, h = _view.getHeight()/bufferScale;
     if (!m_frameBuffer || m_frameBuffer->getWidth() != w || m_frameBuffer->getHeight() != h) {
       m_frameBuffer = std::make_unique<FrameBuffer>(w, h, false, GL_R32UI);
@@ -289,7 +294,7 @@ ElevationManager::ElevationManager(std::shared_ptr<RasterSource> src, Style& sty
 {
   m_elevationSource->m_keepTextureData = true;
 
-  m_renderState = std::make_unique<RenderState>();
+  //m_renderState = std::make_unique<RenderState>();
 
   // default blending mode is opaque, as desired
   m_style = std::make_unique<TerrainStyle>("__terrain");
@@ -304,10 +309,10 @@ ElevationManager::ElevationManager(std::shared_ptr<RasterSource> src, Style& sty
 
 ElevationManager::~ElevationManager()
 {
-  offscreenWorker->enqueue([_style=m_style.release(), _rs=m_renderState.release(), _fb=m_frameBuffer.release()](){
+  offscreenWorker->enqueue([_style=m_style.release(), _fb=m_frameBuffer.release()](){
     delete _style;
     delete _fb;
-    delete _rs;
+    //delete _rs;
   });
 }
 

@@ -226,7 +226,7 @@ public:
     float horizonScreenPosition();
 
     // Get the set of all tiles visible at the current position and zoom.
-    void getVisibleTiles(const std::function<void(TileID)>& _tileCb) const;
+    void getVisibleTiles(const std::function<void(TileID)>& _tileCb, int zoomBias) const;
 
     // Returns true if the view properties have changed since the last call to update().
     bool changedOnLastUpdate() const { return m_changed; }
@@ -239,9 +239,9 @@ public:
     static float focalLengthToFieldOfView(float length);
     static float fieldOfViewToFocalLength(float radians);
 
-    glm::vec4 tileCoordsToClipSpace(TileCoordinates tc) const;
+    glm::vec4 tileCoordsToClipSpace(TileCoordinates tc, float elevation = 0.f) const;
     glm::vec2 tileCoordsToScreenPosition(TileCoordinates tc, bool& behindCamera) const;
-    void getVisibleTiles2(TileID tile, int maxZoom, const std::function<void(TileID)>& _tileCb) const;
+    void getVisibleTiles2(TileID tile, int zoomBias, const std::function<void(TileID)>& _tileCb) const;
 
     // set elevation (camera height will be prevented from going below this value)
     //void setElevation(float ele);

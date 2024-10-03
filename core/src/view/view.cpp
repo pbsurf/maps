@@ -9,6 +9,9 @@
 #include "glm/gtx/rotate_vector.hpp"
 #include <cmath>
 
+#include "debug/frameInfo.h"
+#include <set>
+
 #define MAX_LOD 6
 
 namespace Tangram {
@@ -610,7 +613,7 @@ float View::horizonScreenPosition() {
     return screenPosition.y;
 }
 
-void View::getVisibleTiles(const std::function<void(TileID)>& _tileCb) const {
+/*void View::getVisibleTiles(const std::function<void(TileID)>& _tileCb) const {
 
     int zoom = getIntegerZoom();
     int maxTileIndex = 1 << zoom;
@@ -687,7 +690,10 @@ void View::getVisibleTiles(const std::function<void(TileID)>& _tileCb) const {
         }
     }
 
-    Rasterize::ScanCallback s = [&opt, &_tileCb](int x, int y) {
+    int ntiles = 0;
+    float totalarea = 0;
+    std::set<TileID> vistiles;
+    Rasterize::ScanCallback s = [&opt, &_tileCb, &totalarea, &ntiles, &vistiles, this](int x, int y) {
 
         int lod = 0;
         while (lod < MAX_LOD && x >= opt.x_limit_pos[lod]) { lod++; }
@@ -708,32 +714,144 @@ void View::getVisibleTiles(const std::function<void(TileID)>& _tileCb) const {
         if (tile != opt.last) {
             opt.last = tile;
 
-            //~TileCoordinates tc = {double(tile.x), double(tile.y), tile.z};
-            //~bool behind00, behind01, behind10, behind11;
-            //~auto r00 = tileCoordinatesToScreenPosition(tc, behind00);
-            //~auto r01 = tileCoordinatesToScreenPosition({tc.x, tc.y + 1, tc.z}, behind01);
-            //~auto r10 = tileCoordinatesToScreenPosition({tc.x + 1, tc.y, tc.z}, behind10);
-            //~auto r11 = tileCoordinatesToScreenPosition({tc.x + 1, tc.y + 1, tc.z}, behind11);
-            //~auto dr01 = r01 - r00;
-            //~auto dr10 = r10 - r00;
-            //~// note that w/ perspective projection, this is not just 0.25 * parent area
-            //~float area = std::abs(dr01.x*dr10.y - dr01.y*dr10.x);
-            //~LOGW("Tile %d/%d/%d screen area: %f^2", tile.z, tile.x, tile.y, std::sqrt(area));
-            //LOGW("Tile %s", TileID(tile.x, tile.y, tile.z, tile.z).toString().c_str());
-
             _tileCb(TileID(tile.x, tile.y, tile.z, tile.z));
+
+            TileID tid(tile.x, tile.y, tile.z, tile.z);
+            auto res = vistiles.insert(tid);
+            if(!res.second) return;
+
+            TileCoordinates tc = {double(tile.x), double(tile.y), tile.z};
+            bool behind00, behind01, behind10, behind11;
+            auto r00 = tileCoordsToScreenPosition(tc, behind00);
+            auto r01 = tileCoordsToScreenPosition({tc.x, tc.y + 1, tc.z}, behind01);
+            auto r10 = tileCoordsToScreenPosition({tc.x + 1, tc.y, tc.z}, behind10);
+            auto r11 = tileCoordsToScreenPosition({tc.x + 1, tc.y + 1, tc.z}, behind11);
+
+            bool clipped = (r00.x < 0 || r01.x < 0 || r10.x < 0 || r11.x < 0)
+                || (r00.y < 0 || r01.y < 0 || r10.y < 0 || r11.y < 0)
+                || (r00.x > m_vpWidth || r01.x > m_vpWidth || r10.x > m_vpWidth || r11.x > m_vpWidth)
+                || (r00.y > m_vpHeight || r01.y > m_vpHeight || r10.y > m_vpHeight || r11.y > m_vpHeight);
+
+            auto dr01 = r01 - r00;
+            auto dr10 = r10 - r00;
+            // note that w/ perspective projection, this is not just 0.25 * parent area
+            float area = std::abs(dr01.x*dr10.y - dr01.y*dr10.x);
+            totalarea += area;
+            ++ntiles;
+            LOGW("%03d Tile %s screen area: %f^2%s", ntiles, tid.toString().c_str(), std::sqrt(area), clipped ? " (clipped)" : "");
         }
     };
 
-    //~LOGW("\n\n\n ********* START VISIBLE TILES *********");
+    LOGW("\n\n\n********* START VISIBLE TILES *********");
     // Rasterize view trapezoid into tiles
     Rasterize::scanTriangle(a, b, c, 0, maxTileIndex, s);
     Rasterize::scanTriangle(c, d, a, 0, maxTileIndex, s);
 
-    //~LOGW("*** Tiles under eye ***");
+    LOGW("### END VISIBLE TILES (total area %f) ###\n\n", totalarea);
     // Rasterize the area bounded by the point under the view center and the two nearest corners
     // of the view trapezoid. This is necessary to not cull any geometry with height in these tiles
     // (which should remain visible, even though the base of the tile is not).
+    Rasterize::scanTriangle(a, b, e, 0, maxTileIndex, s);
+}*/
+
+void View::getVisibleTiles(const std::function<void(TileID)>& _tileCb, int zoomBias) const {
+
+    FrameInfo::scope _trace("getVisibleTiles");
+
+    int zoom = getIntegerZoom() - zoomBias;
+    int maxTileIndex = 1 << zoom;
+
+    // Bounds of view trapezoid in world space (i.e. view frustum projected onto z = 0 plane)
+    glm::dvec2 viewBL = { 0.f,       m_vpHeight }; // bottom left
+    glm::dvec2 viewBR = { m_vpWidth, m_vpHeight }; // bottom right
+    glm::dvec2 viewTR = { m_vpWidth, 0.f        }; // top right
+    glm::dvec2 viewTL = { 0.f,       0.f        }; // top left
+
+    double t0 = screenToGroundPlaneInternal(viewBL.x, viewBL.y);
+    double t1 = screenToGroundPlaneInternal(viewBR.x, viewBR.y);
+    double t2 = screenToGroundPlaneInternal(viewTR.x, viewTR.y);
+    double t3 = screenToGroundPlaneInternal(viewTL.x, viewTL.y);
+
+    // if all of our raycasts have a negative intersection distance, we have no area to cover
+    if (t0 < .0 && t1 < 0. && t2 < 0. && t3 < 0.) {
+        return;
+    }
+
+    // Transformation from world space to tile space
+    double hc = MapProjection::EARTH_HALF_CIRCUMFERENCE_METERS;
+    double invTileSize = double(maxTileIndex) / MapProjection::EARTH_CIRCUMFERENCE_METERS;
+    glm::dvec2 tileSpaceOrigin(-hc, hc);
+    glm::dvec2 tileSpaceAxes(invTileSize, -invTileSize);
+
+    // Bounds of view trapezoid in tile space
+    glm::dvec2 xypos = glm::dvec2(m_pos) - tileSpaceOrigin;
+    glm::dvec2 a = (viewBL + xypos) * tileSpaceAxes;
+    glm::dvec2 b = (viewBR + xypos) * tileSpaceAxes;
+    glm::dvec2 c = (viewTR + xypos) * tileSpaceAxes;
+    glm::dvec2 d = (viewTL + xypos) * tileSpaceAxes;
+
+    // Location of the view center in tile space
+    glm::dvec2 e = (glm::dvec2(m_eye) + xypos) * tileSpaceAxes;
+
+    float maxEdge = 2 * m_pixelScale * MapProjection::tileSize() * std::exp2(zoomBias);
+    float maxArea = maxEdge*maxEdge;
+    float minZoom = m_pitch > 0 ? zoom - MAX_LOD : zoom;
+
+    std::set<TileID> visibleTiles;
+    Rasterize::ScanCallback s = [&](int x, int y) {
+
+        TileID tile(x, y, zoom);
+        // see if tile or ancestor already added before calculating any areas
+        int minVisZoom = visibleTiles.empty() ? zoom+1 : visibleTiles.rbegin()->z;
+        for (TileID t = tile; t.z >= minVisZoom; t = t.getParent()) {
+            if(visibleTiles.find(t) != visibleTiles.end()) return;
+        }
+
+        while (tile.z > minZoom) {
+            TileID parent = tile.getParent();
+            // if sibiling already added, cannot add parent
+            for (int ii = 0; ii < 4; ++ii) {
+                if(visibleTiles.find(parent.getChild(ii, tile.z)) != visibleTiles.end()) break;
+            }
+
+            TileCoordinates tc = {double(parent.x), double(parent.y), parent.z};
+            bool behind00, behind01, behind10, behind11;
+            auto r00 = tileCoordsToScreenPosition(tc, behind00);
+            auto r01 = tileCoordsToScreenPosition({tc.x, tc.y + 1, tc.z}, behind01);
+            auto r10 = tileCoordsToScreenPosition({tc.x + 1, tc.y, tc.z}, behind10);
+            //auto r11 = tileCoordsToScreenPosition({tc.x + 1, tc.y + 1, tc.z}, behind11);
+            auto dr01 = r01 - r00, dr10 = r10 - r00;
+            float area = std::abs(dr01.x*dr10.y - dr01.y*dr10.x);
+            if(area > maxArea) break;
+            tile = parent;
+        }
+
+        visibleTiles.insert(tile);
+
+        _tileCb(tile);
+
+        TileCoordinates tc = {double(tile.x), double(tile.y), tile.z};
+        bool behind00, behind01, behind10, behind11;
+        auto r00 = tileCoordsToScreenPosition(tc, behind00);
+        auto r01 = tileCoordsToScreenPosition({tc.x, tc.y + 1, tc.z}, behind01);
+        auto r10 = tileCoordsToScreenPosition({tc.x + 1, tc.y, tc.z}, behind10);
+        //auto r11 = tileCoordsToScreenPosition({tc.x + 1, tc.y + 1, tc.z}, behind11);
+        auto dr01 = r01 - r00, dr10 = r10 - r00;
+        float area = std::abs(dr01.x*dr10.y - dr01.y*dr10.x);
+
+        LOGW("%03d Tile %s screen area: %f^2", visibleTiles.size(), tile.toString().c_str(), std::sqrt(area));
+    };
+
+    // Rasterize view trapezoid into tiles
+    LOGW("***BEGIN TILES***");
+    Rasterize::scanTriangle(a, b, c, 0, maxTileIndex, s);
+    Rasterize::scanTriangle(c, d, a, 0, maxTileIndex, s);
+
+    // Rasterize the area bounded by the point under the view center and the two nearest corners
+    // of the view trapezoid. This is necessary to not cull any geometry with height in these tiles
+    // (which should remain visible, even though the base of the tile is not).
+    LOGW("### Offscreen ###");
+    minZoom = zoom;
     Rasterize::scanTriangle(a, b, e, 0, maxTileIndex, s);
 }
 
@@ -751,22 +869,29 @@ glm::vec2 View::tileCoordsToScreenPosition(TileCoordinates tc, bool& behindCamer
     return ndcToScreenSpace(ndc, glm::vec2(m_vpWidth, m_vpHeight));
 }
 
-glm::vec4 View::tileCoordsToClipSpace(TileCoordinates tc) const
+glm::vec4 View::tileCoordsToClipSpace(TileCoordinates tc, float elevation) const
 {
     glm::dvec2 absoluteMeters = MapProjection::tileCoordinatesToProjectedMeters(tc);
     glm::dvec2 relativeMeters = absoluteMeters - glm::dvec2(m_pos);  //getRelativeMeters(absoluteMeters);
-    return worldToClipSpace(m_viewProj, glm::vec4(relativeMeters, 0.0, 1.0));
+    return worldToClipSpace(m_viewProj, glm::vec4(relativeMeters, elevation, 1.0));
 }
 
-void View::getVisibleTiles2(TileID tile, int maxZoom, const std::function<void(TileID)>& _tileCb) const
+void View::getVisibleTiles2(TileID tile, int zoomBias, const std::function<void(TileID)>& _tileCb) const
 {
-    if(tile.z == 0)
-      LOGW("\n\n\n*** getVisibleTiles2 ***");
+    if(tile.z == 0) {
+      FrameInfo::begin("getVisibleTiles2");  //LOGW("\n\n\n*** getVisibleTiles2 ***");
+    }
+
+    glm::dvec3 eye(m_pos.x + m_eye.x, m_pos.y + m_eye.y, m_eye.z);
+    double dist = glm::distance(eye, glm::dvec3(MapProjection::tileCenter(tile), 0.));
+    //auto bounds = MapProjection::tileBounds(tile);
+    //if(dist - std::abs(bounds.max.x - bounds.min.x)/M_SQRT2 > maxTileDistance) { return; } ... only covers ~30% of tiles
+    float elev = m_pitch != 0 && (dist < m_pos.z) ? m_eye.z : 0;
 
     TileCoordinates tc = {double(tile.x), double(tile.y), tile.z};
     auto c00 = tileCoordsToClipSpace(tc);
-    auto c01 = tileCoordsToClipSpace({tc.x, tc.y + 1, tc.z});
-    auto c10 = tileCoordsToClipSpace({tc.x + 1, tc.y, tc.z});
+    auto c01 = tileCoordsToClipSpace({tc.x, tc.y + 1, tc.z}, elev);
+    auto c10 = tileCoordsToClipSpace({tc.x + 1, tc.y, tc.z}, elev);
     auto c11 = tileCoordsToClipSpace({tc.x + 1, tc.y + 1, tc.z});
 
     float w00 = std::abs(c00.w), w01 = std::abs(c01.w), w10 = std::abs(c10.w), w11 = std::abs(c11.w);
@@ -777,9 +902,17 @@ void View::getVisibleTiles2(TileID tile, int maxZoom, const std::function<void(T
     if(c00.z < 0 && c01.z < 0 && c10.z < 0 && c11.z < 0) return;
     if(c00.z > w00 && c01.z > w01 && c10.z > w10 && c11.z > w11) return;
 
-    float maxArea = 2*MapProjection::tileSize()*MapProjection::tileSize();
+    // recalc at zero elevation
+    if(elev > 0) {
+        c01 = tileCoordsToClipSpace({tc.x, tc.y + 1, tc.z});
+        c10 = tileCoordsToClipSpace({tc.x + 1, tc.y, tc.z});
+    }
+
+    float maxZoom = getIntegerZoom() - zoomBias;
+    float maxEdge = 2 * m_pixelScale * float(MapProjection::tileSize()) * std::exp2(float(zoomBias));
+    float maxArea = maxEdge*maxEdge;
     float area = std::numeric_limits<float>::max();
-    if(c00.w > 0 && c01.w > 0 && c10.w > 0 && c11.w > 0) {
+    if(m_pitch != 0 && c00.w > 0 && c01.w > 0 && c10.w > 0 && c11.w > 0) {
       glm::vec2 screenSize(m_vpWidth, m_vpHeight);
       auto r00 = ndcToScreenSpace(clipSpaceToNdc(c00), screenSize);
       auto r01 = ndcToScreenSpace(clipSpaceToNdc(c01), screenSize);
@@ -790,12 +923,16 @@ void View::getVisibleTiles2(TileID tile, int maxZoom, const std::function<void(T
     }
     if(tile.z < maxZoom && area > maxArea) {
         for (int i = 0; i < 4; i++) {
-            getVisibleTiles2(tile.getChild(i, maxZoom), maxZoom, _tileCb);
+            getVisibleTiles2(tile.getChild(i, maxZoom), zoomBias, _tileCb);
         }
     }
     else {
-        LOGW("Tile %s area: %g", tile.toString().c_str(), area);
+        //LOGW("Tile %s area: %g", tile.toString().c_str(), area);
         _tileCb(tile);
+    }
+
+    if(tile.z == 0) {
+      FrameInfo::end("getVisibleTiles2");
     }
 }
 
