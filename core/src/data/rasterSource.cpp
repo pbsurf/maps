@@ -17,8 +17,6 @@ public:
     std::unique_ptr<Texture> texture;
     std::unique_ptr<Raster> raster;
 
-    std::shared_ptr<RasterTileTask> masterTask;
-
     RasterTileTask(const TileID& _tileId, std::shared_ptr<TileSource> _source, bool _subTask)
         : BinaryTileTask(_tileId, _source),
           subTask(_subTask) {}
@@ -36,8 +34,6 @@ public:
     bool isReady() const override {
         if (!subTask) {
             return bool(m_tile);
-        } else if (masterTask) {
-            return bool(masterTask->texture) || bool(masterTask->raster);  //masterTask->isReady();
         } else {
             return bool(texture) || bool(raster);
         }
@@ -88,18 +84,8 @@ public:
             if (source) {
                 _mainTask.tile()->rasters().emplace_back(tileId(), source->m_emptyTexture);
             }
-        } else if (masterTask) {
-            masterTask->addRaster(*_mainTask.tile());
         } else {
             addRaster(*_mainTask.tile());
-        }
-    }
-
-    void setMasterTask(std::shared_ptr<TileTask> master) override {
-        auto source = master->source();
-        if (source && source->isRaster()) {
-            masterTask = std::static_pointer_cast<RasterTileTask>(master);
-            startedLoading();
         }
     }
 };

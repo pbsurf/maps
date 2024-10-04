@@ -226,7 +226,7 @@ public:
     float horizonScreenPosition();
 
     // Get the set of all tiles visible at the current position and zoom.
-    void getVisibleTiles(const std::function<void(TileID)>& _tileCb, int zoomBias) const;
+    void getVisibleTiles(const std::function<void(TileID)>& _tileCb, int zoomBias, TileID tile = TileID(0,0,0)) const;
 
     // Returns true if the view properties have changed since the last call to update().
     bool changedOnLastUpdate() const { return m_changed; }
@@ -239,10 +239,6 @@ public:
     static float focalLengthToFieldOfView(float length);
     static float fieldOfViewToFocalLength(float radians);
 
-    glm::vec4 tileCoordsToClipSpace(TileCoordinates tc, float elevation = 0.f) const;
-    glm::vec2 tileCoordsToScreenPosition(TileCoordinates tc, bool& behindCamera) const;
-    void getVisibleTiles2(const std::function<void(TileID)>& _tileCb, int zoomBias, TileID tile = TileID(0,0,0)) const;
-
     // set elevation (camera height will be prevented from going below this value)
     //void setElevation(float ele);
     ElevationManager* m_elevationManager = nullptr;
@@ -254,6 +250,8 @@ protected:
     void applyWorldBounds();
 
     double screenToGroundPlaneInternal(double& _screenX, double& _screenY) const;
+
+    glm::vec4 tileCoordsToClipSpace(TileCoordinates tc, float elevation = 0.f) const;
 
     std::shared_ptr<Stops> m_fovStops;
     std::shared_ptr<Stops> m_maxPitchStops;

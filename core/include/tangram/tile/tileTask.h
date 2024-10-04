@@ -74,10 +74,6 @@ public:
     // onDone for sub-tasks
     virtual void complete(TileTask& _mainTask) {}
 
-    int rawSource = 0;
-
-    int offlineId = 0;
-
     bool needsLoading() const { return m_needsLoading; }
 
     // Set whether DataSource should (re)try loading data
@@ -87,7 +83,9 @@ public:
 
     void startedLoading() { m_needsLoading = false; }
 
-    virtual void setMasterTask(std::shared_ptr<TileTask>) {}
+    int rawSource = 0;
+    int offlineId = 0;
+    int shareCount = 0;
 
 protected:
 

@@ -77,6 +77,10 @@ struct TileManager::TileEntry {
             }
 
             task->complete();
+            --task->shareCount;
+            for (auto& subtask : task->subTasks()) {
+              --subtask->shareCount;
+            }
             tile = task->getTile();
             task.reset();
 
@@ -88,11 +92,14 @@ struct TileManager::TileEntry {
     void clearTask() {
         if (task) {
             for (auto& subtask : task->subTasks()) {
-                subtask->cancel();
+                if(--subtask->shareCount <= 0) {
+                    subtask->cancel();
+                }
             }
             task->subTasks().clear();
-            task->cancel();
-
+            if(--task->shareCount <= 0) {
+                task->cancel();
+            }
             task.reset();
         }
     }
@@ -280,8 +287,7 @@ void TileManager::updateTileSets(const View& _view) {
             }
         };
 
-        //_view.getVisibleTiles(tileCb, minZoomBias);
-        _view.getVisibleTiles2(tileCb, minZoomBias);
+        _view.getVisibleTiles(tileCb, minZoomBias);
     }
 
     for (auto& tileSet : m_tileSets) {
@@ -295,6 +301,7 @@ void TileManager::updateTileSets(const View& _view) {
         auto it = tileSet.tiles.begin();
         while (it != tileSet.tiles.end()) {
             if (!it->second.task || it->second.task->isReady() || it->second.task->isCanceled()) {
+                it->second.task.reset();  // avoid call to clearTask() in ~TileEntry()
                 it = tileSet.tiles.erase(it);
             } else {
                 ++it;
@@ -535,18 +542,16 @@ void TileManager::loadTiles() {
         auto tileIt = tileSet->tiles.find(loadTask.tileID);
         auto tileTask = tileIt->second.task;
 
-        for (auto subtask : tileTask->subTasks()) {
+        for (auto& subtask : tileTask->subTasks()) {
             // needsLoading() will be false if, e.g., texture was already cached by RasterSource
-            if (!subtask->needsLoading()) { continue; }
+            if (!subtask->needsLoading()) { ++subtask->shareCount; continue; }
             TileSet* ts = findTileSet(subtask->sourceId());
             if (!ts) { continue; }  // should never happen
 
             auto it = ts->tiles.find(subtask->tileId());
             if (it != ts->tiles.end()) {
                 if (it->second.task && !it->second.task->isReady() && !it->second.task->isCanceled()) {
-                    subtask->setMasterTask(it->second.task);
-                //} else {
-                //    LOGW("Tile found in aux tile set, but no task or task is ready!");
+                    subtask = it->second.task;
                 }
             } else if (!ts->source->generateGeometry()) {
                 // add to aux tile set - this will be the master task for any subsequent duplicates
@@ -556,16 +561,15 @@ void TileManager::loadTiles() {
                     res.first->second.task = subtask;
                 }
             }
+            // shareCount > 1 prevents tile cancelation (shareCount decremented by cancel and complete)
+            ++subtask->shareCount;
         }
+        ++tileTask->shareCount;
 
         tileSet->source->loadTileData(tileTask, m_dataCallback);
 
         LOGTO("Load Tile: %s %s", tileSet->source->name().c_str(), loadTask.tileID.toString().c_str());
     }
-
-    // DBG("loading:%d cache: %fMB",
-    //     m_loadTasks.size(),
-    //     (double(m_tileCache->getMemoryUsage()) / (1024 * 1024)));
 
     m_loadTasks.clear();
 }

@@ -107,7 +107,7 @@ std::shared_ptr<TileData> TileSource::parse(const TileTask& _task) const {
 
 void TileSource::cancelLoadingTile(TileTask& _task) {
 
-    if (m_sources) { m_sources->cancelLoadingTile(_task); }
+    if (m_sources && _task.shareCount <= 1) { m_sources->cancelLoadingTile(_task); }
 
     for (auto& subTask : _task.subTasks()) {
         subTask->source()->cancelLoadingTile(*subTask);
