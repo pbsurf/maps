@@ -1,11 +1,13 @@
 #include "debug/textDisplay.h"
 
 #include "platform.h"
+#include "view/view.h"
 #include "gl/glError.h"
 #include "gl/vertexLayout.h"
 #include "gl/renderState.h"
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
+#include "glm/gtx/transform.hpp"
 #include <cstdarg>
 
 #define STB_EASY_FONT_IMPLEMENTATION
@@ -15,7 +17,7 @@ namespace Tangram {
 
 static VertexLayout vertexLayout({{"a_position", 2, GL_FLOAT, false, 0}});
 
-TextDisplay::TextDisplay() : m_textDisplayResolution(350.0), m_initialized(false) {
+TextDisplay::TextDisplay() : m_margins(0.f), m_initialized(false) {
     m_vertexBuffer = new char[VERTEX_BUFFER_SIZE];
 }
 
@@ -31,9 +33,6 @@ void TextDisplay::init() {
     std::string vertShaderSrcStr = R"END(
         #ifdef GL_ES
         precision mediump float;
-        #define LOWP lowp
-        #else
-        #define LOWP
         #endif
         uniform mat4 u_orthoProj;
         attribute vec2 a_position;
@@ -44,9 +43,6 @@ void TextDisplay::init() {
     std::string fragShaderSrcStr = R"END(
         #ifdef GL_ES
         precision mediump float;
-        #define LOWP lowp
-        #else
-        #define LOWP
         #endif
         uniform vec3 u_color;
         void main(void) {
@@ -66,30 +62,10 @@ void TextDisplay::deinit() {
 
 }
 
-void TextDisplay::log(const char* fmt, ...) {
-    //static char text[99999];
-    static std::vector<char> text(256);
-
-    va_list args;
-    va_start(args, fmt);
-    int needed = vsnprintf(text.data(), text.size(), fmt, args);
-    va_end(args);
-    if(needed > int(text.size())) {
-      text.resize(needed);
-      va_start(args, fmt);
-      vsnprintf(text.data(), text.size(), fmt, args);
-      va_end(args);
-    }
-
-    {
-        std::lock_guard<std::mutex> lock(m_mutex);
-
-        for (int i = LOG_CAPACITY - 1; i >= 1; i--) {
-            m_log[i] = m_log[i - 1];
-        }
-
-        m_log[0] = std::string(text.data());
-    }
+void TextDisplay::log(std::string msg) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    while(m_log.size() >= LOG_CAPACITY) { m_log.pop_front(); }
+    m_log.push_back(msg);
 }
 
 void TextDisplay::draw(RenderState& rs, const std::string& _text, int _posx, int _posy) {
@@ -114,7 +90,7 @@ void TextDisplay::draw(RenderState& rs, const std::string& _text, int _posx, int
     GL::drawArrays(GL_TRIANGLES, 0, nquads * 6);
 }
 
-void TextDisplay::draw(RenderState& rs, const std::vector<std::string>& _infos) {
+void TextDisplay::draw(RenderState& rs, const View& _view, const std::vector<std::string>& _infos) {
     GLint boundbuffer = -1;
 
     if (!m_shader->use(rs)) { return; }
@@ -127,22 +103,30 @@ void TextDisplay::draw(RenderState& rs, const std::vector<std::string>& _infos) 
     GL::getIntegerv(GL_ARRAY_BUFFER_BINDING, &boundbuffer);
     rs.vertexBuffer(0);
 
-    glm::mat4 orthoProj = glm::ortho(0.f, (float)m_textDisplayResolution.x, (float)m_textDisplayResolution.y, 0.f, -1.f, 1.f);
-    m_shader->setUniformMatrix4f(rs, m_uOrthoProj, orthoProj);
+    constexpr float textScale = 2.0f;
+    glm::vec4 margins = m_margins/textScale;
+    float width = _view.getWidth()/_view.pixelScale()/textScale;
+    float height = _view.getHeight()/_view.pixelScale()/textScale;
+    glm::mat4 mvp(2/width, 0.f, 0.f, 0.f,
+                  0.f, -2/height, 0.f, 0.f,
+                  0.f, 0.f, 1.f, 0.f,
+                  -1.f, 1.f, 0.f, 1.f);
+    m_shader->setUniformMatrix4f(rs, m_uOrthoProj, mvp);
 
     // Display Tangram info messages
     m_shader->setUniformf(rs, m_uColor, 0.f, 0.f, 0.f);
-    int offset = 0;
+    int offset = margins[0];
     for (auto& text : _infos) {
-        draw(rs, text, 3, 3 + offset);
+        draw(rs, text, margins[3] + 3, 3 + offset);
         offset += 10;
     }
 
     // Display screen log
-    offset = 0;
-    m_shader->setUniformf(rs, m_uColor, 51 / 255.f, 73 / 255.f, 120 / 255.f);
-    for (int i = 0; i < LOG_CAPACITY; ++i) {
-        draw(rs, m_log[i], 3, m_textDisplayResolution.y - 10 + offset);
+    offset = height - margins[2] - 10;
+    m_shader->setUniformf(rs, m_uColor, 1.f, 0.f, 0.f);
+    //m_shader->setUniformf(rs, m_uColor, 51 / 255.f, 73 / 255.f, 120 / 255.f);
+    for (auto& str : m_log) {
+        draw(rs, str, margins[3] + 3, offset);
         offset -= 10;
     }
 
@@ -151,5 +135,3 @@ void TextDisplay::draw(RenderState& rs, const std::vector<std::string>& _infos) 
 }
 
 }
-
-

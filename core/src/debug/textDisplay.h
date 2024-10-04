@@ -4,7 +4,9 @@
 #include "gl/mesh.h"
 #include "gl/shaderProgram.h"
 #include "glm/vec2.hpp"
+#include "util/util.h"
 #include <string>
+#include <deque>
 #include <vector>
 #include <mutex>
 #include <cstdio>
@@ -19,13 +21,6 @@ namespace Tangram {
 typedef int FontID;
 class RenderState;
 
-template <typename T>
-std::string to_string_with_precision(const T a_value, const int n = 6) {
-    std::ostringstream out;
-    out << std::fixed << std::setprecision(n) << a_value;
-    return out.str();
-}
-
 class TextDisplay {
 
 public:
@@ -38,16 +33,16 @@ public:
 
     ~TextDisplay();
 
-    void setResolution(glm::vec2 _textDisplayResolution) { m_textDisplayResolution = _textDisplayResolution; }
+    void setMargins(glm::vec4 _margins) { m_margins = _margins; }  // TRBL
 
     void init();
     void deinit();
 
     /* Draw stacked messages added through log and draw _infos string list */
-    void draw(RenderState& rs, const std::vector<std::string>& _infos);
+    void draw(RenderState& rs, const View& _view, const std::vector<std::string>& _infos);
 
     /* Stack the log message to be displayed in the screen log */
-    void log(const char* fmt, ...);
+    void log(std::string s);  //const char* fmt, ...);
 
 private:
 
@@ -55,10 +50,10 @@ private:
 
     void draw(RenderState& rs, const std::string& _text, int _posx, int _posy);
 
-    glm::vec2 m_textDisplayResolution;
+    glm::vec4 m_margins;  //glm::vec2 m_textDisplayResolution;
     bool m_initialized;
     std::unique_ptr<ShaderProgram> m_shader;
-    std::string m_log[LOG_CAPACITY];
+    std::deque<std::string> m_log;
     std::mutex m_mutex;
     char* m_vertexBuffer = nullptr;
 
@@ -68,6 +63,6 @@ private:
 };
 
 #define LOGS(fmt, ...) \
-do { Tangram::TextDisplay::Instance().log(fmt, ## __VA_ARGS__); } while(0)
+do { Tangram::TextDisplay::Instance().log(fstring(fmt, ## __VA_ARGS__)); } while(0)
 
 }

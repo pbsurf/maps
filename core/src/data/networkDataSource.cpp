@@ -3,6 +3,7 @@
 #include "log.h"
 #include "platform.h"
 #include "util/mapProjection.h"
+#include "util/util.h"
 
 namespace Tangram {
 
@@ -75,10 +76,9 @@ std::string NetworkDataSource::buildUrlForTile(const TileID& tile, const std::st
         auto bbox = MapProjection::tileBounds(tile);
         LngLat llmin = MapProjection::projectedMetersToLngLat(bbox.min);
         LngLat llmax = MapProjection::projectedMetersToLngLat(bbox.max);
-        char buff[64];
-        snprintf(buff, sizeof(buff), "%.8f,%.8f,%.8f,%.8f",
+        std::string bboxstr = fstring("%.8f,%.8f,%.8f,%.8f",
                  llmin.longitude, llmin.latitude, llmax.longitude, llmax.latitude);
-        url.replace(bbPos, 6, buff);
+        url.replace(bbPos, 6, bboxstr);
     }
 
     return url;

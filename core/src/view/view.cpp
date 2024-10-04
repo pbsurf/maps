@@ -879,7 +879,7 @@ glm::vec4 View::tileCoordsToClipSpace(TileCoordinates tc, float elevation) const
 // Proper way to get visible tiles in 3D is to create 3D AABB for tile using min and max elevation and
 //  intersect it with frustum in world space ("frustum culling").  Since eye always looks down, we can use
 //  eye elevation instead of actual (max) elevation at the cost of a few false positives underneath eye.
-// For now, we project to clip space and cull there instead.
+// ... but for now, we project to clip space and cull there instead
 // Tangram originally "rasterized" trapezoid corresponding to screen in tile space plus triangle from eye to
 //  screen bottom with fixed LOD ranges; attempted to combine with screen area based LOD calc, but was much
 //  slower than recursive approach - see 3 Oct 2024 rev
@@ -892,7 +892,7 @@ void View::getVisibleTiles2(const std::function<void(TileID)>& _tileCb, int zoom
     //auto bounds = MapProjection::tileBounds(tile);
     //if(dist - std::abs(bounds.max.x - bounds.min.x)/M_SQRT2 > maxTileDistance) { return; } ... only covers ~30% of tiles
     // elevate tiles near camera to ensure tiles under camera get included
-    float elev = m_pitch != 0 && (dist < m_pos.z) ? std::min(3000.f, m_eye.z) : 0;  // Mt. Everest
+    float elev = m_pitch != 0 && (dist < m_pos.z) ? std::min(9000.f, m_eye.z) : 0;  // Mt. Everest
 
     TileCoordinates tc = {double(tile.x), double(tile.y), tile.z};
     auto c00 = tileCoordsToClipSpace(tc);

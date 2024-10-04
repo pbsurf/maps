@@ -30,4 +30,6 @@ inline bool tryFind(M& map, const std::string& key, T& out) {
     return false;
 }
 
+std::string fstring(const char* fmt, ...);
+
 }

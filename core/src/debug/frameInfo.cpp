@@ -154,33 +154,31 @@ void FrameInfo::draw(RenderState& rs, const View& _view, const Scene& _scene) {
             countsStr += " " + _tileManager.getClientTileSource(count.first)->name() + ":" + std::to_string(count.second);
         }
 
-        debuginfos.push_back("zoom:" + std::to_string(_view.getZoom())
-                             + "; pxscale: " + std::to_string(_view.pixelScale()));
-        debuginfos.push_back("tiles:" + std::to_string(tiles.size()) + ";" + countsStr);
-        debuginfos.push_back("selectable features:"
-                             + std::to_string(features));
-        debuginfos.push_back("tile cache:" + std::to_string(_tileManager.getTileCache()->getNumEntries()) + " ("
-                             + std::to_string(_tileManager.getTileCache()->getMemoryUsage() / 1024) + "KB)");
-        debuginfos.push_back("tile size:" + std::to_string(memused / 1024) + "kb");
+        debuginfos.push_back(fstring("zoom:%.3f (d:%.0f, h:%.0f); pxscale:%.2f",
+            _view.getZoom(), _view.getPosition().z, _view.getEye().z, _view.pixelScale()));
+        debuginfos.push_back(fstring("tiles:%d;", tiles.size()) + countsStr);
+        debuginfos.push_back(fstring("selectable features:%d", features));
+        debuginfos.push_back(fstring("tile cache:%d (%dKB)", _tileManager.getTileCache()->getNumEntries(),
+                                     _tileManager.getTileCache()->getMemoryUsage() / 1024));
+        debuginfos.push_back(fstring("tile size:%dKB", memused / 1024));
 
         if(!profInfos.empty()) {
             end("_Frame");
             for(auto& entry : profInfos) {
-                debuginfos.push_back(entry.first + ": " + to_string_with_precision(entry.second.avgReal, 3)
-                    + "ms (CPU: " + to_string_with_precision(entry.second.avgCpu, 3) + "ms)");
+                debuginfos.push_back(fstring("%s: %.3fms (CPU: %.3fms)",
+                    entry.first.c_str(), entry.second.avgReal, entry.second.avgCpu));
             }
         } else {
-            debuginfos.push_back("avg frame cpu time:" + to_string_with_precision(avgTimeCpu, 2) + "ms");
-            debuginfos.push_back("avg frame render time:" + to_string_with_precision(avgTimeRender, 2) + "ms");
-            debuginfos.push_back("avg frame update time:" + to_string_with_precision(avgTimeUpdate, 2) + "ms");
-            debuginfos.push_back("pos:" + std::to_string(_view.getPosition().x) + "/"
-                                 + std::to_string(_view.getPosition().y));
+            debuginfos.push_back(fstring("avg frame cpu time:%.2fms", avgTimeCpu));
+            debuginfos.push_back(fstring("avg frame render time:%.2fms", avgTimeRender));
+            debuginfos.push_back(fstring("avg frame update time:%.2fms", avgTimeUpdate));
+            debuginfos.push_back(fstring("pos: %f/%f", _view.getPosition().x, _view.getPosition().y));
             auto center = _view.getCenterCoordinates();
-            debuginfos.push_back("LngLat:" + std::to_string(center.longitude) + ", " + std::to_string(center.latitude));
-            debuginfos.push_back("tilt:" + std::to_string(_view.getPitch() * 57.3) + "deg");
+            debuginfos.push_back(fstring("LngLat:%f,%f", center.longitude, center.latitude));
+            debuginfos.push_back(fstring("tilt:%.2fdeg", _view.getPitch() * 57.3));
         }
 
-        TextDisplay::Instance().draw(rs, debuginfos);
+        TextDisplay::Instance().draw(rs, _view, debuginfos);
     }
 
     if (getDebugFlag(DebugFlags::tangram_stats)) {
