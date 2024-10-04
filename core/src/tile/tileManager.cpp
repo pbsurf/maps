@@ -172,42 +172,6 @@ TileManager::~TileManager() {
     m_tileSets.clear();
 }
 
-/*void TileManager::setTileSources(const std::vector<std::shared_ptr<TileSource>>& _sources) {
-
-    m_tileCache->clear();
-
-    // Remove all (non-client datasources) sources and respective tileSets not present in the
-    // new scene
-    auto it = std::remove_if(
-        m_tileSets.begin(), m_tileSets.end(),
-        [&](auto& tileSet) {
-            if (!tileSet.clientTileSource) {
-                LOGN("Remove source %s", tileSet.source->name().c_str());
-                return true;
-            }
-            // Clear cache
-            tileSet.tiles.clear();
-            return false;
-        });
-
-    m_tileSets.erase(it, m_tileSets.end());
-
-    // add new sources
-    for (const auto& source : _sources) {
-
-        // ignore sources not used to generate tile geometry
-        if (!source->generateGeometry()) { continue; }
-
-        if (std::find_if(m_tileSets.begin(), m_tileSets.end(),
-            [&](const TileSet& a) { return a.source->name() == source->name(); }) == m_tileSets.end()) {
-            LOG("add source %s", source->name().c_str());
-            m_tileSets.push_back({ source, false });
-        } else {
-            LOGW("Duplicate named datasource (not added): %s", source->name().c_str());
-        }
-    }
-}*/
-
 void TileManager::setTileSources(const std::vector<std::shared_ptr<TileSource>>& _sources) {
 
     m_tileCache->clear();
@@ -317,7 +281,7 @@ void TileManager::updateTileSets(const View& _view) {
         };
 
         //_view.getVisibleTiles(tileCb, minZoomBias);
-        _view.getVisibleTiles2(TileID(0,0,0), minZoomBias, tileCb);
+        _view.getVisibleTiles2(tileCb, minZoomBias);
     }
 
     for (auto& tileSet : m_tileSets) {

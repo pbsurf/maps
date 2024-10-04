@@ -241,7 +241,7 @@ public:
 
     glm::vec4 tileCoordsToClipSpace(TileCoordinates tc, float elevation = 0.f) const;
     glm::vec2 tileCoordsToScreenPosition(TileCoordinates tc, bool& behindCamera) const;
-    void getVisibleTiles2(TileID tile, int zoomBias, const std::function<void(TileID)>& _tileCb) const;
+    void getVisibleTiles2(const std::function<void(TileID)>& _tileCb, int zoomBias, TileID tile = TileID(0,0,0)) const;
 
     // set elevation (camera height will be prevented from going below this value)
     //void setElevation(float ele);

@@ -876,17 +876,23 @@ glm::vec4 View::tileCoordsToClipSpace(TileCoordinates tc, float elevation) const
     return worldToClipSpace(m_viewProj, glm::vec4(relativeMeters, elevation, 1.0));
 }
 
-void View::getVisibleTiles2(TileID tile, int zoomBias, const std::function<void(TileID)>& _tileCb) const
-{
-    if(tile.z == 0) {
-      FrameInfo::begin("getVisibleTiles2");  //LOGW("\n\n\n*** getVisibleTiles2 ***");
-    }
+// Proper way to get visible tiles in 3D is to create 3D AABB for tile using min and max elevation and
+//  intersect it with frustum in world space ("frustum culling").  Since eye always looks down, we can use
+//  eye elevation instead of actual (max) elevation at the cost of a few false positives underneath eye.
+// For now, we project to clip space and cull there instead.
+// Tangram originally "rasterized" trapezoid corresponding to screen in tile space plus triangle from eye to
+//  screen bottom with fixed LOD ranges; attempted to combine with screen area based LOD calc, but was much
+//  slower than recursive approach - see 3 Oct 2024 rev
 
+void View::getVisibleTiles2(const std::function<void(TileID)>& _tileCb, int zoomBias, TileID tile) const
+{
+    //if(tile.z == 0) { FrameInfo::begin("getVisibleTiles2");  }
     glm::dvec3 eye(m_pos.x + m_eye.x, m_pos.y + m_eye.y, m_eye.z);
     double dist = glm::distance(eye, glm::dvec3(MapProjection::tileCenter(tile), 0.));
     //auto bounds = MapProjection::tileBounds(tile);
     //if(dist - std::abs(bounds.max.x - bounds.min.x)/M_SQRT2 > maxTileDistance) { return; } ... only covers ~30% of tiles
-    float elev = m_pitch != 0 && (dist < m_pos.z) ? m_eye.z : 0;
+    // elevate tiles near camera to ensure tiles under camera get included
+    float elev = m_pitch != 0 && (dist < m_pos.z) ? std::min(3000.f, m_eye.z) : 0;  // Mt. Everest
 
     TileCoordinates tc = {double(tile.x), double(tile.y), tile.z};
     auto c00 = tileCoordsToClipSpace(tc);
@@ -923,17 +929,14 @@ void View::getVisibleTiles2(TileID tile, int zoomBias, const std::function<void(
     }
     if(tile.z < maxZoom && area > maxArea) {
         for (int i = 0; i < 4; i++) {
-            getVisibleTiles2(tile.getChild(i, maxZoom), zoomBias, _tileCb);
+            getVisibleTiles2(_tileCb, zoomBias, tile.getChild(i, maxZoom));
         }
     }
     else {
         //LOGW("Tile %s area: %g", tile.toString().c_str(), area);
         _tileCb(tile);
     }
-
-    if(tile.z == 0) {
-      FrameInfo::end("getVisibleTiles2");
-    }
+    //if(tile.z == 0) { FrameInfo::end("getVisibleTiles2"); }
 }
 
 }

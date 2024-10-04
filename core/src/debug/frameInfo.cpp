@@ -159,8 +159,8 @@ void FrameInfo::draw(RenderState& rs, const View& _view, const Scene& _scene) {
         debuginfos.push_back("tiles:" + std::to_string(tiles.size()) + ";" + countsStr);
         debuginfos.push_back("selectable features:"
                              + std::to_string(features));
-        debuginfos.push_back("tile cache size:"
-                             + std::to_string(_tileManager.getTileCache()->getMemoryUsage() / 1024) + "kb");
+        debuginfos.push_back("tile cache:" + std::to_string(_tileManager.getTileCache()->getNumEntries()) + " ("
+                             + std::to_string(_tileManager.getTileCache()->getMemoryUsage() / 1024) + "KB)");
         debuginfos.push_back("tile size:" + std::to_string(memused / 1024) + "kb");
 
         if(!profInfos.empty()) {

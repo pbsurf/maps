@@ -102,6 +102,8 @@ public:
         return sum;
     }
 
+    size_t getNumEntries() const { return m_cacheList.size(); }
+
     void clear() {
         m_cacheMap.clear();
         m_cacheList.clear();
