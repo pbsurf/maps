@@ -50,7 +50,7 @@ public:
     int nextAvailableTextureUnit();
 
     // Reset the currently used texture unit.
-    void resetTextureUnit();
+    void resetTextureUnit(int _unit = 0);
 
     // Release one texture unit slot.
     void releaseTextureUnit();

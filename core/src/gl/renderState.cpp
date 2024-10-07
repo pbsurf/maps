@@ -181,8 +181,8 @@ int RenderState::currentTextureUnit() {
     return m_nextTextureUnit;
 }
 
-void RenderState::resetTextureUnit() {
-    m_nextTextureUnit = 0;
+void RenderState::resetTextureUnit(int _unit) {
+    m_nextTextureUnit = _unit;
 }
 
 inline void setGlFlag(GLenum flag, GLboolean enable) {

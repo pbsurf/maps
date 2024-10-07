@@ -191,6 +191,9 @@ protected:
     void setupShaderUniforms(RenderState& rs, ShaderProgram& _program, const View& _view,
                              UniformBlock& _uniformBlock);
 
+    void setupTileShaderUniforms(RenderState& rs, const Tile& _tile,
+                                 ShaderProgram& _program, UniformBlock& _uniformBlock);
+
     struct LightHandle {
         LightHandle(Light* _light, std::unique_ptr<LightUniforms> _uniforms);
         Light *light;

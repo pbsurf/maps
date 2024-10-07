@@ -114,7 +114,7 @@ void TextDisplay::draw(RenderState& rs, const View& _view, const std::vector<std
     m_shader->setUniformMatrix4f(rs, m_uOrthoProj, mvp);
 
     // Display Tangram info messages
-    m_shader->setUniformf(rs, m_uColor, 1.f, 0.f, 0.f);  // red provides most contrast with map
+    m_shader->setUniformf(rs, m_uColor, 0.f, 0.f, 0.f);
     int offset = margins[0];
     for (auto& text : _infos) {
         draw(rs, text, margins[3] + 3, 3 + offset);
@@ -123,6 +123,7 @@ void TextDisplay::draw(RenderState& rs, const View& _view, const std::vector<std
 
     // Display screen log
     offset = height - margins[2] - 10;
+    m_shader->setUniformf(rs, m_uColor, 1.f, 0.f, 0.f);
     //m_shader->setUniformf(rs, m_uColor, 51 / 255.f, 73 / 255.f, 120 / 255.f);
     for (auto& str : m_log) {
         draw(rs, str, margins[3] + 3, offset);

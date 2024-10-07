@@ -236,6 +236,50 @@ void Style::setupShaderUniforms(RenderState& rs, ShaderProgram& _program, const 
 
 }
 
+void Style::setupTileShaderUniforms(RenderState& rs, const Tile& _tile,
+                                    ShaderProgram& _program, UniformBlock& _uniformBlock) {
+
+    TileID tileID = _tile.getID();
+
+    // if vertex shader uses rasters for 3D terrain, selection program will include raster uniforms; if not,
+    //  glGetUniformLocation() will fail to find the raster (the -1 returned will be cached and subsequent
+    //  setUniform calls will be no-ops)
+    if (hasRasters()) {
+        UniformTextureArray textureIndexUniform;
+        UniformArray2f rasterSizeUniform;
+        UniformArray3f rasterOffsetsUniform;
+
+        for (auto& raster : _tile.rasters()) {
+
+            auto& texture = raster.texture;
+            auto texUnit = rs.nextAvailableTextureUnit();
+            texture->bind(rs, texUnit);
+
+            textureIndexUniform.slots.push_back(texUnit);
+            rasterSizeUniform.push_back({texture->width(), texture->height()});
+
+            float x = 0.f, y = 0.f, z = 1.f;
+            if (tileID.z > raster.tileID.z) {
+                float dz = tileID.z - raster.tileID.z;
+                float dz2 = powf(2.f, dz);
+                x = fmodf(tileID.x, dz2) / dz2;
+                y = (dz2 - 1.f - fmodf(tileID.y, dz2)) / dz2;
+                z = 1.f / dz2;
+            }
+            rasterOffsetsUniform.emplace_back(x, y, z);
+        }
+
+        _program.setUniformi(rs, _uniformBlock.uRasters, textureIndexUniform);
+        _program.setUniformf(rs, _uniformBlock.uRasterSizes, rasterSizeUniform);
+        _program.setUniformf(rs, _uniformBlock.uRasterOffsets, rasterOffsetsUniform);
+    }
+
+    _program.setUniformMatrix4f(rs, _uniformBlock.uModel, _tile.getModelMatrix());
+    _program.setUniformf(rs, _uniformBlock.uProxyDepth, _tile.isProxy() ? 1.f : 0.f);
+    _program.setUniformf(rs, _uniformBlock.uTileOrigin,
+                          _tile.getOrigin().x, _tile.getOrigin().y, tileID.s, tileID.z);
+}
+
 void Style::onBeginDrawFrame(RenderState& rs, const View& _view) {
 
     setupShaderUniforms(rs, *m_shaderProgram, _view, m_mainUniforms);
@@ -289,6 +333,8 @@ void Style::drawSelectionFrame(RenderState& rs, const View& _view,
                                const std::vector<std::shared_ptr<Tile>>& _tiles,
                                const std::vector<std::unique_ptr<Marker>>& _markers) {
 
+    if (!m_selection) { return; }
+
     onBeginDrawSelectionFrame(rs, _view);
 
     for (const auto& tile : _tiles) { drawSelectionFrame(rs, *tile); }
@@ -296,10 +342,6 @@ void Style::drawSelectionFrame(RenderState& rs, const View& _view,
 }
 
 void Style::onBeginDrawSelectionFrame(RenderState& rs, const View& _view) {
-
-    if (!m_selection) {
-        return;
-    }
 
     setupShaderUniforms(rs, *m_selectionProgram, _view, m_selectionUniforms);
 
@@ -329,7 +371,7 @@ void Style::onBeginDrawSelectionFrame(RenderState& rs, const View& _view) {
 }
 
 void Style::drawSelectionFrame(RenderState& _rs, const Marker& _marker) {
-    if (!m_selection || _marker.styleId() != m_id || !_marker.isVisible()) {
+    if (_marker.styleId() != m_id || !_marker.isVisible()) {
         return;
     }
 
@@ -347,30 +389,20 @@ void Style::drawSelectionFrame(RenderState& _rs, const Marker& _marker) {
     }
 }
 
-void Style::drawSelectionFrame(Tangram::RenderState& rs, const Tangram::Tile &_tile) {
-
-    if (!m_selection) {
-        return;
-    }
+void Style::drawSelectionFrame(Tangram::RenderState& rs, const Tangram::Tile& _tile) {
 
     auto& styleMesh = _tile.getMesh(*this);
 
     if (!styleMesh) { return; }
 
-    TileID tileID = _tile.getID();
-
-    m_selectionProgram->setUniformMatrix4f(rs, m_selectionUniforms.uModel, _tile.getModelMatrix());
-    m_selectionProgram->setUniformf(rs, m_selectionUniforms.uProxyDepth, _tile.isProxy() ? 1.f : 0.f);
-    m_selectionProgram->setUniformf(rs, m_selectionUniforms.uTileOrigin,
-                                    _tile.getOrigin().x,
-                                    _tile.getOrigin().y,
-                                    tileID.s,
-                                    tileID.z);
+    int prevTexUnit = rs.currentTextureUnit();
+    setupTileShaderUniforms(rs, _tile, *m_selectionProgram, m_selectionUniforms);
 
     if (!styleMesh->draw(rs, *m_selectionProgram, false)) {
         LOGN("Mesh built by style %s cannot be drawn", m_name.c_str());
     }
 
+    rs.resetTextureUnit(prevTexUnit);
 }
 
 bool Style::draw(RenderState& rs, const View& _view,
@@ -427,7 +459,6 @@ bool Style::draw(RenderState& rs, const View& _view,
     return meshDrawn;
 }
 
-
 bool Style::draw(RenderState& rs, const Tile& _tile) {
 
     auto& styleMesh = _tile.getMesh(*this);
@@ -435,61 +466,16 @@ bool Style::draw(RenderState& rs, const Tile& _tile) {
     if (!styleMesh) { return false; }
 
     bool styleMeshDrawn = true;
-    TileID tileID = _tile.getID();
 
-    if (hasRasters()) {
-        UniformTextureArray textureIndexUniform;
-        UniformArray2f rasterSizeUniform;
-        UniformArray3f rasterOffsetsUniform;
-
-        for (auto& raster : _tile.rasters()) {
-
-            auto& texture = raster.texture;
-            auto texUnit = rs.nextAvailableTextureUnit();
-            texture->bind(rs, texUnit);
-
-            textureIndexUniform.slots.push_back(texUnit);
-            rasterSizeUniform.push_back({texture->width(), texture->height()});
-
-            float x = 0.f;
-            float y = 0.f;
-            float z = 1.f;
-
-            if (tileID.z > raster.tileID.z) {
-                float dz = tileID.z - raster.tileID.z;
-                float dz2 = powf(2.f, dz);
-                x = fmodf(tileID.x, dz2) / dz2;
-                y = (dz2 - 1.f - fmodf(tileID.y, dz2)) / dz2;
-                z = 1.f / dz2;
-            }
-            rasterOffsetsUniform.emplace_back(x, y, z);
-        }
-
-        m_shaderProgram->setUniformi(rs, m_mainUniforms.uRasters, textureIndexUniform);
-        m_shaderProgram->setUniformf(rs, m_mainUniforms.uRasterSizes, rasterSizeUniform);
-        m_shaderProgram->setUniformf(rs, m_mainUniforms.uRasterOffsets, rasterOffsetsUniform);
-    }
-
-    m_shaderProgram->setUniformMatrix4f(rs, m_mainUniforms.uModel, _tile.getModelMatrix());
-    m_shaderProgram->setUniformf(rs, m_mainUniforms.uProxyDepth, _tile.isProxy() ? 1.f : 0.f);
-    m_shaderProgram->setUniformf(rs, m_mainUniforms.uTileOrigin,
-                                 _tile.getOrigin().x,
-                                 _tile.getOrigin().y,
-                                 tileID.s,
-                                 tileID.z);
+    int prevTexUnit = rs.currentTextureUnit();
+    setupTileShaderUniforms(rs, _tile, *m_shaderProgram, m_mainUniforms);
 
     if (!styleMesh->draw(rs, *m_shaderProgram)) {
         LOGN("Mesh built by style %s cannot be drawn", m_name.c_str());
         styleMeshDrawn = false;
     }
 
-    if (hasRasters()) {
-        for (auto& raster : _tile.rasters()) {
-            if (raster.isValid()) {
-                rs.releaseTextureUnit();
-            }
-        }
-    }
+    rs.resetTextureUnit(prevTexUnit);
 
     return styleMeshDrawn;
 }

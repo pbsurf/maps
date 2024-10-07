@@ -2,8 +2,6 @@
 
 #include "data/tileSource.h"
 
-#include <unordered_map>
-
 namespace Tangram {
 
 class Platform;

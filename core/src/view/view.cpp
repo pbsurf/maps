@@ -8,9 +8,6 @@
 #include "glm/gtx/rotate_vector.hpp"
 #include <cmath>
 
-#include "debug/frameInfo.h"
-#include <set>
-
 #define MAX_LOD 6
 
 namespace Tangram {
@@ -622,7 +619,8 @@ glm::vec4 View::tileCoordsToClipSpace(TileCoordinates tc, float elevation) const
 // Proper way to get visible tiles in 3D is to create 3D AABB for tile using min and max elevation and
 //  intersect it with frustum in world space ("frustum culling").  Since eye always looks down, we can use
 //  eye elevation instead of actual (max) elevation at the cost of a few false positives underneath eye.
-// ... but for now, we project to clip space and cull there instead
+// ... but for now, we project to clip space and cull there instead, then subdivide if screen area of
+//  tile exceeds threshold (an alternative approach is to just use distance to tile).
 // Tangram originally "rasterized" trapezoid corresponding to screen in tile space plus triangle from eye to
 //  screen bottom with fixed LOD ranges; attempted to combine with screen area based LOD calc, but was much
 //  slower than recursive approach - see 3 Oct 2024 rev
