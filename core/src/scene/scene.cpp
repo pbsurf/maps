@@ -26,6 +26,8 @@
 #include "util/util.h"
 #include "util/elevationManager.h"
 #include "util/skyManager.h"
+#include "util/yamlUtil.h"
+#include "js/JavaScript.h"
 #include "log.h"
 #include "scene.h"
 
@@ -40,7 +42,8 @@ Scene::Scene(Platform& _platform, SceneOptions&& _options, std::function<void(Sc
     id(s_serial++),
     m_platform(_platform),
     m_options(std::move(_options)),
-    m_tilePrefetchCallback(_prefetchCallback) {
+    m_tilePrefetchCallback(_prefetchCallback),
+    m_sourceContext(_platform, this) {
 
     m_tileWorker = std::make_unique<TileWorker>(_platform, m_options.numTileWorkers);
     m_tileManager = std::make_unique<TileManager>(_platform, *m_tileWorker);
@@ -133,7 +136,7 @@ bool Scene::load() {
     SceneLoader::applyGlobals(m_config, m_config);
     LOGTO("<<< applyGlobals");
 
-    m_tileSources = SceneLoader::applySources(m_config, m_options, m_platform);
+    m_tileSources = SceneLoader::applySources(m_config, m_options, m_sourceContext);
     LOGTO("<<< applySources");
 
     SceneLoader::applyCameras(m_config, m_camera);
@@ -667,5 +670,39 @@ Color Scene::backgroundColor(int _zoom) const {
     }
     return m_background;
 }
+
+JSFunctionIndex DataSourceContext::createFunction(const std::string& source) {
+    std::unique_lock<std::mutex> lock(m_jsMutex);
+    if(!m_jsContext) { m_jsContext = std::make_unique<JSContext>(); }
+    m_jsContext->setFunction(m_functionIndex, source);
+    return m_functionIndex++;
+}
+
+DataSourceContext::JSLockedContext DataSourceContext::getJSContext() {
+    std::unique_lock<std::mutex> lock(m_jsMutex);
+    if(!m_jsContext) {
+        m_jsContext = std::make_unique<JSContext>();
+        if(!m_scene) {
+            JSScope scope(*m_jsContext);
+            m_jsContext->setGlobalValue("global", YamlUtil::toJSValue(scope, m_globals));
+        }
+    }
+
+    if(m_scene && globalsGeneration < m_scene->globalsGeneration) {
+        globalsGeneration = m_scene->globalsGeneration;
+        JSScope scope(*m_jsContext);
+        m_jsContext->setGlobalValue("global", YamlUtil::toJSValue(scope, m_scene->config()["global"]));
+    }
+
+    return {std::move(lock), m_jsContext.get()};  //JSLockedScope(*m_jsContext, std::move(lock));
+}
+
+DataSourceContext::DataSourceContext(Platform& _platform, Scene* _scene)
+    : m_platform(_platform), m_scene(_scene) {}
+
+DataSourceContext::DataSourceContext(Platform& _platform, YAML::Node _globals)
+    : m_globals(_globals), m_platform(_platform), m_scene(nullptr) {}
+
+DataSourceContext::~DataSourceContext() {}
 
 }

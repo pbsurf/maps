@@ -37,7 +37,9 @@ public:
     auto newArray() { return _context.newArray(); }
     auto newObject() { return _context.newObject(); }
     auto newFunction(const std::string& value) { return _context.newFunction(value); }
-    auto getFunctionResult(JSFunctionIndex index) { return _context.getFunctionResult(index); }
+    auto getFunctionResult(JSFunctionIndex index, typename Context::ArgumentList args = {}) {
+        return _context.getFunctionResult(index, args);
+    }
 
 private:
 

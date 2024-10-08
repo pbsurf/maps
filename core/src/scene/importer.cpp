@@ -301,17 +301,20 @@ Url Importer::getArchiveUrlForZipEntry(const Url& zipEntryUrl) {
     return source;
 }
 
-bool nodeIsPotentialUrl(const Node& node) {
+static bool nodeIsPotentialUrl(const Node& node) {
     // Check that the node is scalar and not null.
     if (!node || !node.IsScalar()) { return false; }
 
     // Check that the node does not contain a 'global' reference.
     if (node.Scalar().compare(0, 7, "global.") == 0) { return false; }
 
+    // check for function
+    if (node.Scalar().compare(0, 8, "function") == 0) { return false; }
+
     return true;
 }
 
-bool nodeIsPotentialTextureUrl(const Node& node) {
+static bool nodeIsPotentialTextureUrl(const Node& node) {
 
     if (!nodeIsPotentialUrl(node)) { return false; }
 

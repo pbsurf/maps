@@ -131,8 +131,8 @@ bool DuktapeContext::evaluateBooleanFunction(uint32_t index) {
     return result;
 }
 
-DuktapeValue DuktapeContext::getFunctionResult(uint32_t index) {
-    if (!evaluateFunction(index)) {
+DuktapeValue DuktapeContext::getFunctionResult(uint32_t index, ArgumentList args) {
+    if (!evaluateFunction(index, args)) {
         return DuktapeValue();
     }
     return getStackTopValue();
@@ -250,7 +250,7 @@ void DuktapeContext::fatalErrorHandler(void*, const char* message) {
     abort();
 }
 
-bool DuktapeContext::evaluateFunction(uint32_t index) {
+bool DuktapeContext::evaluateFunction(uint32_t index, ArgumentList args) {
     // Get all functions (array) in context
     if (!duk_get_global_string(_ctx, FUNC_ID)) {
         LOGE("EvalFilterFn - functions array not initialized");
@@ -269,8 +269,12 @@ bool DuktapeContext::evaluateFunction(uint32_t index) {
     // pop fns array
     duk_remove(_ctx, -2);
 
+    for (const DuktapeValue& arg : args) {
+        duk_dup(_ctx, arg.getStackIndex());
+    }
+
     // call popped function (sitting at stack top), evaluated value is put on stack top
-    if (duk_pcall(_ctx, 0) != 0) {
+    if (duk_pcall(_ctx, args.size()) != 0) {
         LOGE("EvalFilterFn: %s", duk_safe_to_string(_ctx, -1));
         duk_pop(_ctx);
         return false;

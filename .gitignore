@@ -2,9 +2,6 @@
 
 ### Extraneous files for dependencies added to this repo ###
 core/deps/sqlite3
-core/deps/tinydng
-core/deps/css-color-parser-cpp
-core/deps/yaml-cpp
 
 ### Windows ###
 .vscode/

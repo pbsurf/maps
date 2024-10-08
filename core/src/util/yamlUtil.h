@@ -3,6 +3,7 @@
 //
 #pragma once
 
+#include "js/JavaScriptFwd.h"
 #include "yaml-cpp/yaml.h"
 #include "glm/vec4.hpp"
 
@@ -28,6 +29,8 @@ bool getBool(const YAML::Node& node, bool& result);
 bool getBoolOrDefault(const YAML::Node& node, bool defaultValue);
 
 void mergeMapFields(YAML::Node& target, const YAML::Node& import);
+
+JSValue toJSValue(JSScope& jsScope, const YAML::Node& node);
 
 template<typename T>
 bool parseVec(const YAML::Node& sequence, T& result) {

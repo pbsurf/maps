@@ -30,66 +30,13 @@ StyleContext::StyleContext() {
 
 StyleContext::~StyleContext() = default;
 
-// Convert a scalar node to a boolean, double, or string (in that order)
-// and for the first conversion that works, push it to the top of the JS stack.
-JSValue pushYamlScalarAsJsPrimitive(JSScope& jsScope, const YAML::Node& node) {
-    bool booleanValue = false;
-    double numberValue = 0.;
-    if (YamlUtil::getBool(node, booleanValue)) {
-        return jsScope.newBoolean(booleanValue);
-    } else if (YamlUtil::getDouble(node, numberValue)) {
-        return jsScope.newNumber(numberValue);
-    } else {
-        return jsScope.newString(node.Scalar());
-    }
-}
-
-JSValue pushYamlScalarAsJsFunctionOrString(JSScope& jsScope, const YAML::Node& node) {
-    auto value = jsScope.newFunction(node.Scalar());
-    if (value) {
-        return value;
-    }
-    return jsScope.newString(node.Scalar());
-}
-
-JSValue parseSceneGlobals(JSScope& jsScope, const YAML::Node& node) {
-    switch(node.Type()) {
-    case YAML::NodeType::Scalar: {
-        auto& scalar = node.Scalar();
-        if (scalar.compare(0, 8, "function") == 0) {
-            return pushYamlScalarAsJsFunctionOrString(jsScope, node);
-        }
-        return pushYamlScalarAsJsPrimitive(jsScope, node);
-    }
-    case YAML::NodeType::Sequence: {
-        auto jsArray = jsScope.newArray();
-        for (size_t i = 0; i < node.size(); i++) {
-            jsArray.setValueAtIndex(i, parseSceneGlobals(jsScope, node[i]));
-        }
-        return jsArray;
-    }
-    case YAML::NodeType::Map: {
-        auto jsObject = jsScope.newObject();
-        for (const auto& entry : node) {
-            if (!entry.first.IsScalar()) {
-                continue; // Can't put non-scalar keys in JS objects.
-            }
-            jsObject.setValueForProperty(entry.first.Scalar(), parseSceneGlobals(jsScope, entry.second));
-        }
-        return jsObject;
-    }
-    default:
-        return jsScope.newNull();
-    }
-}
-
 void StyleContext::setSceneGlobals(const YAML::Node& sceneGlobals) {
 
     if (!sceneGlobals) { return; }
 
     JSScope jsScope(*m_jsContext);
 
-    auto jsValue = parseSceneGlobals(jsScope, sceneGlobals);
+    auto jsValue = YamlUtil::toJSValue(jsScope, sceneGlobals);
 
     m_jsContext->setGlobalValue("global", std::move(jsValue));
 }

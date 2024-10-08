@@ -60,10 +60,11 @@ struct SceneLoader {
     static void loadFontDescription(const Node& font, const std::string& family, SceneFonts& fonts);
 
     /// Sources
-    static Scene::TileSources applySources(const Node& config, const SceneOptions& options, Platform& platform);
+    static Scene::TileSources applySources(const Node& _config, const SceneOptions& _options,
+                                           DataSourceContext& _context);
 
-    static std::shared_ptr<TileSource> loadSource(const Node& source, const std::string& name,
-                                                  const SceneOptions& options, Platform& platform);
+    static std::shared_ptr<TileSource> loadSource(const Node& _source, const std::string& _name,
+                                                  const SceneOptions& _options, DataSourceContext& _context);
 
     /// Styles
     static Scene::Styles applyStyles(const Node& stylesNode, SceneTextures& textures, SceneFunctions& functions,

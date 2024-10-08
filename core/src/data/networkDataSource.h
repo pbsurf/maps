@@ -4,12 +4,12 @@
 
 namespace Tangram {
 
-class Platform;
+class DataSourceContext;  //class Platform;
 
 class NetworkDataSource : public TileSource::DataSource {
 public:
 
-    NetworkDataSource(Platform& _platform, std::string url, UrlOptions options);
+    NetworkDataSource(DataSourceContext& _context, std::string url, UrlOptions options);
 
     bool loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb _cb) override;
 
@@ -24,9 +24,11 @@ public:
 
 private:
 
-    Platform& m_platform;
+    DataSourceContext& m_context;  //Platform& m_platform;
 
     std::string m_urlTemplate;
+
+    int m_urlFunction = -1;
 
     UrlOptions m_options;
 

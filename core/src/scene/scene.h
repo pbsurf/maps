@@ -4,6 +4,7 @@
 #include "platform.h"
 #include "stops.h"
 #include "sceneOptions.h"
+#include "js/JavaScriptFwd.h"
 #include "util/fontDescription.h"
 #include "tile/tileManager.h"
 #include "util/color.h"
@@ -92,6 +93,29 @@ struct SceneFonts {
 
     void add(const std::string& _uri, const std::string& _family,
              const std::string& _style, const std::string& _weight);
+};
+
+class DataSourceContext {
+    std::unique_ptr<JSContext> m_jsContext;
+    std::mutex m_jsMutex;
+    int64_t globalsGeneration = -1;
+    JSFunctionIndex m_functionIndex = 0;
+    YAML::Node m_globals;
+
+    Platform& m_platform;
+    Scene* m_scene;
+
+public:
+    DataSourceContext(Platform& _platform, Scene* _scene);
+    DataSourceContext(Platform& _platform, YAML::Node _globals);
+    ~DataSourceContext();
+
+    struct JSLockedContext { std::unique_lock<std::mutex> lock; JSContext* ctx; };
+
+    JSFunctionIndex createFunction(const std::string& source);
+    std::unique_lock<std::mutex> getJSLock() { return std::unique_lock<std::mutex>(m_jsMutex); }
+    JSLockedContext getJSContext();
+    Platform& getPlatform() { return m_platform; }
 };
 
 // TODO: define in cmake file, not here!
@@ -222,6 +246,9 @@ protected:
     };
 
     State m_state = State::initial;
+
+    // object to manage JS context used for (optional) tile URL fns - must be destroyed after TileSources
+    DataSourceContext m_sourceContext;
 
     /// ---------------------------------------------------------------///
     /// Loaded Scene Data

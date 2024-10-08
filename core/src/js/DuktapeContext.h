@@ -38,60 +38,60 @@ public:
         return _ctx != nullptr;
     }
 
-    bool isUndefined() {
+    bool isUndefined() const {
         return duk_is_undefined(_ctx, _index) != 0;
     }
 
-    bool isNull() {
+    bool isNull() const {
         return duk_is_null(_ctx, _index) != 0;
     }
 
-    bool isBoolean() {
+    bool isBoolean() const {
         return duk_is_boolean(_ctx, _index) != 0;
     }
 
-    bool isNumber() {
+    bool isNumber() const {
         return duk_is_number(_ctx, _index) != 0;
     }
 
-    bool isString() {
+    bool isString() const {
         return duk_is_string(_ctx, _index) != 0;
     }
 
-    bool isArray() {
+    bool isArray() const {
         return duk_is_array(_ctx, _index) != 0;
     }
 
-    bool isObject() {
+    bool isObject() const {
         return duk_is_object(_ctx, _index) != 0;
     }
 
-    bool toBool() {
+    bool toBool() const {
         return duk_to_boolean(_ctx, _index) != 0;
     }
 
-    int toInt() {
+    int toInt() const {
         return duk_to_int(_ctx, _index);
     }
 
-    double toDouble() {
+    double toDouble() const {
         return duk_to_number(_ctx, _index);
     }
 
-    std::string toString() {
+    std::string toString() const {
         return std::string(duk_to_string(_ctx, _index));
     }
 
-    size_t getLength() {
+    size_t getLength() const {
         return duk_get_length(_ctx, _index);
     }
 
-    DuktapeValue getValueAtIndex(size_t index) {
+    DuktapeValue getValueAtIndex(size_t index) const {
         duk_get_prop_index(_ctx, _index, static_cast<duk_uarridx_t>(index));
         return DuktapeValue(_ctx, duk_normalize_index(_ctx, -1));
     }
 
-    DuktapeValue getValueForProperty(const std::string& name) {
+    DuktapeValue getValueForProperty(const std::string& name) const {
         duk_get_prop_lstring(_ctx, _index, name.data(), name.length());
         return DuktapeValue(_ctx, duk_normalize_index(_ctx, -1));
     }
@@ -114,7 +114,7 @@ public:
         }
     }
 
-    auto getStackIndex() {
+    auto getStackIndex() const {
         return _index;
     }
 
@@ -128,6 +128,8 @@ private:
 class DuktapeContext {
 
 public:
+
+    using ArgumentList = std::initializer_list<std::reference_wrapper<DuktapeValue>>;
 
     DuktapeContext();
 
@@ -150,7 +152,7 @@ protected:
     DuktapeValue newArray();
     DuktapeValue newObject();
     DuktapeValue newFunction(const std::string& value);
-    DuktapeValue getFunctionResult(JSFunctionIndex index);
+    DuktapeValue getFunctionResult(JSFunctionIndex index, ArgumentList args = {});
 
     JSScopeMarker getScopeMarker();
     void resetToScopeMarker(JSScopeMarker marker);
@@ -165,7 +167,7 @@ private:
 
     static void fatalErrorHandler(void* userData, const char* message);
 
-    bool evaluateFunction(uint32_t index);
+    bool evaluateFunction(uint32_t index, ArgumentList args = {});
 
     DuktapeValue getStackTopValue() {
         return DuktapeValue(_ctx, duk_normalize_index(_ctx, -1));

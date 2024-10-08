@@ -598,7 +598,7 @@ void SceneLoader::loadFontDescription(const Node& _node, const std::string& _fam
 }
 
 Scene::TileSources SceneLoader::applySources(const Node& _config, const SceneOptions& _options,
-                                             Platform& _platform) {
+                                             DataSourceContext& _context) {
 
     Scene::TileSources tileSources;
 
@@ -610,7 +610,7 @@ Scene::TileSources SceneLoader::applySources(const Node& _config, const SceneOpt
     for (const auto& source : sources) {
         std::string srcName = source.first.Scalar();
         try {
-            if (auto tileSource = loadSource(source.second, srcName, _options, _platform)) {
+            if (auto tileSource = loadSource(source.second, srcName, _options, _context)) {
                 tileSources.push_back(std::move(tileSource));
             }
         }
@@ -693,7 +693,7 @@ Scene::TileSources SceneLoader::applySources(const Node& _config, const SceneOpt
 }
 
 std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const std::string& _name,
-                                                    const SceneOptions& _options, Platform& _platform) {
+                                                    const SceneOptions& _options, DataSourceContext& _context) {
 
     std::string type;
     std::string url;
@@ -808,14 +808,14 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
         // If we have MBTiles, we know the source is tiled.
         isTiled = true;
         // Create an MBTiles data source from the file at the url and add it to the source chain.
-        rawSources = std::make_unique<MBTilesDataSource>(_platform, _name, url, "");
+        rawSources = std::make_unique<MBTilesDataSource>(_context.getPlatform(), _name, url, "");
 #else
         LOGE("MBTiles support is disabled. This source will be ignored: %s", _name.c_str());
         return nullptr;
 #endif
     } else if (isTiled) {
         if (!url.empty())
-            rawSources = std::make_unique<NetworkDataSource>(_platform, url, urlOptions);
+            rawSources = std::make_unique<NetworkDataSource>(_context, url, urlOptions);
 #ifdef TANGRAM_MBTILES_DATASOURCE
         if (_options.diskTileCacheSize > 0) {
             std::string cachename = _source["cache"].as<std::string>("");
@@ -824,7 +824,8 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
             } else if (cachename != "false") {
                 const char* mimetype = type == "MVT" ? "pbf" : type == "Raster" ? "png" : "";
                 cachefile = _options.diskCacheDir + cachename + ".mbtiles";
-                auto s = std::make_unique<MBTilesDataSource>(_platform, _name, cachefile, mimetype, true);
+                auto s = std::make_unique<MBTilesDataSource>(_context.getPlatform(),
+                                                             _name, cachefile, mimetype, true);
                 s->next = std::move(rawSources);
                 rawSources = std::move(s);
                 LOGD("using %s as cache for source %s", cachefile.c_str(), _name.c_str());
@@ -851,7 +852,8 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
         if (auto genLabelCentroidsNode = _source["generate_label_centroids"]) {
             generateCentroids = true;
         }
-        sourcePtr = std::make_shared<ClientDataSource>(_platform, _name, url, generateCentroids, zoomOptions);
+        sourcePtr = std::make_shared<ClientDataSource>(_context.getPlatform(),
+                                                       _name, url, generateCentroids, zoomOptions);
     } else if (type == "Raster") {
         TextureOptions options;
         if (const Node& filtering = _source["filtering"]) {

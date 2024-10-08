@@ -4,13 +4,21 @@
 #include "platform.h"
 #include "util/mapProjection.h"
 #include "util/util.h"
+#include "scene/scene.h"
+#include "js/JavaScript.h"
 
 namespace Tangram {
 
-NetworkDataSource::NetworkDataSource(Platform& _platform, std::string url, UrlOptions options) :
-    m_platform(_platform),
+NetworkDataSource::NetworkDataSource(DataSourceContext& _context, std::string url, UrlOptions options) :
+    m_context(_context),
     m_urlTemplate(std::move(url)),
-    m_options(std::move(options)) {}
+    m_options(std::move(options)) {
+
+    if(m_urlTemplate.compare(0, 8, "function") == 0) {
+        m_urlFunction = m_context.createFunction(m_urlTemplate);
+    }
+
+}
 
 std::string NetworkDataSource::tileCoordinatesToQuadKey(const TileID &tile) {
     std::string quadKey;
@@ -34,10 +42,12 @@ bool NetworkDataSource::urlHasTilePattern(const std::string &url) {
             url.find("{y}") != std::string::npos &&
             url.find("{z}") != std::string::npos) ||
            (url.find("{q}") != std::string::npos) ||
-           (url.find("{bbox}") != std::string::npos);
+           (url.find("{bbox}") != std::string::npos) ||
+           (url.compare(0, 8, "function") == 0);
 }
 
-std::string NetworkDataSource::buildUrlForTile(const TileID& tile, const std::string& urlTemplate, const UrlOptions& options, int subdomainIndex) {
+std::string NetworkDataSource::buildUrlForTile(const TileID& tile, const std::string& urlTemplate,
+                                               const UrlOptions& options, int subdomainIndex) {
 
     std::string url = urlTemplate;
 
@@ -93,7 +103,17 @@ bool NetworkDataSource::loadTileData(std::shared_ptr<TileTask> task, TileTaskCb 
 
     auto tileId = task->tileId();
 
-    Url url(buildUrlForTile(tileId, m_urlTemplate, m_options, m_urlSubdomainIndex));
+    std::string urlstr;
+    if (m_urlFunction >= 0) {
+        auto lockedCtx = m_context.getJSContext();
+        JSScope jsScope(*lockedCtx.ctx);
+        auto jsX = jsScope.newNumber(tileId.x);
+        auto jsY = jsScope.newNumber(tileId.y);
+        auto jsZ = jsScope.newNumber(tileId.z);
+        urlstr = jsScope.getFunctionResult(m_urlFunction, {jsX, jsY, jsZ}).toString();
+    }
+
+    Url url(buildUrlForTile(tileId, urlstr.empty() ? m_urlTemplate : urlstr, m_options, m_urlSubdomainIndex));
 
     if (!m_options.subdomains.empty()) {
         m_urlSubdomainIndex = (m_urlSubdomainIndex + 1) % m_options.subdomains.size();
@@ -126,7 +146,8 @@ bool NetworkDataSource::loadTileData(std::shared_ptr<TileTask> task, TileTaskCb 
     };
 
     auto& dlTask = static_cast<BinaryTileTask&>(*task);
-    dlTask.urlRequestHandle = m_platform.startUrlRequest(url, m_options.httpOptions, std::move(onRequestFinish));
+    dlTask.urlRequestHandle = m_context.getPlatform().startUrlRequest(url, m_options.httpOptions,
+                                                                      std::move(onRequestFinish));
     dlTask.urlRequestStarted = true;
 
     return true;
@@ -137,7 +158,7 @@ void NetworkDataSource::cancelLoadingTile(TileTask& task) {
     if (dlTask.urlRequestStarted) {
         dlTask.urlRequestStarted = false;
 
-        m_platform.cancelUrlRequest(dlTask.urlRequestHandle);
+        m_context.getPlatform().cancelUrlRequest(dlTask.urlRequestHandle);
     }
 }
 

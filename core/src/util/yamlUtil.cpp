@@ -5,6 +5,7 @@
 #include "yamlUtil.h"
 #include "log.h"
 #include "util/floatFormatter.h"
+#include "js/JavaScript.h"
 #include "csscolorparser.hpp"
 #include <cmath>
 
@@ -123,6 +124,59 @@ void mergeMapFields(YAML::Node& target, const YAML::Node& import) {
             //if(dest.isMap() && source.IsNull) continue;  -- don't replace map w/ empty node?
             mergeMapFields(dest, source);
         }
+    }
+}
+
+// Convert a scalar node to a boolean, double, or string (in that order)
+// and for the first conversion that works, push it to the top of the JS stack.
+static JSValue pushYamlScalarAsJsPrimitive(JSScope& jsScope, const YAML::Node& node) {
+    bool booleanValue = false;
+    double numberValue = 0.;
+    if (YamlUtil::getBool(node, booleanValue)) {
+        return jsScope.newBoolean(booleanValue);
+    } else if (YamlUtil::getDouble(node, numberValue)) {
+        return jsScope.newNumber(numberValue);
+    } else {
+        return jsScope.newString(node.Scalar());
+    }
+}
+
+static JSValue pushYamlScalarAsJsFunctionOrString(JSScope& jsScope, const YAML::Node& node) {
+    auto value = jsScope.newFunction(node.Scalar());
+    if (value) {
+        return value;
+    }
+    return jsScope.newString(node.Scalar());
+}
+
+JSValue toJSValue(JSScope& jsScope, const YAML::Node& node) {
+    switch(node.Type()) {
+    case YAML::NodeType::Scalar: {
+        auto& scalar = node.Scalar();
+        if (scalar.compare(0, 8, "function") == 0) {
+            return pushYamlScalarAsJsFunctionOrString(jsScope, node);
+        }
+        return pushYamlScalarAsJsPrimitive(jsScope, node);
+    }
+    case YAML::NodeType::Sequence: {
+        auto jsArray = jsScope.newArray();
+        for (size_t i = 0; i < node.size(); i++) {
+            jsArray.setValueAtIndex(i, toJSValue(jsScope, node[i]));
+        }
+        return jsArray;
+    }
+    case YAML::NodeType::Map: {
+        auto jsObject = jsScope.newObject();
+        for (const auto& entry : node) {
+            if (!entry.first.IsScalar()) {
+                continue; // Can't put non-scalar keys in JS objects.
+            }
+            jsObject.setValueForProperty(entry.first.Scalar(), toJSValue(jsScope, entry.second));
+        }
+        return jsObject;
+    }
+    default:
+        return jsScope.newNull();
     }
 }
 
