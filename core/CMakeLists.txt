@@ -225,8 +225,6 @@ target_include_directories(tangram-core
   deps/sqlite3
   deps/stb
   deps/miniz
-  deps/geojson-vt-cpp/geometry.hpp/include
-  deps/geojson-vt-cpp/geojson.hpp/include
   deps/geojson-vt-cpp/include
   deps/double-conversion/include
 )
