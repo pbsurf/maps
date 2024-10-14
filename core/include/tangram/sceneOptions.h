@@ -65,6 +65,9 @@ public:
     /// persistent MBTiles DataSource cache
     size_t diskTileCacheSize = 0;
 
+    /// default max-age (in seconds) for disk tile cache
+    int64_t diskTileCacheMaxAge = 180*24*60*60;  // 180 days in seconds
+
     /// cache directory for tiles, fonts, etc
     std::string diskCacheDir;
 

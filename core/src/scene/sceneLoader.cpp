@@ -822,10 +822,11 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
             if (cachename.empty()) {
                 LOGW("no cache file specified for source %s", _name.c_str());
             } else if (cachename != "false") {
+                int64_t maxAge = _source["max_age"].as<int64_t>(0);
                 const char* mimetype = type == "MVT" ? "pbf" : type == "Raster" ? "png" : "";
                 cachefile = _options.diskCacheDir + cachename + ".mbtiles";
                 auto s = std::make_unique<MBTilesDataSource>(_context.getPlatform(),
-                                                             _name, cachefile, mimetype, true);
+                        _name, cachefile, mimetype, maxAge > 0 ? maxAge : _options.diskTileCacheMaxAge);
                 s->next = std::move(rawSources);
                 rawSources = std::move(s);
                 LOGD("using %s as cache for source %s", cachefile.c_str(), _name.c_str());

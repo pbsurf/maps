@@ -16,7 +16,7 @@ class MBTilesDataSource : public TileSource::DataSource {
 public:
 
     MBTilesDataSource(Platform& _platform, std::string _name, std::string _path, std::string _mime,
-                      bool _cache = false, bool _offlineFallback = false);
+                      int64_t _maxCacheAge = 0, bool _offlineFallback = false);
 
     ~MBTilesDataSource() override;
 
@@ -28,7 +28,7 @@ public:
     sqlite3* dbHandle();
 
 private:
-    bool getTileData(const TileID& _tileId, std::vector<char>& _data, int offlineId);
+    bool getTileData(const TileID& _tileId, std::vector<char>& _data, int64_t& _tileAge, int offlineId);
     void storeTileData(const TileID& _tileId, const std::vector<char>& _data, int offlineId);
     bool loadNextSource(std::shared_ptr<TileTask> _task, TileTaskCb _cb);
 
@@ -44,6 +44,7 @@ private:
 
     // Store tiles from next source
     bool m_cacheMode;
+    int64_t m_maxCacheAge;
 
     // Offline fallback: Try next source (download) first, then fall back to mbtiles
     bool m_offlineMode;

@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS map (
 
 CREATE TABLE IF NOT EXISTS images (
     tile_data BLOB,
-    tile_id TEXT
+    tile_id TEXT,
+    created_at INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS metadata (
@@ -71,6 +72,8 @@ CREATE VIEW IF NOT EXISTS tiles AS
     FROM map
     JOIN images ON images.tile_id = map.tile_id;
 
+PRAGMA user_version = 2;
+
 COMMIT;)SQL_ESC";
 
 
@@ -93,10 +96,11 @@ MBTilesQueries::MBTilesQueries(sqlite3* db) :
     getTileData(db, "SELECT tile_data FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;") {}
 
 MBTilesQueries::MBTilesQueries(sqlite3* db, tag_cache) :
-    getTileData(db, "SELECT tile_data, images.tile_id FROM images JOIN map ON images.tile_id ="
-        " map.tile_id WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;"),
+    getTileData(db, "SELECT tile_data, images.tile_id,"
+        " (CAST(strftime('%s') AS INTEGER) - images.created_at) AS age FROM images JOIN map ON"
+        " images.tile_id = map.tile_id WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;"),
     putMap(db, "REPLACE INTO map (zoom_level, tile_column, tile_row, tile_id) VALUES (?, ?, ?, ?);"),
-    putImage(db, "REPLACE INTO images (tile_id, tile_data) VALUES (?, ?);"),
+    putImage(db, "REPLACE INTO images (tile_id, tile_data, created_at) VALUES (?, ?, CAST(strftime('%s') AS INTEGER));"),
     getOffline(db, "SELECT 1,tile_id FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;"),
     putOffline(db, "REPLACE INTO offline_tiles (tile_id, offline_id) VALUES (?, ?);"),
     getOfflineSize(db, "SELECT sum(length(tile_data)) FROM images WHERE tile_id IN"
@@ -105,11 +109,12 @@ MBTilesQueries::MBTilesQueries(sqlite3* db, tag_cache) :
         " (?, CAST(strftime('%s') AS INTEGER));") {}
 
 MBTilesDataSource::MBTilesDataSource(Platform& _platform, std::string _name, std::string _path,
-                                     std::string _mime, bool _cache, bool _offlineFallback)
+                                     std::string _mime, int64_t _maxCacheAge, bool _offlineFallback)
     : m_name(_name),
       m_path(_path),
       m_mime(_mime),
-      m_cacheMode(_cache),
+      m_cacheMode(_maxCacheAge > 0),
+      m_maxCacheAge(_maxCacheAge),
       m_offlineMode(_offlineFallback),
       m_platform(_platform) {
 
@@ -149,11 +154,28 @@ bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb
             auto tileData = std::make_unique<std::vector<char>>();
             // RasterTileTask::hasData() doesn't check if rawTileData is empty - it probably should, but
             //  let's not set rawTileData to empty vector, to match NetworkDataSource behavior
-            getTileData(tileId, *tileData, task.offlineId);
+            int64_t tileAge = 0;
+            getTileData(tileId, *tileData, tileAge, task.offlineId);
             LOGTO("<<< DB query for %s %s%s", _task->source()->name().c_str(), tileId.toString().c_str(),
                   tileData->empty() ? " (not found)" : "");
 
-            if (!tileData->empty()) {
+            // if tile is expired, request from network, falling back to stale tile on failure
+            TileTaskCb stalecb;
+            if (next && m_cacheMode && tileAge > m_maxCacheAge) {
+                LOGV("%s - stale tile: %s", m_name.c_str(), tileId.toString().c_str());
+                // can't capture unique_ptr, and callback not guaranteed to be called so can't use bare ptr
+                // ... and we don't want to put stale data in rawTileData or we'd need a flag to skip writing
+                //  back to DB (erroneously updating creation time) should network request fail
+                std::shared_ptr<std::vector<char>> staleData(std::move(tileData));
+                stalecb.func = [_cb, staleData](std::shared_ptr<TileTask> _task2) {
+                    if (!_task2->hasData()) {
+                        static_cast<BinaryTileTask&>(*_task2).rawTileData = staleData;
+                    }
+                    _cb.func(_task2);
+                };
+            }
+
+            if (tileData && !tileData->empty()) {
                 task.rawTileData = std::move(tileData);
                 LOGV("%s - loaded tile: %s, %d bytes", m_name.c_str(), tileId.toString().c_str(), task.rawTileData->size());
 
@@ -165,7 +187,7 @@ bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb
                 // Don't try this source again
                 _task->rawSource = next->level;
 
-                if (!loadNextSource(_task, _cb)) {
+                if (!loadNextSource(_task, stalecb.func ? stalecb :_cb)) {
                     // Trigger TileManager update so that tile will be
                     // downloaded next time.
                     _task->setNeedsLoading(true);
@@ -215,7 +237,8 @@ bool MBTilesDataSource::loadNextSource(std::shared_ptr<TileTask> _task, TileTask
                 auto& task = static_cast<BinaryTileTask&>(*_task);
                 task.rawTileData = std::make_shared<std::vector<char>>();
 
-                getTileData(_task->tileId(), *task.rawTileData, task.offlineId);
+                int64_t tileAge = 0;
+                getTileData(_task->tileId(), *task.rawTileData, tileAge, task.offlineId);
 
                 LOGV("loaded tile: %s, %d", _task->tileId().toString().c_str(), task.rawTileData->size());
 
@@ -229,6 +252,21 @@ bool MBTilesDataSource::loadNextSource(std::shared_ptr<TileTask> _task, TileTask
     }};
 
     return next->loadTileData(_task, cb);
+}
+
+// when schema is modified, user_version should be incremented here and in SCHEMA block
+static void runMigrations(SQLiteDB& db) {
+
+    db.stmt("PRAGMA user_version;").exec([&](int ver){
+        if(ver < 2) {
+            // added column can only have a constant default value
+            db.stmt("SELECT strftime('%s');").exec([&](std::string t){
+                db.exec("ALTER TABLE images ADD COLUMN created_at INTEGER DEFAULT " + t + ";");
+            });
+            db.exec("PRAGMA user_version = 2;");
+        }
+        //if(ver < 3) { ... } -- future migrations
+    });
 }
 
 void MBTilesDataSource::openMBTiles() {
@@ -277,6 +315,11 @@ void MBTilesDataSource::openMBTiles() {
 
     if (m_schemaOptions.compression == Compression::unsupported) {
         return;
+    }
+
+    // schema updates
+    if (m_cacheMode) {
+        runMigrations(db);
     }
 
     m_queries = m_cacheMode ? std::make_unique<MBTilesQueries>(db.db, MBTilesQueries::tag_cache{})
@@ -350,7 +393,8 @@ void MBTilesDataSource::initSchema(SQLiteDB& db, std::string _name, std::string 
     stmt.bind("compression", "identity").exec();
 }
 
-bool MBTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _data, int offlineId) {
+bool MBTilesDataSource::getTileData(const TileID& _tileId,
+                                    std::vector<char>& _data, int64_t& _tileAge, int offlineId) {
 
     if (offlineId && !m_cacheMode) {
         LOGE("Offline tiles cannot be created: database is read-only!");
@@ -372,6 +416,7 @@ bool MBTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _d
         const char* blob = (const char*) sqlite3_column_blob(stmt, 0);
         const int length = sqlite3_column_bytes(stmt, 0);
         std::string tileid = m_cacheMode ? (const char*)sqlite3_column_text(stmt, 1) : "";
+        _tileAge = m_cacheMode ? sqlite3_column_int64(stmt, 2) : 0;
 
         if ((m_schemaOptions.compression == Compression::undefined) ||
             (m_schemaOptions.compression == Compression::deflate)) {

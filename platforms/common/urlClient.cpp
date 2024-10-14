@@ -134,11 +134,29 @@ struct UrlClient::Task {
         return addedSize;
     }
 
+    /*static size_t curlHeaderCallback(char* ptr, size_t size, size_t n, void* user) {
+        auto* task = reinterpret_cast<Task*>(user);
+        if (task->canceled) { return 0; }
+
+        size_t nbytes = size * n;
+        std::string header(nbytes, '\0');
+        std::transform(ptr, ptr + nbytes, header.begin(), ::tolower);
+        if(header.compare(0, 14, "cache-control:") == 0) {
+          size_t pos = header.find("max-age=", 14);
+          if(pos != std::string::npos) {
+            task->cacheMaxAge = strtol(&header[pos+8], NULL, 10);
+          }
+        }
+        return nbytes;
+    }*/
+
     Task(const UrlClient& _parent, const Options& _options) {
         // Set up an easy handle for reuse.
         handle = curl_easy_init();
         curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, &curlWriteCallback);
         curl_easy_setopt(handle, CURLOPT_WRITEDATA, this);
+        //curl_easy_setopt(handle, CURLOPT_HEADERFUNCTION, &curlHeaderCallback);
+        //curl_easy_setopt(handle, CURLOPT_HEADERDATA, this);
         curl_easy_setopt(handle, CURLOPT_NOPROGRESS, 1L);
         curl_easy_setopt(handle, CURLOPT_HEADER, 0L);
         curl_easy_setopt(handle, CURLOPT_VERBOSE, 0L);
