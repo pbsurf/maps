@@ -13,8 +13,6 @@
 
 #include <algorithm>
 
-#define DBG(...) LOG(__VA_ARGS__)
-
 namespace Tangram {
 
 

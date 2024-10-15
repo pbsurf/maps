@@ -58,49 +58,8 @@ public:
       if (!styleMesh) { return false; }
 
       bool styleMeshDrawn = true;
-      TileID tileID = _tile.getID();
-
-      if (hasRasters()) {
-          UniformTextureArray textureIndexUniform;
-          UniformArray2f rasterSizeUniform;
-          UniformArray3f rasterOffsetsUniform;
-
-          for (auto& raster : _tile.rasters()) {
-
-              auto& texture = raster.texture;
-              auto texUnit = rs.nextAvailableTextureUnit();
-              texture->bind(rs, texUnit);
-
-              textureIndexUniform.slots.push_back(texUnit);
-              rasterSizeUniform.push_back({texture->width(), texture->height()});
-
-              float x = 0.f;
-              float y = 0.f;
-              float z = 1.f;
-
-              if (tileID.z > raster.tileID.z) {
-                  float dz = tileID.z - raster.tileID.z;
-                  float dz2 = powf(2.f, dz);
-                  x = fmodf(tileID.x, dz2) / dz2;
-                  y = (dz2 - 1.f - fmodf(tileID.y, dz2)) / dz2;
-                  z = 1.f / dz2;
-              }
-              rasterOffsetsUniform.emplace_back(x, y, z);
-          }
-
-          m_shaderProgram->setUniformi(rs, m_mainUniforms.uRasters, textureIndexUniform);
-          m_shaderProgram->setUniformf(rs, m_mainUniforms.uRasterSizes, rasterSizeUniform);
-          m_shaderProgram->setUniformf(rs, m_mainUniforms.uRasterOffsets, rasterOffsetsUniform);
-      }
-
-      m_shaderProgram->setUniformMatrix4f(rs, m_mainUniforms.uModel, _tile.getModelMatrix());
-      m_shaderProgram->setUniformf(rs, m_mainUniforms.uProxyDepth, _tile.isProxy() ? 1.f : 0.f);
-      m_shaderProgram->setUniformf(rs, m_mainUniforms.uTileOrigin,
-                                   _tile.getOrigin().x,
-                                   _tile.getOrigin().y,
-                                   tileID.s,
-                                   tileID.z);
-
+      int prevTexUnit = rs.currentTextureUnit();
+      setupTileShaderUniforms(rs, _tile, *m_shaderProgram, m_mainUniforms);
       m_shaderProgram->setUniformf(rs, m_uOrder, 0.f);
 
       if (!rasterMesh()->draw(rs, *m_shaderProgram)) {
@@ -108,14 +67,7 @@ public:
           styleMeshDrawn = false;
       }
 
-      if (hasRasters()) {
-          for (auto& raster : _tile.rasters()) {
-              if (raster.isValid()) {
-                  rs.releaseTextureUnit();
-              }
-          }
-      }
-
+      rs.resetTextureUnit(prevTexUnit);
       return styleMeshDrawn;
   }
 };
@@ -130,7 +82,33 @@ static double readElevTex(const Texture& tex, int x, int y)
   return (p[0]*256 + p[1] + p[2]/256.0) - 32768;
 }
 
-static double elevationLerp(const Texture& tex, TileID tileId, ProjectedMeters meters)
+double ElevationManager::elevationLerp(const Texture& tex, glm::vec2 pos, glm::vec2* gradOut)
+{
+  double x0 = pos.x*tex.width() - 0.5, y0 = pos.y*tex.height() - 0.5;  // -0.5 to adjust for pixel centers
+  // we should extrapolate at edges instead of clamping - see shader in raster_contour.yaml
+  int ix0 = std::max(0, int(std::floor(x0)));
+  int iy0 = std::max(0, int(std::floor(y0)));
+  int ix1 = std::min(int(std::ceil(x0)), tex.width()-1);
+  int iy1 = std::min(int(std::ceil(y0)), tex.height()-1);
+  double fx = x0 - ix0, fy = y0 - iy0;
+  double t00 = readElevTex(tex, ix0, iy0);
+  double t01 = readElevTex(tex, ix0, iy1);
+  double t10 = readElevTex(tex, ix1, iy0);
+  double t11 = readElevTex(tex, ix1, iy1);
+
+  if(gradOut) {
+    double dx0 = t10 - t00, dx1 = t11 - t01;
+    double dy0 = t01 - t00, dy1 = t11 - t10;
+    gradOut->x = dx0 + fy*(dx1 - dx0);
+    gradOut->y = dy0 + fx*(dy1 - dy0);
+  }
+
+  double t0 = t00 + fx*(t10 - t00);
+  double t1 = t01 + fx*(t11 - t01);
+  return t0 + fy*(t1 - t0);
+}
+
+double ElevationManager::elevationLerp(const Texture& tex, TileID tileId, ProjectedMeters meters)
 {
   double scale = MapProjection::metersPerTileAtZoom(tileId.z);
   ProjectedMeters tileOrigin = MapProjection::tileSouthWestCorner(tileId);
@@ -139,19 +117,7 @@ static double elevationLerp(const Texture& tex, TileID tileId, ProjectedMeters m
   double ox = offset.x/scale, oy = offset.y/scale;
   if(ox < 0 || ox > 1 || oy < 0 || oy > 1)
     return 0;  //LOGE("Elevation tile position out of range");
-  // ... seems this works correctly w/o accounting for vertical flip of texture
-  double x0 = ox*tex.width() - 0.5, y0 = oy*tex.height() - 0.5;  // -0.5 to adjust for pixel centers
-  // we should extrapolate at edges instead of clamping - see shader in raster_contour.yaml
-  int ix0 = std::max(0, int(std::floor(x0))), iy0 = std::max(0, int(std::floor(y0)));
-  int ix1 = std::min(int(std::ceil(x0)), tex.width()-1), iy1 = std::min(int(std::ceil(y0)), tex.height()-1);
-  double fx = x0 - ix0, fy = y0 - iy0;
-  double t00 = readElevTex(tex, ix0, iy0);
-  double t01 = readElevTex(tex, ix0, iy1);
-  double t10 = readElevTex(tex, ix1, iy0);
-  double t11 = readElevTex(tex, ix1, iy1);
-  double t0 = t00 + fx*(t10 - t00);
-  double t1 = t01 + fx*(t11 - t01);
-  return t0 + fy*(t1 - t0);
+  return elevationLerp(tex, glm::vec2(ox, oy));
 }
 
 //static TileID lngLatTile(LngLat ll, int z)

@@ -13,6 +13,7 @@ class RenderState;
 class View;
 class Tile;
 class AsyncWorker;
+class Texture;
 
 class ElevationManager
 {
@@ -26,6 +27,9 @@ public:
 
   void renderTerrainDepth(RenderState& _rs, const View& _view,
                           const std::vector<std::shared_ptr<Tile>>& _tiles);
+
+  static double elevationLerp(const Texture& tex, glm::vec2 pos, glm::vec2* gradOut = nullptr);
+  static double elevationLerp(const Texture& tex, TileID tileId, ProjectedMeters meters);
 
   std::shared_ptr<RasterSource> m_elevationSource;
   int m_currZoom = 0;
