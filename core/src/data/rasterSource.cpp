@@ -53,8 +53,14 @@ public:
 
         // Create tile geometries
         if (!subTask) {
-            m_tile = _tileBuilder.build(m_tileId, *(source->m_tileData), *source);
-            m_ready = true;
+          // make raster available for tile builder; RasterSource texture cache is not thread-safe currently
+          //  so we can't add raster for good until complete() on main thread
+          auto temptexp = raster ? raster->texture : std::shared_ptr<Texture>(texture.get());
+          m_tile->rasters().emplace_back(m_tileId, temptexp);
+          m_tile = std::make_unique<Tile>(m_tileId, source->id(), source->generation());
+          _tileBuilder.build(*m_tile, *(source->m_tileData));
+          m_tile->rasters().pop_back();
+          m_ready = true;
         }
     }
 

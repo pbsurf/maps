@@ -102,15 +102,18 @@ void TileBuilder::applyStyling(const Feature& _feature, const SceneLayer& _layer
     }
 }
 
-std::unique_ptr<Tile> TileBuilder::build(TileID _tileID, const TileData& _tileData, const TileSource& _source) {
+void TileBuilder::build(Tile& tile, const TileData& _tileData) {
 
     m_selectionFeatures.clear();
 
-    auto tile = std::make_unique<Tile>(_tileID, _source.id(), _source.generation());
+    //auto tile = std::make_unique<Tile>(_tileID, _source.id(), _source.generation());
+    auto tileSrc = m_scene.getTileSource(tile.sourceID());
+    if (!tileSrc) { return; }  // scene is being destroyed (?)
+    std::string srcName = tileSrc->name();
 
-    tile->initGeometry(int(m_scene.styles().size()));
+    tile.initGeometry(int(m_scene.styles().size()));
 
-    m_styleContext->setTileID(_tileID);
+    m_styleContext->setTileID(tile.getID());
     // update globals in JS context if changed ... should be doing atomic cmp xchg
     if(globalsGeneration < m_scene.globalsGeneration) {
       globalsGeneration = m_scene.globalsGeneration;
@@ -118,12 +121,12 @@ std::unique_ptr<Tile> TileBuilder::build(TileID _tileID, const TileData& _tileDa
     }
 
     for (auto& builder : m_styleBuilder) {
-        if (builder.second) { builder.second->setup(*tile); }
+        if (builder.second) { builder.second->setup(tile); }
     }
 
     for (const auto& datalayer : m_scene.layers()) {
 
-        if (datalayer.source() != _source.name() || !datalayer.enabled()) { continue; }
+        if (datalayer.source() != srcName || !datalayer.enabled()) { continue; }
 
         for (const auto& collection : _tileData.layers) {
 
@@ -148,15 +151,13 @@ std::unique_ptr<Tile> TileBuilder::build(TileID _tileID, const TileData& _tileDa
 
     float tileSize = MapProjection::tileSize() * m_scene.pixelScale();
 
-    m_labelLayout.process(_tileID, tile->getInverseScale(), tileSize);
+    m_labelLayout.process(tile.getID(), tile.getInverseScale(), tileSize);
 
     for (auto& builder : m_styleBuilder) {
-        tile->setMesh(builder.second->style(), builder.second->build());
+        tile.setMesh(builder.second->style(), builder.second->build());
     }
 
-    tile->setSelectionFeatures(m_selectionFeatures);
-
-    return tile;
+    tile.setSelectionFeatures(m_selectionFeatures);
 }
 
 }

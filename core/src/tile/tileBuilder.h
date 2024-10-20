@@ -23,7 +23,7 @@ public:
 
     StyleBuilder* getStyleBuilder(const std::string& _name);
 
-    std::unique_ptr<Tile> build(TileID _tileID, const TileData& _data, const TileSource& _source);
+    void build(Tile& tile, const TileData& _tileData);
 
     const Scene& scene() const { return m_scene; }
 

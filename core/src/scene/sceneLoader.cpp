@@ -16,6 +16,7 @@
 #include "style/textStyle.h"
 #include "style/pointStyle.h"
 #include "style/rasterStyle.h"
+#include "style/contourTextStyle.h"
 #include "scene/dataLayer.h"
 #include "scene/filters.h"
 #include "scene/scene.h"
@@ -895,6 +896,7 @@ Scene::Styles SceneLoader::applyStyles(const Node& _node, SceneTextures& _textur
     styles.emplace_back(new TextStyle("text", true));
     styles.emplace_back(new PointStyle("points"));
     styles.emplace_back(new RasterStyle("raster"));
+    styles.emplace_back(new ContourTextStyle("contour-labels"));
 
     if (!_node) { return styles; }
     if (!_node.IsMap()) {

@@ -150,6 +150,8 @@ add_library(tangram-core
   src/style/textStyle.cpp
   src/style/textStyleBuilder.h
   src/style/textStyleBuilder.cpp
+  src/style/contourTextStyle.h
+  src/style/contourTextStyle.cpp
   src/text/fontContext.h
   src/text/fontContext.cpp
   src/text/textUtil.h
