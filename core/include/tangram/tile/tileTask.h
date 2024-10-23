@@ -32,11 +32,8 @@ public:
 
     virtual bool hasData() const { return true; }
 
-    virtual bool isReady() const {
-        if (needsLoading()) { return false; }
-
-        return bool(m_ready);
-    }
+    virtual bool isReady() const { return !needsLoading() && bool(m_ready); }
+    void setReady() { m_ready = true; }
 
     Tile* tile() { return m_tile.get(); }
 

@@ -211,7 +211,8 @@ int FontContext::layoutMultiline(TextStyle::Parameters& _params, const std::stri
     fonsSetFont(&state, _params.font - 1);
     fonsSetSize(&state, fonsEmSizeToSize(&state, _params.fontSize));
     // pass negative integer for line width to use max chars instead of max width
-    size_t nrows = fonsBreakLines(&state, start, end, -float(_params.maxLineWidth), rows.data(), rows.size());
+    float maxChars = std::min(1U << 24, _params.maxLineWidth);
+    size_t nrows = fonsBreakLines(&state, start, end, -maxChars, rows.data(), rows.size());
     if (!nrows) return 0;
     rows.resize(nrows);
 

@@ -107,7 +107,8 @@ bool CurvedLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& 
 
     // Cannot reverse the direction when some glyphs must be
     // placed in forward direction and vice versa.
-    const float flipTolerance = sin(DEG_TO_RAD * 45);
+    const bool noFlip = std::isnan(m_options.angle);  // angle: auto to fix orientation of text
+    const float flipTolerance = noFlip ? FLT_MAX : sin(DEG_TO_RAD * 45);
     bool mustForward = dir.x > flipTolerance;
     bool mustReverse = dir.x < -flipTolerance;
 
@@ -142,7 +143,7 @@ bool CurvedLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& 
         }
     }
 
-    if (!mustReverse) {
+    if (!mustReverse && !noFlip) {
         // TODO use better heuristic to decide flipping
         glm::vec2 endPos;
         sampler.sample(start + width, endPos, r);

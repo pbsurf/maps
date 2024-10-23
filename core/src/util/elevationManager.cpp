@@ -99,8 +99,8 @@ double ElevationManager::elevationLerp(const Texture& tex, glm::vec2 pos, glm::v
   if(gradOut) {
     double dx0 = t10 - t00, dx1 = t11 - t01;
     double dy0 = t01 - t00, dy1 = t11 - t10;
-    gradOut->x = dx0 + fy*(dx1 - dx0);
-    gradOut->y = dy0 + fx*(dy1 - dy0);
+    gradOut->x = (dx0 + fy*(dx1 - dx0))*tex.width();
+    gradOut->y = (dy0 + fx*(dy1 - dy0))*tex.height();
   }
 
   double t0 = t00 + fx*(t10 - t00);

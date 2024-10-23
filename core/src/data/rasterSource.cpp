@@ -31,17 +31,14 @@ public:
         return bool(rawTileData) || bool(texture) || bool(raster);
     }
 
-    bool isReady() const override {
-        if (!subTask) {
-            return bool(m_tile);
-        } else {
-            return bool(texture) || bool(raster);
-        }
-    }
-
     void process(TileBuilder& _tileBuilder) override {
         auto source = rasterSource();
         if (!source) { return; }
+
+        if(m_ready) {
+          LOGE("Duplicate call to RasterTileTask::process() for %s", m_tileId.toString().c_str());
+          return;
+        }
 
         if (!texture && !raster) {
             // Decode texture data
@@ -54,14 +51,15 @@ public:
         // Create tile geometries
         if (!subTask) {
           // make raster available for tile builder; RasterSource texture cache is not thread-safe currently
-          //  so we can't add raster for good until complete() on main thread
-          auto temptexp = raster ? raster->texture : std::shared_ptr<Texture>(texture.get());
-          m_tile->rasters().emplace_back(m_tileId, temptexp);
+          //  so we can't add raster for good until complete() on main thread; note the empty deleter since
+          //  shared_ptr doesn't have a release() method
+          auto ptex = raster ? raster->texture : std::shared_ptr<Texture>(texture.get(), [](auto* t){});
           m_tile = std::make_unique<Tile>(m_tileId, source->id(), source->generation());
+          m_tile->rasters().emplace_back(m_tileId, ptex);
           _tileBuilder.build(*m_tile, *(source->m_tileData));
           m_tile->rasters().pop_back();
-          m_ready = true;
         }
+        m_ready = true;
     }
 
     void addRaster(Tile& _tile) {
@@ -180,6 +178,7 @@ std::shared_ptr<RasterTileTask> RasterSource::createRasterTask(TileID _tileId, b
             task->raster = std::make_unique<Raster>(id, texture);
             // No more loading needed.
             task->startedLoading();
+            if (subTask) { task->setReady(); }
         }
     }
     return task;

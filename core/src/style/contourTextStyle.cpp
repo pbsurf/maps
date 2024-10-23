@@ -8,8 +8,6 @@
 #include "util/elevationManager.h"
 #include "log.h"
 
-#include <glm/gtx/norm.hpp>
-
 namespace Tangram {
 
 class ContourTextStyleBuilder : public TextStyleBuilder {
@@ -48,37 +46,71 @@ void ContourTextStyleBuilder::setup(const Tile& _tile) {
     TextStyleBuilder::setup(_tile);
 }
 
-double ContourTextStyleBuilder::getContourLine(glm::vec2 pos, Line& line)  //Texture& tex,
+
+static void binarySearch()
 {
-    const float maxPosErr2 = 0.25f*0.25f;
-    const float labelLen = 50/256.0f;
-    const float stepSize = 2/256.0f;
+
+}
+
+double ContourTextStyleBuilder::getContourLine(glm::vec2 pos, Line& line) {
+
+    const float tileSize = 256.0f;
+    const float maxPosErr = 0.25f/tileSize;
+    const float labelLen = 50/tileSize;
+    const float stepSize = 2/tileSize;
     const size_t numLinePts = int(1.25f*labelLen/stepSize);
     // this obviously needs to match values in contour line shader
-    double elevStep =  m_tileId.z >= 14 ? 100. : m_tileId.z >= 12 ? 200. : 500.;
+    float elevStep =  m_tileId.z >= 14 ? 100. : m_tileId.z >= 12 ? 200. : 500.;
 
+    float level = NAN;
     while (1) {
-        double level = NAN;
-        glm::vec2 dpos, grad;  //, prevTangent;
+        float step, prevElev, lowerElev = NAN, upperElev = NAN;
+        glm::vec2 dpos, grad, prevPos, lowerPos, upperPos;  //, prevTangent;
         int niter = 0;
         do {
-            double elev = ElevationManager::elevationLerp(*m_texture, pos, &grad);
+            float elev = ElevationManager::elevationLerp(*m_texture, pos, &grad);
             if (std::isnan(level)) {
                 level = std::round(elev/elevStep)*elevStep;
             }
-            dpos = glm::vec2(level - elev)/grad;
-            pos += dpos;
 
-            // abort if outside tile or too many iterations
-            if(++niter > 10 || pos.x < 0 || pos.y < 0 || pos.x > 1 || pos.y > 1) { return NAN; }
+            if (elev < level && !(elev < lowerElev)) {  // use false compare to handle NAN
+                lowerElev = elev;
+                lowerPos = pos;
+            } else if (elev > level && !(elev > upperElev)) {
+                upperElev = elev;
+                upperPos = pos;
+            }
 
-        } while (glm::length2(dpos) > maxPosErr2);
+            // handle zero gradient case ... I think this could be fairly common so don't just abort
+            if (grad.x == 0 && grad.y == 0) {
+                if (niter == 0 || prevElev == elev || pos == prevPos) { return NAN; }
+                float dr = glm::length(pos - prevPos);
+                grad = (pos - prevPos)*(elev - prevElev)/(dr*dr);
+            }
+            prevElev = elev;
+            prevPos = pos;
+
+            float gradlen = glm::length(grad);
+            step = std::abs(level - elev)/gradlen;
+            if (level < elev) { gradlen = -gradlen; }
+
+            if (std::isnan(lowerElev) || std::isnan(upperElev)) {
+                float toedge = std::min({pos.x, pos.y, 1 - pos.x, 1 - pos.y});  // distance to nearest edge
+                pos += std::min(step, std::max(0.025f, toedge))*(grad/gradlen);  // limit step size
+            } else {
+                pos = (upperPos*(level - lowerElev) + lowerPos*(upperElev - level))/(upperElev - lowerElev);
+            }
+
+            // abort if outside tile or too many iterations; exit on false compare to handle NAN in pos
+            if(++niter > 12 || !(pos.x >= 0 && pos.y >= 0 && pos.x <= 1 && pos.y <= 1)) { return NAN; }
+
+        } while (step > maxPosErr);
 
         line.push_back(pos);
         if(line.size() >= numLinePts) { return level; }
-        glm::vec2 tangent = glm::normalize(glm::vec2(-grad.y, grad.x));
+        glm::vec2 tangent = glm::normalize(glm::vec2(grad.y, -grad.x));
         //if(glm::dot(tangent, prevTangent ... check for excess angle
-        pos += tangent*stepSize;
+        pos = glm::clamp(pos + tangent*stepSize, glm::vec2(0.f), glm::vec2(1.f));
     }
 }
 
@@ -89,6 +121,9 @@ bool ContourTextStyleBuilder::addFeature(const Feature& _feat, const DrawRule& _
     Properties props = {{{"name", "dummy"}}};  // applyRule() will fail if name is empty
     TextStyle::Parameters params = applyRule(_rule, props, false);  //_feat.props
     if (!params.font) { return false; }
+    // 'angle: auto' -> labelOptions.angle = NAN to force text to always be oriented uphill
+    _rule.get(StyleParamKey::angle, params.labelOptions.angle);
+    params.wordWrap = false;
 
     // Keep start position of new quads
     size_t quadsStart = m_quads.size(), numLabels = m_labels.size();
