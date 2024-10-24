@@ -625,52 +625,60 @@ glm::vec4 View::tileCoordsToClipSpace(TileCoordinates tc, float elevation) const
 //  screen bottom with fixed LOD ranges; attempted to combine with screen area based LOD calc, but was much
 //  slower than recursive approach - see 3 Oct 2024 rev
 
+static bool allLess(glm::vec4 a, glm::vec4 b) { return a.x < b.x && a.y < b.y && a.z < b.z && a.w < b.w; }
+static bool allGreater(glm::vec4 a, glm::vec4 b) { return a.x > b.x && a.y > b.y && a.z > b.z && a.w > b.w; }
+
 void View::getVisibleTiles(const std::function<void(TileID)>& _tileCb, int zoomBias, TileID tile) const
 {
     //if(tile.z == 0) { FrameInfo::begin("getVisibleTiles2");  }
-    float elev = 0;
-    if(m_elevationManager && m_pitch != 0) {
+    TileCoordinates tc = {double(tile.x), double(tile.y), tile.z};
+    auto a00 = tileCoordsToClipSpace(tc);
+    auto a01 = tileCoordsToClipSpace({tc.x, tc.y + 1, tc.z});
+    auto a10 = tileCoordsToClipSpace({tc.x + 1, tc.y, tc.z});
+    auto a11 = tileCoordsToClipSpace({tc.x + 1, tc.y + 1, tc.z});
+    auto a = glm::transpose(glm::mat4(a00, a01, a10, a11));
+    auto wa = glm::abs(a[3]);
+
+    if (m_elevationManager && m_pitch != 0) {
         glm::dvec3 eye(m_pos.x + m_eye.x, m_pos.y + m_eye.y, m_eye.z);
         double dist = glm::distance(eye, glm::dvec3(MapProjection::tileCenter(tile), 0.));
         //if(dist - std::abs(bounds.max.x - bounds.min.x)/M_SQRT2 > maxTileDistance) { return; } ... only covers ~30% of tiles
-        // elevate two corners of tiles near camera to ensure tiles under camera get included
-        elev = (dist < m_pos.z) ? std::min(9000.f, m_eye.z) : 0;  // Mt. Everest
+        float elev = (dist < m_pos.z) ? std::min(9000.f, m_eye.z) : 0;  // Mt. Everest
+
+        auto b00 = tileCoordsToClipSpace(tc, elev);
+        auto b01 = tileCoordsToClipSpace({tc.x, tc.y + 1, tc.z}, elev);
+        auto b10 = tileCoordsToClipSpace({tc.x + 1, tc.y, tc.z}, elev);
+        auto b11 = tileCoordsToClipSpace({tc.x + 1, tc.y + 1, tc.z}, elev);
+        auto b = glm::transpose(glm::mat4(b00, b01, b10, b11));
+        auto wb = glm::abs(b[3]);
+
+        if(allLess(a[0], -wa) && allLess(b[0], -wb)) return;
+        if(allGreater(a[0], wa) && allGreater(b[0], wb)) return;
+        if(allLess(a[1], -wa) && allLess(b[1], -wb)) return;
+        if(allGreater(a[1], wa) && allGreater(b[1], wb)) return;
+        if(allLess(a[2], glm::vec4(0)) && allLess(b[2], glm::vec4(0))) return;
+        if(allGreater(a[2], wa) && allGreater(b[2], wb)) return;
+    } else {
+        if(allLess(a[0], -wa) || allGreater(a[0], wa)) return;
+        if(allLess(a[1], -wa) || allGreater(a[1], wa)) return;
+        if(allLess(a[2], glm::vec4(0)) || allGreater(a[2], wa)) return;
     }
 
-    TileCoordinates tc = {double(tile.x), double(tile.y), tile.z};
-    auto c00 = tileCoordsToClipSpace(tc);
-    auto c01 = tileCoordsToClipSpace({tc.x, tc.y + 1, tc.z}, elev);
-    auto c10 = tileCoordsToClipSpace({tc.x + 1, tc.y, tc.z}, elev);
-    auto c11 = tileCoordsToClipSpace({tc.x + 1, tc.y + 1, tc.z});
-
-    float w00 = std::abs(c00.w), w01 = std::abs(c01.w), w10 = std::abs(c10.w), w11 = std::abs(c11.w);
-    if(c00.x < -w00 && c01.x < -w01 && c10.x < -w10 && c11.x < -w11) return;
-    if(c00.x >  w00 && c01.x >  w01 && c10.x >  w10 && c11.x >  w11) return;
-    if(c00.y < -w00 && c01.y < -w01 && c10.y < -w10 && c11.y < -w11) return;
-    if(c00.y >  w00 && c01.y >  w01 && c10.y >  w10 && c11.y >  w11) return;
-    if(c00.z < 0 && c01.z < 0 && c10.z < 0 && c11.z < 0) return;
-    if(c00.z > w00 && c01.z > w01 && c10.z > w10 && c11.z > w11) return;
-
     float maxZoom = getIntegerZoom() - zoomBias;
-    if(tile.z < maxZoom) {
+    if (tile.z < maxZoom) {
         float maxEdge = 2 * m_pixelScale * float(MapProjection::tileSize()) * std::exp2(float(zoomBias));
         float maxArea = maxEdge*maxEdge;
         float area = std::numeric_limits<float>::max();
-        // recalc at zero elevation
-        if(elev > 0) {
-            c01 = tileCoordsToClipSpace({tc.x, tc.y + 1, tc.z});
-            c10 = tileCoordsToClipSpace({tc.x + 1, tc.y, tc.z});
-        }
-        if(m_pitch != 0 && c00.w > 0 && c01.w > 0 && c10.w > 0 && c11.w > 0) {
+        if (m_pitch != 0 && allGreater(a[3], glm::vec4(0))) {
             glm::vec2 screenSize(m_vpWidth, m_vpHeight);
-            auto r00 = ndcToScreenSpace(clipSpaceToNdc(c00), screenSize);
-            auto r01 = ndcToScreenSpace(clipSpaceToNdc(c01), screenSize);
-            auto r10 = ndcToScreenSpace(clipSpaceToNdc(c10), screenSize);
+            auto r00 = ndcToScreenSpace(clipSpaceToNdc(a00), screenSize);
+            auto r01 = ndcToScreenSpace(clipSpaceToNdc(a01), screenSize);
+            auto r10 = ndcToScreenSpace(clipSpaceToNdc(a10), screenSize);
             auto dr01 = r01 - r00;
             auto dr10 = r10 - r00;
             area = std::abs(dr01.x*dr10.y - dr01.y*dr10.x);
         }
-        if(area > maxArea) {
+        if (area > maxArea) {
             for (int i = 0; i < 4; i++) {
                 getVisibleTiles(_tileCb, zoomBias, tile.getChild(i, maxZoom));
             }

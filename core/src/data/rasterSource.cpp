@@ -34,11 +34,7 @@ public:
     void process(TileBuilder& _tileBuilder) override {
         auto source = rasterSource();
         if (!source) { return; }
-
-        if(m_ready) {
-          LOGE("Duplicate call to RasterTileTask::process() for %s", m_tileId.toString().c_str());
-          return;
-        }
+        assert(!m_ready);  // shared task previously could be erroneously added to tile worker queue twice
 
         if (!texture && !raster) {
             // Decode texture data

@@ -84,7 +84,7 @@ void FrameInfo::end(const std::string& tag)
   entry.avgCpu = entry.avgCpu*(1 - alpha) + dtCpu*alpha;
 }
 
-void FrameInfo::draw(RenderState& rs, const View& _view, const Scene& _scene) {
+void FrameInfo::draw(RenderState& rs, const View& _view, Map& _map) {
 
     if (!getDebugFlag(DebugFlags::tangram_infos) && !getDebugFlag(DebugFlags::tangram_stats)) { return; }
 
@@ -134,7 +134,7 @@ void FrameInfo::draw(RenderState& rs, const View& _view, const Scene& _scene) {
         avgTimeUpdate /= 60;
     }
 
-    TileManager& _tileManager = *_scene.tileManager();
+    TileManager& _tileManager = *_map.getScene()->tileManager();
     size_t memused = 0;
     size_t features = 0;
     for (const auto& tile : _tileManager.getVisibleTiles()) {
@@ -154,13 +154,14 @@ void FrameInfo::draw(RenderState& rs, const View& _view, const Scene& _scene) {
             countsStr += " " + _tileManager.getClientTileSource(count.first)->name() + ":" + std::to_string(count.second);
         }
 
-        debuginfos.push_back(fstring("zoom:%.3f (d:%.0f, h:%.0f); pxscale:%.2f",
+        debuginfos.push_back(fstring("zoom:%.3f (d:%.0fm, h:%.0fm); pxscale:%.2f",
             _view.getZoom(), _view.getPosition().z, _view.getEye().z, _view.pixelScale()));
         debuginfos.push_back(fstring("tiles:%d;", tiles.size()) + countsStr);
         debuginfos.push_back(fstring("selectable features:%d", features));
         debuginfos.push_back(fstring("tile cache:%d (%dKB)", _tileManager.getTileCache()->getNumEntries(),
                                      _tileManager.getTileCache()->getMemoryUsage() / 1024));
         debuginfos.push_back(fstring("tile size:%dKB", memused / 1024));
+        debuginfos.push_back(fstring("pending downloads:%d", _map.getPlatform().activeUrlRequests()));
 
         if(!profInfos.empty()) {
             end("_Frame");

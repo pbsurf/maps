@@ -85,7 +85,7 @@ void TileSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb _cb) {
             if (m_sources->loadTileData(_task, _cb)) {
                 _task->startedLoading();
             }
-        } else if(_task->hasData()) {
+        } else if(_task->hasData() && _task->shareCount < 2) {
             _cb.func(_task);
         }
     }

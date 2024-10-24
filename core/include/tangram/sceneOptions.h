@@ -56,6 +56,9 @@ public:
     /// Preserve markers from previous scene?
     bool preserveMarkers = false;
 
+    /// Metric or Imperial?
+    bool metricUnits = true;
+
     /// Number of threads fetching tiles
     uint32_t numTileWorkers = 2;
 

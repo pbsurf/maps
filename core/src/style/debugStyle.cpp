@@ -16,14 +16,6 @@
 
 namespace Tangram {
 
-struct PosColVertex {
-    // Position Data
-    glm::vec3 pos;
-    // Color Data
-    GLuint abgr;
-};
-
-
 DebugStyle::DebugStyle(std::string _name, Blending _blendMode, GLenum _drawMode)
     : Style(_name, _blendMode, _drawMode, false) {
     m_type = StyleType::debug;
@@ -56,8 +48,8 @@ struct DebugStyleBuilder : public StyleBuilder {
             return nullptr;
         }
 
-        auto mesh = std::make_unique<Mesh<PosColVertex>>(m_style.vertexLayout(),
-                                                         m_style.drawMode());
+        auto mesh = std::make_unique<Mesh<DebugStyle::Vertex>>(m_style.vertexLayout(),
+                                                               m_style.drawMode());
 
         GLuint abgr = 0xff0000ff;
 
