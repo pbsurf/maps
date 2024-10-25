@@ -897,6 +897,9 @@ Scene::Styles SceneLoader::applyStyles(const Node& _node, SceneTextures& _textur
     styles.emplace_back(new PointStyle("points"));
     styles.emplace_back(new RasterStyle("raster"));
     styles.emplace_back(new ContourTextStyle("contour-labels"));
+#ifdef TANGRAM_CONTOUR_DEBUG
+    styles.emplace_back(new ContourDebugStyle("contour-debug"));
+#endif
 
     if (!_node) { return styles; }
     if (!_node.IsMap()) {

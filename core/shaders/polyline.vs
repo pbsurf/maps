@@ -153,11 +153,8 @@ void main() {
 
     gl_Position = u_proj * v_position;
 
+    float layer = UNPACK_ORDER(a_position.w);
     // Proxy tiles are placed deeper in the depth buffer than non-proxy tiles
-    gl_Position.z += TANGRAM_DEPTH_DELTA * gl_Position.w * u_proxy_depth;
-
-    #ifdef TANGRAM_DEPTH_DELTA
-        float layer = UNPACK_ORDER(a_position.w);
-        gl_Position.z -= layer * TANGRAM_DEPTH_DELTA * gl_Position.w;
-    #endif
+    // + 0.02 to use larger depth delta near camera to prevent terrain from covering geometry
+    gl_Position.z += (u_proxy_depth - layer) * (TANGRAM_DEPTH_DELTA * gl_Position.w + 0.02);
 }
