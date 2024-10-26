@@ -85,7 +85,6 @@ bool SpriteLabel::setElevation(ElevationManager& elevMgr, glm::dvec2 origin, dou
 bool SpriteLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& _viewState,
                                         const AABB* _bounds, ScreenTransform& _transform) {
 
-    glm::vec2 halfScreen = glm::vec2(_viewState.viewportSize * 0.5f);
     glm::vec3 p0 = m_coordinates;
 
     if (m_options.flat) {
@@ -98,10 +97,7 @@ bool SpriteLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& 
         float scale = float(sourceScale / (_viewState.zoomScale * _viewState.tileSize));
         float zoomFactor = m_vertexAttrib.extrudeScale * _viewState.fractZoom;
 
-        glm::vec2 dim = (m_dim + zoomFactor) * scale;
-
-        // Center around 0,0
-        dim *= 0.5f;
+        glm::vec2 dim = (m_dim + zoomFactor) * scale * 0.5f;
 
         positions[0] = -dim;
         positions[1] = glm::vec2(dim.x, -dim.y);
@@ -118,55 +114,31 @@ bool SpriteLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& 
 
         AABB aabb;
         for (size_t i = 0; i < 4; i++) {
+            projected[i] = worldToClipSpace(_mvp, glm::vec4(positions[i] + glm::vec2(p0), p0.z, 1.f));
+            if (clipSpaceIsBehindCamera(projected[i])) { return false; }
 
-            positions[i] += glm::vec2(p0);
-
-            glm::vec4 proj = worldToClipSpace(_mvp, glm::vec4(positions[i], p0.z, 1.f));
-            if (proj.w <= 0.0f) { return false; }
-
-            projected[i] = proj;
-
-            proj /= proj.w;
-            // from normalized device coordinates to screen space coordinate system
-            // top-left screen axis, y pointing down
-            positions[i].x = 1 + proj.x;
-            positions[i].y = 1 - proj.y;
-            positions[i] *= halfScreen;
-
+            positions[i] = ndcToScreenSpace(clipSpaceToNdc(projected[i]), _viewState.viewportSize);
             aabb.include(positions[i].x, positions[i].y);
         }
 
-        if (_bounds) {
-            if (!aabb.intersect(*_bounds)) { return false; }
-        }
+        if (_bounds && !aabb.intersect(*_bounds)) { return false; }
 
         FlatTransform(_transform).set(positions, projected);
 
-        {
-            glm::vec4 projected = worldToClipSpace(_mvp, glm::vec4(p0, 1.f));
-            if (projected.w <= 0.0f) { return false; }
+        glm::vec4 proj = worldToClipSpace(_mvp, glm::vec4(p0, 1.f));
+        if (clipSpaceIsBehindCamera(proj)) { return false; }
 
-            projected /= projected.w;
+        glm::vec3 ndc = clipSpaceToNdc(proj);
+        glm::vec2 pos = ndcToScreenSpace(ndc, _viewState.viewportSize) + m_options.offset;
+        m_screenCenter = glm::vec4(pos, ndc.z, 1/proj.w);
 
-            glm::vec2 position;
-            position.x = 1 + projected.x;
-            position.y = 1 - projected.y;
-            position *= halfScreen;
-            position += m_options.offset;
-            m_screenCenter = glm::vec3(position, projected.z);
-        }
     } else {
 
         glm::vec4 projected = worldToClipSpace(_mvp, glm::vec4(p0, 1.f));
-        if (projected.w <= 0.0f) { return false; }
+        if (clipSpaceIsBehindCamera(projected)) { return false; }
 
-        projected /= projected.w;
-
-        glm::vec2 position;
-        position.x = 1 + projected.x;
-        position.y = 1 - projected.y;
-        position *= halfScreen;
-        position += m_options.offset;
+        glm::vec3 ndc = clipSpaceToNdc(projected);
+        glm::vec2 position = ndcToScreenSpace(ndc, _viewState.viewportSize) + m_options.offset;
 
         if (_bounds) {
             auto aabb = m_options.anchors.extents(m_dim);
@@ -175,10 +147,9 @@ bool SpriteLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& 
             if (!aabb.intersect(*_bounds)) { return false; }
         }
 
-        m_screenCenter = glm::vec3(position, projected.z);
+        m_screenCenter = glm::vec4(position, ndc.z, 1/projected.w);
 
-        BillboardTransform(_transform).set(position, glm::vec3(projected),
-                                           _viewState.viewportSize, _viewState.fractZoom);
+        BillboardTransform(_transform).set(position, ndc, _viewState.viewportSize, _viewState.fractZoom);
     }
 
     return true;

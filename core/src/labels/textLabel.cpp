@@ -88,7 +88,7 @@ bool TextLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& _v
 
             glm::vec3 p0 = m_coordinates[0];
 
-            glm::vec3 screenPosition = worldToScreenSpace(_mvp, glm::vec4(p0, 1.0),
+            glm::vec4 screenPosition = worldToScreenSpace(_mvp, glm::vec4(p0, 1.0),
                                                           _viewState.viewportSize, clipped);
 
             if (clipped) { return false; }
@@ -141,7 +141,7 @@ bool TextLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& _v
             glm::vec3 p1 = (p2 + p0) * 0.5f;
 
             // Keep screen position center at world center (less sliding in tilted view)
-            glm::vec3 screenPosition = worldToScreenSpace(_mvp, glm::vec4(p1, 1.0),
+            glm::vec4 screenPosition = worldToScreenSpace(_mvp, glm::vec4(p1, 1.0),
                                                           _viewState.viewportSize, clipped);
 
             auto offset = m_options.offset;

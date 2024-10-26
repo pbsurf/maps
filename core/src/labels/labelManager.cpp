@@ -74,18 +74,19 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
         // terrain depth is from previous frame, so we must compare label position before Label::update()
         bool isBehindTerrain = false;
         if (useElev) {
-            float labelz = label->screenDepth();
+            //float labelz = label->screenCoord().z;
+            //float terrainz = _elevManager->getDepth(label->screenCenter());
+            //isBehindTerrain = labelz > terrainz + 0.005f;
+            float labelz = 1/label->screenCoord().w;
             float terrainz = _elevManager->getDepth(label->screenCenter());
-            isBehindTerrain = labelz > terrainz + 0.005f;
+            isBehindTerrain = labelz > terrainz + 40.0f;
         }
 
         Range transformRange;
         ScreenTransform transform { m_transforms, transformRange };
 
         // Use extendedBounds when labels take part in collision detection.
-        auto bounds = (_onlyRender || !label->canOcclude())
-            ? screenBounds
-            : extendedBounds;
+        auto bounds = (_onlyRender || !label->canOcclude()) ? screenBounds : extendedBounds;
 
         if (!label->update(_mvp, _viewState, &bounds, transform)) {
             continue;

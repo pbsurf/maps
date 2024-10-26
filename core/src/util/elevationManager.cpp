@@ -20,7 +20,7 @@ precision highp float;
 layout (location = 0) out highp uint depthOut;
 
 void main(void) {
-  depthOut = floatBitsToUint(gl_FragCoord.z);
+  depthOut = floatBitsToUint(gl_FragCoord.w);  //gl_FragCoord.z);
 }
 )RAW_GLSL";
 
@@ -248,7 +248,8 @@ float ElevationManager::getDepth(glm::vec2 screenpos)
   glm::vec2 pos = glm::clamp(glm::round(screenpos/bufferScale), {0, 0}, {w-1, h-1});
   //GL::readPixels(floorf(screenpos.x), floorf(screenpos.y), 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel);
   // convert from 0..1 (glDepthRange) to -1..1 (NDC)
-  return 2*m_depthData[int(pos.x) + int(h - pos.y - 1)*w] - 1;
+  //return 2*m_depthData[int(pos.x) + int(h - pos.y - 1)*w] - 1;
+  return 1/m_depthData[int(pos.x) + int(h - pos.y - 1)*w];
 }
 
 void ElevationManager::setZoom(int z)
@@ -258,9 +259,7 @@ void ElevationManager::setZoom(int z)
 
 ElevationManager::ElevationManager(std::shared_ptr<RasterSource> src, Style& style) : m_elevationSource(src)
 {
-  m_elevationSource->m_keepTextureData = true;
-
-  //m_renderState = std::make_unique<RenderState>();
+  //m_elevationSource->m_keepTextureData = true;  -- now done in Scene::load()
 
   // default blending mode is opaque, as desired
   m_style = std::make_unique<TerrainStyle>("__terrain");

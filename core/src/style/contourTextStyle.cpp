@@ -15,8 +15,7 @@ class ContourTextStyleBuilder : public TextStyleBuilder {
 
 public:
 
-    ContourTextStyleBuilder(const TextStyle& _style, bool _metricUnits)
-        : TextStyleBuilder(_style), m_metricUnits(_metricUnits) {}
+    ContourTextStyleBuilder(const TextStyle& _style) : TextStyleBuilder(_style) {}
 
     void setup(const Tile& _tile) override;
 
@@ -33,7 +32,6 @@ public:
 private:
     TileID m_tileId = {-1, -1, -1};
     std::shared_ptr<Texture> m_texture;
-    bool m_metricUnits = true;
 };
 
 
@@ -58,7 +56,7 @@ static float getContourLine(Texture& tex, TileID& tileId, glm::vec2 pos, float e
     float level = NAN;
     while (1) {
         float step, prevElev, lowerElev = NAN, upperElev = NAN;
-        glm::vec2 grad, prevPos, lowerPos, upperPos;  //, prevTangent;
+        glm::vec2 grad, prevPos, lowerPos, upperPos;
         int niter = 0;
         do {
             float elev = ElevationManager::elevationLerp(tex, pos, &grad);
@@ -120,8 +118,9 @@ bool ContourTextStyleBuilder::addFeature(const Feature& _feat, const DrawRule& _
 
     // this obviously needs to match values in contour line shader ... we could consider defining steps w/ a
     //  YAML array which can become a shader uniform and also can be read from Scene in Style::build()
-    float elevStep = m_metricUnits ? (m_tileId.z >= 14 ? 100 : m_tileId.z >= 12 ? 200 : 500)
-                                   : (m_tileId.z >= 14 ? 500 : m_tileId.z >= 12 ? 1000 : 2000)/3.28084f;
+    bool metricUnits = static_cast<const ContourTextStyle&>(m_style).m_metricUnits;
+    float elevStep = metricUnits ? (m_tileId.z >= 14 ? 100 : m_tileId.z >= 12 ? 200 : 500)
+                                 : (m_tileId.z >= 14 ? 500 : m_tileId.z >= 12 ? 1000 : 2000)/3.28084f;
 
     // Keep start position of new quads
     size_t quadsStart = m_quads.size(), numLabels = m_labels.size();
@@ -138,8 +137,11 @@ bool ContourTextStyleBuilder::addFeature(const Feature& _feat, const DrawRule& _
             if (std::isnan(level)) { continue; }
 
             LabelAttributes attrib;
-            params.text = std::to_string(int(m_metricUnits ? level : std::round(level*3.28084f)));
+            params.text = std::to_string(int(metricUnits ? level : std::round(level*3.28084f)));
             if (!prepareLabel(params, Label::Type::line, attrib)) { return false; }
+
+            //addLabel(Label::Type::line, {{ line.front(), line.back() }}, params, attrib, _rule);
+
             //size_t prevlabels = m_labels.size();
             addCurvedTextLabels(line, params, attrib, _rule);
             //LOGD("Placed %d contour label(s) for %s", int(m_labels.size() - prevlabels), m_tileId.toString().c_str());
@@ -162,7 +164,7 @@ void ContourTextStyle::build(const Scene& _scene) {
 }
 
 std::unique_ptr<StyleBuilder> ContourTextStyle::createBuilder() const {
-    return std::make_unique<ContourTextStyleBuilder>(*this, m_metricUnits);
+    return std::make_unique<ContourTextStyleBuilder>(*this);
 }
 
 #ifdef TANGRAM_CONTOUR_DEBUG
@@ -170,12 +172,11 @@ std::unique_ptr<StyleBuilder> ContourTextStyle::createBuilder() const {
 class ContourDebugStyleBuilder : public StyleBuilder {
 
 public:
-    ContourDebugStyleBuilder(const DebugStyle& _style, bool _metricUnits)
-        : m_style(_style), m_metricUnits(_metricUnits) {}
+    ContourDebugStyleBuilder(const ContourDebugStyle& _style) : m_style(_style) {}
     const Style& style() const override { return m_style; }
 
     MeshData<DebugStyle::Vertex> m_meshData;
-    const DebugStyle& m_style;
+    const ContourDebugStyle& m_style;
     double m_tileScale;
 
     void setup(const Tile& _tile) override;
@@ -186,7 +187,6 @@ public:
 private:
     TileID m_tileId = {-1, -1, -1};
     std::shared_ptr<Texture> m_texture;
-    bool m_metricUnits = true;
 };
 
 
@@ -203,8 +203,8 @@ bool ContourDebugStyleBuilder::addFeature(const Feature& _feat, const DrawRule& 
 
     if (!m_texture) { return false; }
 
-    float elevStep = m_metricUnits ? (m_tileId.z >= 14 ? 100 : m_tileId.z >= 12 ? 200 : 500)
-                                   : (m_tileId.z >= 14 ? 500 : m_tileId.z >= 12 ? 1000 : 2000)/3.28084f;
+    float elevStep = m_style.m_metricUnits ? (m_tileId.z >= 14 ? 100 : m_tileId.z >= 12 ? 200 : 500)
+            : (m_tileId.z >= 14 ? 500 : m_tileId.z >= 12 ? 1000 : 2000)/3.28084f;
 
     int ngrid = ContourTextStyleBuilder::gridSize + (m_tileId.s - m_tileId.z);
     glm::vec2 pos;
@@ -220,7 +220,7 @@ bool ContourDebugStyleBuilder::addFeature(const Feature& _feat, const DrawRule& 
             GLuint abgr = std::isnan(level) ? 0xFF00FF00 : 0xFF0000FF;
             for (size_t ii = 0; ii < line.size(); ++ii) {
                 auto& pt = line[ii];
-                float elev = ElevationManager::elevationLerp(*m_texture, pt)/m_tileScale;
+                float elev = m_style.m_terrain3d ? ElevationManager::elevationLerp(*m_texture, pt)/m_tileScale : 0;
                 m_meshData.vertices.push_back({glm::vec3(pt, elev), abgr});
                 if (ii == 0) continue;
                 m_meshData.indices.push_back(ii-1);
@@ -244,11 +244,12 @@ std::unique_ptr<StyledMesh> ContourDebugStyleBuilder::build() {
 
 void ContourDebugStyle::build(const Scene& _scene) {
     m_metricUnits = _scene.options().metricUnits;
+    m_terrain3d = bool(_scene.elevationManager());
     Style::build(_scene);
 }
 
 std::unique_ptr<StyleBuilder> ContourDebugStyle::createBuilder() const {
-    return std::make_unique<ContourDebugStyleBuilder>(*this, m_metricUnits);
+    return std::make_unique<ContourDebugStyleBuilder>(*this);
 }
 
 #endif

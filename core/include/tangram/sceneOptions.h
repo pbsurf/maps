@@ -75,7 +75,7 @@ public:
     std::string diskCacheDir;
 
     /// elevation source for 3D terrain; blank to disable
-    std::string terrain3dSource;
+    std::string elevationSource;
     std::vector<std::string> terrain3dStyles;
 
     /// global fallback fonts

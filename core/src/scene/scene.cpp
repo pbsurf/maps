@@ -190,10 +190,12 @@ bool Scene::load() {
     runTextureTasks();
     LOGTO("<<< applyStyles");
 
+    auto terrainSrcIt = std::find_if(m_tileSources.begin(), m_tileSources.end(),
+        [this](auto& src){ return src->isRaster() && src->name() == m_options.elevationSource; });
+    auto terrainSrc = terrainSrcIt != m_tileSources.end() ?
+         std::static_pointer_cast<RasterSource>(*terrainSrcIt) : nullptr;
     // setup 3D terrain if enabled
-    if (!m_options.terrain3dSource.empty()) {
-        auto terrainSrc = std::find_if(m_tileSources.begin(), m_tileSources.end(),
-            [this](auto& src){ return src->isRaster() && src->name() == m_options.terrain3dSource; });
+    if (terrainSrc && !m_options.terrain3dStyles.empty()) {
         // we need to select style that is actually used so that it will have a mesh, but very difficult to
         //  figure this out until we have built tile(s), so require list of style names from config
         auto terrainStyle = m_styles.end();
@@ -202,14 +204,17 @@ bool Scene::load() {
               [&](auto& style){ return style->getName() == name; });
           if(terrainStyle != m_styles.end()) break;
         }
-        if (terrainSrc != m_tileSources.end() && terrainStyle != m_styles.end()) {
-            m_elevationManager = std::make_unique<ElevationManager>(
-                std::static_pointer_cast<RasterSource>(*terrainSrc), **terrainStyle);
+        if (terrainStyle != m_styles.end()) {
+            m_elevationManager = std::make_unique<ElevationManager>(terrainSrc, **terrainStyle);
             // w/ default settings, seems horizon never visible w/o 3D terrain
             m_skyManager = std::make_unique<SkyManager>();
         }
         else
-          LOGE("Unable to find source and/or style needed for 3D terrain!");
+          LOGE("Unable to find style needed for 3D terrain!");
+    }
+    // need to keep elevation data if 3D terrain or contour labels enabled
+    if (m_elevationManager || (terrainSrc && terrainSrc->TileSource::generateGeometry())) {
+        terrainSrc->m_keepTextureData = true;
     }
     LOGTO("<<< elevationManager");
 

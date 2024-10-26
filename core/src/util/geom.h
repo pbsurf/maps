@@ -137,7 +137,7 @@ inline glm::vec2 ndcToScreenSpace(const glm::vec3& ndc, const glm::vec2& screenS
 }
 
 /// Compute the screen coordinates from a world position, a model view matrix and a screen size.
-glm::vec3 worldToScreenSpace(const glm::mat4& mvp, const glm::vec4& worldPosition, const glm::vec2& screenSize, bool& behindCamera);
+glm::vec4 worldToScreenSpace(const glm::mat4& mvp, const glm::vec4& worldPosition, const glm::vec2& screenSize, bool& behindCamera);
 
 /// Return the rotation unit vector representing a counter-clockwise rotation in the plane of the given radians.
 inline glm::vec2 rotation2dRad(float radians) {

@@ -106,7 +106,7 @@ public:
 
     // Current screen position of the label anchor
     glm::vec2 screenCenter() const { return glm::vec2(m_screenCenter); }
-    float screenDepth() const { return m_screenCenter.z; }
+    glm::vec4 screenCoord() const { return m_screenCenter; }
 
     // Occlude the label
     void occlude(bool _occlusion = true) { m_occluded = _occlusion; }
@@ -183,7 +183,7 @@ protected:
     bool m_occludedLastFrame;
     bool m_occluded;
 
-    glm::vec3 m_screenCenter;
+    glm::vec4 m_screenCenter;
     float m_alpha;
 };
 

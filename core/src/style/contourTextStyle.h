@@ -28,6 +28,7 @@ public:
     std::unique_ptr<StyleBuilder> createBuilder() const override;
 
     bool m_metricUnits = true;
+    bool m_terrain3d = false;
 };
 #endif
 

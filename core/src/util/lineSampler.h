@@ -189,6 +189,8 @@ struct LineSampler {
         return m_curAdvance - m_points[m_curPoint].z;
     }
 
+    size_t numPoints() const { return m_points.size(); }
+
     LineSampler(Points _points) : m_points(_points) { }
     LineSampler() { }
 

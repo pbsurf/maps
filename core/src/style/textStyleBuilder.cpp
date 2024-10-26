@@ -423,8 +423,9 @@ void TextStyleBuilder::addCurvedTextLabels(const Line& _line, const TextStyle::P
     };
 
     std::vector<LineRange> ranges;
+    size_t npoints = sampler.numPoints();  // this can be less than _line.size() if _line has duplicate points
 
-    for (size_t i = 0; i < _line.size()-1; i++) {
+    for (size_t i = 0; i < npoints-1; i++) {
 #ifdef TANGRAM_NEW_CURVED_LABELS
         // only process labels starting in this tile
         const auto& p0 = sampler.point(i);
@@ -438,7 +439,7 @@ void TextStyleBuilder::addCurvedTextLabels(const Line& _line, const TextStyle::P
 
         glm::vec2 dir1 = sampler.segmentDirection(i);
 
-        for (size_t j = i + 1; j < _line.size()-1; j++) {
+        for (size_t j = i + 1; j < npoints-1; j++) {
             glm::vec2 dir2 = sampler.segmentDirection(j);
             bool splitLine = false;
 
@@ -520,7 +521,7 @@ void TextStyleBuilder::addCurvedTextLabels(const Line& _line, const TextStyle::P
         if (lastBreak == 0) {
             float length = sampler.sumLength() - sampler.point(i).z;
             if (length > minLength) {
-                ranges.push_back(LineRange{i, _line.size(), flips, sumAngle});
+                ranges.push_back(LineRange{i, npoints, flips, sumAngle});
             }
         }
 #endif
@@ -540,7 +541,7 @@ void TextStyleBuilder::addCurvedTextLabels(const Line& _line, const TextStyle::P
         l.reserve(range.end - range.start + 1);
 
         for (size_t j = range.start; j < range.end; j++) {
-            auto& p = _line[j];
+            auto p = sampler.point(j);
             l.emplace_back(p.x, p.y, 0.f);
 
             if (j == offset) {

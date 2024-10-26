@@ -12,12 +12,12 @@ float mapRange01(float value, float inputMin, float inputMax) {
     return clamp01((value - inputMin) / (inputMax - inputMin));
 }
 
-glm::vec3 worldToScreenSpace(const glm::mat4& mvp, const glm::vec4& worldPosition, const glm::vec2& screenSize, bool& behindCamera) {
+glm::vec4 worldToScreenSpace(const glm::mat4& mvp, const glm::vec4& worldPosition, const glm::vec2& screenSize, bool& behindCamera) {
     glm::vec4 clip = worldToClipSpace(mvp, worldPosition);
     glm::vec3 ndc = clipSpaceToNdc(clip);
     glm::vec2 screenPosition = ndcToScreenSpace(ndc, screenSize);
     behindCamera = clipSpaceIsBehindCamera(clip);
-    return glm::vec3(screenPosition, ndc.z);
+    return glm::vec4(screenPosition, ndc.z, 1/clip.w);  // matches gl_FragCoord
 }
 
 float pointSegmentDistanceSq(const glm::vec2& p, const glm::vec2& a, const glm::vec2& b) {
