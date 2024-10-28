@@ -59,6 +59,9 @@ public:
     /// Metric or Imperial?
     bool metricUnits = true;
 
+    /// Enable 3D terrain?
+    bool terrain3d = false;
+
     /// Number of threads fetching tiles
     uint32_t numTileWorkers = 2;
 
@@ -74,9 +77,8 @@ public:
     /// cache directory for tiles, fonts, etc
     std::string diskCacheDir;
 
-    /// elevation source for 3D terrain; blank to disable
+    /// elevation source for 3D terrain
     std::string elevationSource;
-    std::vector<std::string> terrain3dStyles;
 
     /// global fallback fonts
     std::vector<FontSourceHandle> fallbackFonts;

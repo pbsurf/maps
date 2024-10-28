@@ -564,22 +564,28 @@ LngLat View::screenPositionToLngLat(float x, float y, bool& _intersection) {
 
     if (m_dirtyMatrices) { updateMatrices(); } // Need the view matrices to be up-to-date
 
-    double dx = x, dy = y;
+    glm::dvec2 dpos(x, y);
     if (m_elevationManager) {
         // ref: https://www.khronos.org/opengl/wiki/GluProject_and_gluUnProject_code (gluUnProject)
-        double ndcZ = m_elevationManager->getDepth({x, y});
-        glm::dvec4 target_clip = { 2. * dx / m_vpWidth - 1., 1. - 2. * dy / m_vpHeight, ndcZ, 1. };
+        //double ndcZ = m_elevationManager->getDepth({x, y});
+        //glm::dvec4 target_clip = { 2*x/m_vpWidth - 1, 1 - 2*y/m_vpHeight, ndcZ, 1. };
+        //glm::dvec4 target_world = m_invViewProj * target_clip;
+        //target_world /= target_world.w;
+        //dpos = glm::dvec2(target_world);
+        //_intersection = ndcZ > -1;
+
+        // unprojection using clip space w (= -1 * view space z)
+        float clipW = m_elevationManager->getDepth({x, y});
+        glm::dvec4 target_clip = { clipW*(2*x/m_vpWidth - 1), clipW*(1 - 2*y/m_vpHeight),
+                                   -m_proj[2][2]*clipW + m_proj[3][2], clipW };
         glm::dvec4 target_world = m_invViewProj * target_clip;
-        target_world /= target_world.w;
-        dx = target_world.x;
-        dy = target_world.y;
-        _intersection = ndcZ > -1;
+        dpos = glm::dvec2(target_world);
+        _intersection = clipW > 0;
     } else {
-        double distance = screenToGroundPlaneInternal(dx, dy);
+        double distance = screenToGroundPlaneInternal(dpos.x, dpos.y);
         _intersection = (distance >= 0);
     }
-    glm::dvec2 meters(dx + m_pos.x, dy + m_pos.y);
-    LngLat lngLat = MapProjection::projectedMetersToLngLat(meters);
+    LngLat lngLat = MapProjection::projectedMetersToLngLat(dpos + glm::dvec2(m_pos));
     return lngLat.wrapped();
 }
 

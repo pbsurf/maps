@@ -162,6 +162,9 @@ public:
     void setAlpha(float _alpha);
 
     bool m_elevationSet = false;
+#ifdef DEBUG
+    std::string debugTag;
+#endif
 
 protected:
 

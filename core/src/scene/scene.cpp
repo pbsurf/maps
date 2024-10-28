@@ -87,6 +87,24 @@ void Scene::cancelTasks() {
     }
 }
 
+static void getActiveStyles(const SceneLayer& layer, std::set<std::string>& activeStyles)
+{
+    if (!layer.enabled()) { return; }
+    for (const DrawRuleData& rule : layer.rules()) {
+        std::string style = rule.name;
+        for (const StyleParam& param : rule.parameters) {
+            if (param.key == StyleParamKey::style) {
+                style = param.value.get<std::string>();
+                break;
+            }
+        }
+        activeStyles.emplace(style);
+    }
+    for (const SceneLayer& sublayer : layer.sublayers()) {
+        getActiveStyles(sublayer, activeStyles);
+    }
+}
+
 bool Scene::load() {
 
     LOGTOInit();
@@ -142,6 +160,10 @@ bool Scene::load() {
     SceneLoader::applyCameras(m_config, m_camera);
     LOGTO("<<< applyCameras");
 
+    m_lights = SceneLoader::applyLights(m_config["lights"]);
+    m_lightShaderBlocks = Light::assembleLights(m_lights);
+    LOGTO("<<< applyLights");
+
     SceneLoader::applyScene(m_config["scene"], m_background, m_backgroundStops, m_animated);
     LOGTO("<<< applyScene");
 
@@ -167,6 +189,25 @@ bool Scene::load() {
 
     m_styles = SceneLoader::applyStyles(m_config["styles"], m_textures,
                                         m_jsFunctions, m_stops, m_names);
+    LOGTO("<<< applyStyles");
+
+    m_layers = SceneLoader::applyLayers(m_config["layers"], m_jsFunctions, m_stops, m_names);
+    LOGTO("<<< applyLayers");
+
+    /// Remove unused styles
+    std::set<std::string> activeStyles;
+    for (auto& layer : m_layers) {
+        getActiveStyles(layer, activeStyles);
+    }
+    for (auto it = m_styles.begin(); it != m_styles.end();) {
+        if(activeStyles.count((*it)->getName())) {
+            ++it;
+        } else {
+            LOG("Discarding unused style '%s'", (*it)->getName().c_str());
+            it = m_styles.erase(it);
+        }
+    }
+
     if (m_options.debugStyles) {
         m_styles.emplace_back(new DebugTextStyle("debugtext", true));
         m_styles.emplace_back(new DebugStyle("debug"));
@@ -188,42 +229,30 @@ bool Scene::load() {
         }
     }
     runTextureTasks();
-    LOGTO("<<< applyStyles");
+    LOGTO("<<< sortStyles");
 
     auto terrainSrcIt = std::find_if(m_tileSources.begin(), m_tileSources.end(),
         [this](auto& src){ return src->isRaster() && src->name() == m_options.elevationSource; });
     auto terrainSrc = terrainSrcIt != m_tileSources.end() ?
          std::static_pointer_cast<RasterSource>(*terrainSrcIt) : nullptr;
     // setup 3D terrain if enabled
-    if (terrainSrc && !m_options.terrain3dStyles.empty()) {
-        // we need to select style that is actually used so that it will have a mesh, but very difficult to
-        //  figure this out until we have built tile(s), so require list of style names from config
-        auto terrainStyle = m_styles.end();
-        for(std::string& name : m_options.terrain3dStyles) {
-          terrainStyle = std::find_if(m_styles.begin(), m_styles.end(),
-              [&](auto& style){ return style->getName() == name; });
-          if(terrainStyle != m_styles.end()) break;
-        }
-        if (terrainStyle != m_styles.end()) {
+    if (m_options.terrain3d) {
+        // choose first raster style
+        auto terrainStyle = std::find_if(m_styles.begin(), m_styles.end(),
+              [&](auto& style){ return style->type() == StyleType::raster; });
+        if (terrainSrc && terrainStyle != m_styles.end()) {
             m_elevationManager = std::make_unique<ElevationManager>(terrainSrc, **terrainStyle);
             // w/ default settings, seems horizon never visible w/o 3D terrain
             m_skyManager = std::make_unique<SkyManager>();
         }
         else
-          LOGE("Unable to find style needed for 3D terrain!");
+          LOGE("Unable to find elevation source or raster style needed for 3D terrain!");
     }
     // need to keep elevation data if 3D terrain or contour labels enabled
     if (m_elevationManager || (terrainSrc && terrainSrc->TileSource::generateGeometry())) {
         terrainSrc->m_keepTextureData = true;
     }
     LOGTO("<<< elevationManager");
-
-    m_lights = SceneLoader::applyLights(m_config["lights"]);
-    m_lightShaderBlocks = Light::assembleLights(m_lights);
-    LOGTO("<<< applyLights");
-
-    m_layers = SceneLoader::applyLayers(m_config["layers"], m_jsFunctions, m_stops, m_names);
-    LOGTO("<<< applyLayers");
 
     for (auto& style : m_styles) { style->build(*this); }
     if (m_elevationManager) { m_elevationManager->m_style->build(*this); }

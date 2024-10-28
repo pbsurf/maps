@@ -567,7 +567,9 @@ void TextStyleBuilder::addCurvedTextLabels(const Line& _line, const TextStyle::P
                                                *m_textLabels, _attributes.textRanges,
                                                TextLabelProperty::Align::center,
                                                anchor));
-
+#ifdef DEBUG
+        m_labels.back()->debugTag = _params.text;
+#endif
     }
 }
 
@@ -946,6 +948,9 @@ Label* TextStyleBuilder::addLabel(Label::Type _type, TextLabel::Coordinates _coo
                                         {_attributes.width, _attributes.height},
                                         *m_textLabels, _attributes.textRanges,
                                         _params.align));
+#ifdef DEBUG
+    m_labels.back()->debugTag = _params.text;
+#endif
 
     return m_labels.back().get();
 }
