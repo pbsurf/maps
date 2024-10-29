@@ -51,6 +51,9 @@ public:
     // Set the feature properties of specified marker, e.g., for use in JS functions
     bool setProperties(MarkerID markerID, Properties&& properties);
 
+    // Set (non-colliding) alternate marker to be shown if marker is occluded due to collision
+    bool setAlternate(MarkerID markerID, MarkerID altID);
+
     // Set a marker to a point feature at the given position; returns true if the marker was found and updated.
     bool setPoint(MarkerID markerID, LngLat lngLat);
 

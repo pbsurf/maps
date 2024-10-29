@@ -399,6 +399,9 @@ public:
     // Set the feature properties of a marker, e.g., for use in JS functions
     bool markerSetProperties(MarkerID _marker, Properties&& _properties);
 
+    // Set another marker as alternate to be shown if main marker is occluded by collision
+    bool markerSetAlternate(MarkerID _marker, MarkerID _alt);
+
     // Set the visibility of a marker object; returns true if the marker ID was found and successfully
     // updated, otherwise returns false.
     bool markerSetVisible(MarkerID _marker, bool _visible);

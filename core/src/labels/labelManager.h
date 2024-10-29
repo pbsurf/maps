@@ -68,8 +68,8 @@ protected:
     bool withinRepeatDistance(Label *_label);
 
     void processLabelUpdate(const ViewState& _viewState, const LabelSet* _labelSet, Style* _style,
-                            const Tile* _tile, const Marker *_marker, ElevationManager* _elevManager,
-                            const glm::mat4& _mvp, float _dt, bool _drawAll, bool _onlyRender, bool _isProxy);
+                            const Tile* _tile, const Marker* _marker, ElevationManager* _elevManager,
+                            float _dt, bool _onlyRender);
 
     bool m_needUpdate;
 

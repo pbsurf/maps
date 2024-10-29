@@ -832,6 +832,12 @@ bool Map::markerSetProperties(MarkerID _marker, Properties&& _properties) {
     return success;
 }
 
+bool Map::markerSetAlternate(MarkerID _marker, MarkerID _alt) {
+    bool success = impl->scene->markerManager()->setAlternate(_marker, _alt);
+    platform->requestRender();
+    return success;
+}
+
 bool Map::markerSetStylingFromString(MarkerID _marker, const char* _styling) {
     bool success = impl->scene->markerManager()->setStylingFromString(_marker, _styling);
     platform->requestRender();

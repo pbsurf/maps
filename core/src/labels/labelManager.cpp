@@ -37,8 +37,9 @@ LabelManager::~LabelManager() {}
 
 void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSet* _labelSet, Style* _style,
                                 const Tile* _tile, const Marker* _marker, ElevationManager* _elevManager,
-                                const glm::mat4& _mvp, float _dt, bool _drawAll, bool _onlyRender, bool _isProxy) {
+                                float _dt, bool _onlyRender) {
 
+    assert(_tile || _marker);
     // TODO appropriate buffer to filter out-of-screen labels
     float border = 256.0f;
     AABB extendedBounds(-border, -border,
@@ -49,15 +50,17 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
                       _viewState.viewportSize.x,
                       _viewState.viewportSize.y);
 
+    bool drawAllLabels = Tangram::getDebugFlag(DebugFlags::draw_all_labels);
+
     // use blendOrder == INT_MAX to indicate debug style
-    bool useElev = _elevManager && (_tile || _marker) && _style->blendOrder() < INT_MAX;
+    bool useElev = _elevManager && _style->blendOrder() < INT_MAX;
     bool setElev = useElev && (_marker || _elevManager->hasTile(_tile->getID()));
     if (setElev) {
         _elevManager->setZoom(_tile ? _tile->getID().z : _marker->builtZoomLevel());
     }
 
     for (auto& label : _labelSet->getLabels()) {
-        if (!_drawAll && (label->state() == Label::State::dead) ) {
+        if (!drawAllLabels && (label->state() == Label::State::dead) ) {
             continue;
         }
 
@@ -88,12 +91,14 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
         // Use extendedBounds when labels take part in collision detection.
         auto bounds = (_onlyRender || !label->canOcclude()) ? screenBounds : extendedBounds;
 
-        if (!label->update(_mvp, _viewState, &bounds, transform)) {
+        const glm::mat4& mvp = _tile ? _tile->mvp() : _marker->modelViewProjectionMatrix();
+        if (!label->update(mvp, _viewState, &bounds, transform)) {
             continue;
         }
 
         if(isBehindTerrain) { continue; }
 
+        bool isProxy = _tile && _tile->isProxy();
         if (_onlyRender) {
             if (label->occludedLastFrame()) { label->occlude(); }
 
@@ -102,13 +107,13 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
                 label->addVerticesToMesh(transform, _viewState.viewportSize);
             }
         } else if (label->canOcclude()) {
-            m_labels.emplace_back(label.get(), _style, _tile, _marker, _isProxy, transformRange);
+            m_labels.emplace_back(label.get(), _style, _tile, _marker, isProxy, transformRange);
         } else {
             m_needUpdate |= label->evalState(_dt);
             label->addVerticesToMesh(transform, _viewState.viewportSize);
         }
         if (label->selectionColor()) {
-            m_selectionLabels.emplace_back(label.get(), _style, _tile, _marker, _isProxy, transformRange);
+            m_selectionLabels.emplace_back(label.get(), _style, _tile, _marker, isProxy, transformRange);
         }
     }
 }
@@ -126,6 +131,13 @@ std::pair<Label*, const Tile*> LabelManager::getLabel(uint32_t _selectionColor) 
     return {nullptr, nullptr};
 }
 
+static Style* getStyleById(const Scene& _scene, uint32_t id) {
+    for (const auto& style : _scene.styles()) {
+        if (style->getID() == id) { return style.get(); }
+    }
+    return nullptr;
+}
+
 void LabelManager::updateLabels(const ViewState& _viewState, float _dt, const Scene& _scene,
                           const std::vector<std::shared_ptr<Tile>>& _tiles,
                           const std::vector<std::unique_ptr<Marker>>& _markers,
@@ -137,31 +149,15 @@ void LabelManager::updateLabels(const ViewState& _viewState, float _dt, const Sc
 
     m_needUpdate = false;
 
-    // int lodDiscard = LODDiscardFunc(View::s_maxZoom, _view.getZoom());
-
-    bool drawAllLabels = Tangram::getDebugFlag(DebugFlags::draw_all_labels);
-
     const auto& _styles = _scene.styles();
     for (const auto& tile : _tiles) {
-
-        //LOG("tile: %d/%d z:%d,%d", tile->getID().x, tile->getID().y, tile->getID().z, tile->getID().s);
-
-        // discard based on level of detail
-        // if ((zoom - tile->getID().z) > lodDiscard) {
-        //     continue;
-        // }
-
-        bool proxyTile = tile->isProxy();
-
-        glm::mat4 mvp = tile->mvp();
-
         for (const auto& style : _styles) {
             const auto& mesh = tile->getMesh(*style);
             auto labels = dynamic_cast<const LabelSet*>(mesh.get());
             if (!labels) { continue; }
 
             processLabelUpdate(_viewState, labels, style.get(), tile.get(), nullptr,
-                               _scene.elevationManager(), mvp, _dt, drawAllLabels, _onlyRender, proxyTile);
+                               _scene.elevationManager(), _dt, _onlyRender);
         }
     }
 
@@ -169,18 +165,18 @@ void LabelManager::updateLabels(const ViewState& _viewState, float _dt, const Sc
 
         if (!marker->isVisible() || !marker->mesh()) { continue; }
 
-        for (const auto& style : _styles) {
-
-            if (marker->styleId() != style->getID()) { continue; }
-
-            const auto& mesh = marker->mesh();
-            auto labels = dynamic_cast<const LabelSet*>(mesh);
-            if (!labels) { continue; }
-
-            processLabelUpdate(_viewState, labels, style.get(), nullptr, marker.get(),
-                               _scene.elevationManager(), marker->modelViewProjectionMatrix(),
-                               _dt, drawAllLabels, _onlyRender, false);
+        if (marker->isAltMarker) {
+            if (!_onlyRender) { marker->altMeshAdded = false; }
+            if (!marker->altMeshAdded) { continue; }
         }
+
+        Style* style = getStyleById(_scene, marker->styleId());
+        const auto& mesh = marker->mesh();
+        auto labels = dynamic_cast<const LabelSet*>(mesh);
+        if (!style || !labels) { continue; }
+
+        processLabelUpdate(_viewState, labels, style, nullptr, marker.get(),
+                           _scene.elevationManager(), _dt, _onlyRender);
     }
 }
 
@@ -528,6 +524,27 @@ void LabelManager::updateLabelSet(const ViewState& _viewState, float _dt, const 
 
     // Update label meshes
     for (auto& entry : m_labels) {
+
+        // show alt marker if (non-optional part of) marker is occluded
+        if (entry.label->isOccluded() && entry.marker
+                && entry.marker->altMarker && !entry.label->options().optional) {
+            Marker* alt = entry.marker->altMarker;
+            if (alt->altMeshAdded) { continue; }  // already shown
+            alt->altMeshAdded = true;
+            Style* style = getStyleById(_scene, alt->styleId());
+            auto labels = dynamic_cast<const LabelSet*>(alt->mesh());
+            if (!style || !labels) { continue; }
+            for (auto& label : labels->getLabels()) {
+                if (label->canOcclude()) {
+                    LOGE("Alt marker styling must set collide: false");
+                    const_cast<Label::Options&>(label->options()).collide = false;  // fix invalid state
+                }
+            }
+
+            processLabelUpdate(_viewState, labels, style, nullptr, alt,
+                               _scene.elevationManager(), _dt, false);
+            continue;
+        }
 
         if (!entry.label->visibleState()) { continue; }
 

@@ -128,6 +128,11 @@ public:
 
     uint32_t selectionColor() const;
 
+    // alternate marker state
+    Marker* altMarker = NULL;  // pointer to alternate
+    bool isAltMarker = false;  // set if is alternate
+    bool altMeshAdded = false;  // set on alternate if shown
+
     static bool compareByDrawOrder(const std::unique_ptr<Marker>& lhs, const std::unique_ptr<Marker>& rhs);
 
 protected:

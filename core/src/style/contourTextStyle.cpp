@@ -62,6 +62,7 @@ static float getContourLine(Texture& tex, TileID& tileId, glm::vec2 pos, float e
             float elev = ElevationManager::elevationLerp(tex, pos, &grad);
             if (std::isnan(level)) {
                 level = std::round(elev/elevStep)*elevStep;
+                if (level <= 0) { return NAN; }
             }
 
             if (elev < level && !(elev < lowerElev)) {  // use false compare to handle NAN

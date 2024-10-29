@@ -117,6 +117,15 @@ bool MarkerManager::setProperties(MarkerID markerID, Properties&& properties) {
     return true;
 }
 
+bool MarkerManager::setAlternate(MarkerID markerID, MarkerID altID) {
+    Marker* marker = getMarkerOrNull(markerID);
+    Marker* alt = getMarkerOrNull(altID);
+    if (!marker || !alt) { return false; }
+    marker->altMarker = alt;
+    alt->isAltMarker = true;
+    return true;
+}
+
 bool MarkerManager::setPoint(MarkerID markerID, LngLat lngLat) {
     Marker* marker = getMarkerOrNull(markerID);
     if (!marker) { return false; }
@@ -293,7 +302,7 @@ bool MarkerManager::update(const View& _view, float _dt) {
 
     for (auto& marker : m_markers) {
         // skip hidden markers (else we'll end up rendering continuously since buildStyling() doesn't finish)
-        if (!marker->isVisible()) continue;
+        if (!marker->isVisible()) { continue; }
 
         int builtZoom = marker->builtZoomLevel();
         if (m_zoom != builtZoom || !marker->mesh()) {
@@ -491,7 +500,7 @@ Marker* MarkerManager::getMarkerOrNull(MarkerID markerID) {
     // typical use case is to add marker, then call fns to configure it, so caller is most likely to want
     //  marker at end of list, so we search from end
     for (size_t ii = m_markers.size(); ii--;) {
-      if (m_markers[ii]->id() == markerID) { return m_markers[ii].get(); }
+        if (m_markers[ii]->id() == markerID) { return m_markers[ii].get(); }
     }
     return nullptr;
 }
