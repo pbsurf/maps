@@ -6,6 +6,7 @@
 #include "gl/primitives.h"
 #include "map.h"
 #include "scene/scene.h"
+#include "marker/markerManager.h"
 #include "tile/tileCache.h"
 
 #include <deque>
@@ -50,38 +51,36 @@ void FrameInfo::beginFrame() {
 }
 
 struct ProfInfo {
-  float avgCpu = 0;
-  float avgReal = 0;
-  clock_t startCpu = 0;
-  std::chrono::steady_clock::time_point startReal = std::chrono::steady_clock::now();
+    float avgCpu = 0;
+    float avgReal = 0;
+    clock_t startCpu = 0;
+    std::chrono::steady_clock::time_point startReal = std::chrono::steady_clock::now();
 };
 
 static std::map<std::string, ProfInfo> profInfos;
 
-void FrameInfo::begin(const std::string& tag)
-{
-  if (!getDebugFlag(DebugFlags::tangram_infos)) return;
-  auto& entry = profInfos[tag];
-  entry.startReal = std::chrono::steady_clock::now();
-  entry.startCpu = clock();
+void FrameInfo::begin(const std::string& tag) {
+    if (!getDebugFlag(DebugFlags::tangram_infos)) { return; }
+    auto& entry = profInfos[tag];
+    entry.startReal = std::chrono::steady_clock::now();
+    entry.startCpu = clock();
 }
 
-void FrameInfo::end(const std::string& tag)
-{
-  static constexpr float alpha = 0.1f;
+void FrameInfo::end(const std::string& tag) {
+    static constexpr float alpha = 0.1f;
 
-  if (!getDebugFlag(DebugFlags::tangram_infos)) return;
-  auto& entry = profInfos[tag];
-  auto endReal = std::chrono::steady_clock::now();
-  float dtReal = std::chrono::duration<float>(endReal - entry.startReal).count()*1000.0f;
-  entry.startReal = endReal;
-  clock_t endCpu = clock();
-  float dtCpu = TIME_TO_MS(entry.startCpu, endCpu);
-  entry.startCpu = endCpu;
+    if (!getDebugFlag(DebugFlags::tangram_infos)) { return; }
+    auto& entry = profInfos[tag];
+    auto endReal = std::chrono::steady_clock::now();
+    float dtReal = std::chrono::duration<float>(endReal - entry.startReal).count()*1000.0f;
+    entry.startReal = endReal;
+    clock_t endCpu = clock();
+    float dtCpu = TIME_TO_MS(entry.startCpu, endCpu);
+    entry.startCpu = endCpu;
 
-  if(dtReal > 2000) { return; }
-  entry.avgReal = entry.avgReal*(1 - alpha) + dtReal*alpha;
-  entry.avgCpu = entry.avgCpu*(1 - alpha) + dtCpu*alpha;
+    if(dtReal > 2000) { return; }
+    entry.avgReal = entry.avgReal*(1 - alpha) + dtReal*alpha;
+    entry.avgCpu = entry.avgCpu*(1 - alpha) + dtCpu*alpha;
 }
 
 void FrameInfo::draw(RenderState& rs, const View& _view, Map& _map) {
@@ -134,10 +133,12 @@ void FrameInfo::draw(RenderState& rs, const View& _view, Map& _map) {
         avgTimeUpdate /= 60;
     }
 
-    TileManager& _tileManager = *_map.getScene()->tileManager();
+    Scene& scene = *_map.getScene();
+    TileManager& tileManager = *scene.tileManager();
+    auto& tileCache = *tileManager.getTileCache();
     size_t memused = 0;
     size_t features = 0;
-    for (const auto& tile : _tileManager.getVisibleTiles()) {
+    for (const auto& tile : tileManager.getVisibleTiles()) {
         memused += tile->getMemoryUsage();
         features += tile->getSelectionFeatures().size();
     }
@@ -145,21 +146,22 @@ void FrameInfo::draw(RenderState& rs, const View& _view, Map& _map) {
     if (getDebugFlag(DebugFlags::tangram_infos)) {
         std::vector<std::string> debuginfos;
 
-        auto& tiles = _tileManager.getVisibleTiles();
+        auto& tiles = tileManager.getVisibleTiles();
         std::map<int, int> sourceCounts;
         for (auto& tile : tiles) { ++sourceCounts[tile->sourceID()]; }
 
         std::string countsStr;
         for (auto count : sourceCounts) {
-            countsStr += " " + _tileManager.getClientTileSource(count.first)->name() + ":" + std::to_string(count.second);
+            countsStr += " " + tileManager.getClientTileSource(count.first)->name() + ":" + std::to_string(count.second);
         }
 
         debuginfos.push_back(fstring("zoom:%.3f (d:%.0fm, h:%.0fm); pxscale:%.2f",
             _view.getZoom(), _view.getPosition().z, _view.getEye().z, _view.pixelScale()));
         debuginfos.push_back(fstring("tiles:%d;", tiles.size()) + countsStr);
         debuginfos.push_back(fstring("selectable features:%d", features));
-        debuginfos.push_back(fstring("tile cache:%d (%dKB)", _tileManager.getTileCache()->getNumEntries(),
-                                     _tileManager.getTileCache()->getMemoryUsage() / 1024));
+        debuginfos.push_back(fstring("markers:%d", scene.markerManager()->markers().size()));
+        debuginfos.push_back(fstring("tile cache:%d (%dKB) (max:%dKB)", tileCache.getNumEntries(),
+                                     tileCache.getMemoryUsage()/1024, tileCache.cacheSizeLimit()/1024));
         debuginfos.push_back(fstring("tile size:%dKB", memused / 1024));
         debuginfos.push_back(fstring("pending downloads:%d", _map.getPlatform().activeUrlRequests()));
 

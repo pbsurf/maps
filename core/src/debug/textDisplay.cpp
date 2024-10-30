@@ -1,6 +1,7 @@
 #include "debug/textDisplay.h"
 
 #include "platform.h"
+#include "map.h"
 #include "view/view.h"
 #include "gl/glError.h"
 #include "gl/vertexLayout.h"
@@ -63,9 +64,10 @@ void TextDisplay::deinit() {
 }
 
 void TextDisplay::log(std::string msg) {
+    if (!getDebugFlag(DebugFlags::tangram_infos)) { return; }
     std::lock_guard<std::mutex> lock(m_mutex);
-    while(m_log.size() >= LOG_CAPACITY) { m_log.pop_front(); }
-    m_log.push_back(msg);
+    while(m_log.size() >= LOG_CAPACITY) { m_log.pop_back(); }
+    m_log.push_front(msg);
 }
 
 void TextDisplay::draw(RenderState& rs, const std::string& _text, int _posx, int _posy) {

@@ -565,7 +565,8 @@ LngLat View::screenPositionToLngLat(float x, float y, bool& _intersection) {
     if (m_dirtyMatrices) { updateMatrices(); } // Need the view matrices to be up-to-date
 
     glm::dvec2 dpos(x, y);
-    if (m_elevationManager) {
+    float clipW = m_elevationManager ? m_elevationManager->getDepth({x, y}) : 0;
+    if (clipW > 0 && clipW < 1E9f) {
         // ref: https://www.khronos.org/opengl/wiki/GluProject_and_gluUnProject_code (gluUnProject)
         //double ndcZ = m_elevationManager->getDepth({x, y});
         //glm::dvec4 target_clip = { 2*x/m_vpWidth - 1, 1 - 2*y/m_vpHeight, ndcZ, 1. };
@@ -575,7 +576,6 @@ LngLat View::screenPositionToLngLat(float x, float y, bool& _intersection) {
         //_intersection = ndcZ > -1;
 
         // unprojection using clip space w (= -1 * view space z)
-        float clipW = m_elevationManager->getDepth({x, y});
         glm::dvec4 target_clip = { clipW*(2*x/m_vpWidth - 1), clipW*(1 - 2*y/m_vpHeight),
                                    -m_proj[2][2]*clipW + m_proj[3][2], clipW };
         glm::dvec4 target_world = m_invViewProj * target_clip;

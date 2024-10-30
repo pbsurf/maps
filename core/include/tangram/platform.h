@@ -63,6 +63,9 @@ struct FontSourceHandle {
 // Uses printf syntax to write a string to stderr (or logcat, on Android)
 void logMsg(const char* fmt, ...);
 
+// log an already formated string to console and to screen log
+void logStr(const std::string& msg);
+
 void initGLExtensions();
 
 // Set the priority of the current thread. Priority is equivalent to pthread niceness

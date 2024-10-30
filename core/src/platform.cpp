@@ -1,5 +1,6 @@
 #include "platform.h"
 #include "log.h"
+#include "debug/textDisplay.h"
 
 #include <fstream>
 #include <string>
@@ -180,6 +181,11 @@ void Platform::onUrlResponse(const UrlRequestHandle _request, UrlResponse&& _res
 
     if (activeUrlRequests() == urlRequestsThreshold && onUrlRequestsThreshold)
         onUrlRequestsThreshold();
+}
+
+void logStr(const std::string& msg) {
+    logMsg(msg.c_str());
+    TextDisplay::Instance().log(msg);
 }
 
 } // namespace Tangram

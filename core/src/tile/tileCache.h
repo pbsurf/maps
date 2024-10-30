@@ -78,6 +78,8 @@ public:
         return nullptr;
     }
 
+    int cacheSizeLimit() const { return m_cacheMaxUsage; }
+
     void limitCacheSize(size_t _cacheSizeBytes) {
         m_cacheMaxUsage = _cacheSizeBytes;
 

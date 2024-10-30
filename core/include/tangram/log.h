@@ -1,6 +1,7 @@
 #pragma once
 
 #include "platform.h"
+#include "util/util.h"
 
 #include <atomic>
 #include <cstring>
@@ -39,44 +40,42 @@ static constexpr const char * past_last_slash(const char * const str) {
 
 #define TANGRAM_MAX_BUFFER_LOG_SIZE 99999
 
+#define LOG_LINE(level, fmt, ...) \
+do { Tangram::logStr(Tangram::fstring(level " %s:%d: " fmt "\n", __FILENAME__, __LINE__, ## __VA_ARGS__)); } while(0)
+
 #if LOG_LEVEL >= 4
-#define LOGV(fmt, ...) \
-do { Tangram::logMsg("VERBOSE %s:%d: " fmt "\n", __FILENAME__, __LINE__, ## __VA_ARGS__); } while(0)
+#define LOGV(fmt, ...) LOG_LINE("VERBOSE", fmt, ## __VA_ARGS__)
 #else
 #define LOGV(fmt, ...)
 #endif
 
 #if LOG_LEVEL >= 3
-#define LOGD(fmt, ...) \
-do { Tangram::logMsg("DEBUG %s:%d: " fmt "\n", __FILENAME__, __LINE__, ## __VA_ARGS__); } while(0)
+#define LOGD(fmt, ...) LOG_LINE("DEBUG", fmt, ## __VA_ARGS__)
 #else
 #define LOGD(fmt, ...)
 #endif
 
 #if LOG_LEVEL >= 2
-#define LOGW(fmt, ...) \
-do { Tangram::logMsg("WARNING %s:%d: " fmt "\n", __FILENAME__, __LINE__, ## __VA_ARGS__); } while(0)
+#define LOGW(fmt, ...) LOG_LINE("WARNING", fmt, ## __VA_ARGS__)
 #else
 #define LOGW(fmt, ...)
 #endif
 
 #if LOG_LEVEL >= 1
-#define LOGE(fmt, ...) \
-do { Tangram::logMsg("ERROR %s:%d: " fmt "\n", __FILENAME__, __LINE__, ## __VA_ARGS__); } while(0)
+#define LOGE(fmt, ...) LOG_LINE("ERROR", fmt, ## __VA_ARGS__)
 #else
 #define LOGE(fmt, ...)
 #endif
 
 #if LOG_LEVEL >= 0
 // The 'please notice but don't be too annoying' logger:
-#define LOGN(fmt, ...)                                                                                                 \
-    do {                                                                                                               \
-        static std::atomic<size_t> _lock(0);                                                            \
-        if (_lock++ < 42) { logMsg("NOTIFY %s:%d: " fmt "\n", __FILENAME__, __LINE__, ##__VA_ARGS__); } \
+#define LOGN(fmt, ...) \
+    do { \
+        static std::atomic<size_t> _lock(0); \
+        if (_lock++ < 42) { LOG_LINE("NOTIFY", fmt, ## __VA_ARGS__); } \
     } while (0)
 
-#define LOG(fmt, ...)                                                   \
-    do { Tangram::logMsg("TANGRAM %s:%d: " fmt "\n", __FILENAME__, __LINE__, ##__VA_ARGS__); } while (0)
+#define LOG(fmt, ...) LOG_LINE("TANGRAM", fmt, ## __VA_ARGS__)
 #else
 #define LOG(fmt, ...)
 #define LOGN(fmt, ...)

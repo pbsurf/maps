@@ -74,7 +74,7 @@ public:
 
 static double readElevTex(const Texture& tex, int x, int y)
 {
-  // see getElevation() in raster-contour.yaml and https://github.com/tilezen/joerd
+  // see getElevation() in hillshade.yaml and https://github.com/tilezen/joerd
   if(tex.getOptions().pixelFormat == PixelFormat::FLOAT)
     return ((float*)tex.bufferData())[y*tex.width() + x];
   GLubyte* p = tex.bufferData() + y*tex.width()*4 + x*4;

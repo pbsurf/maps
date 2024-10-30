@@ -137,6 +137,7 @@ protected:
     std::vector<std::shared_ptr<Tile>> m_tiles;
 
     std::unique_ptr<TileCache> m_tileCache;
+    size_t m_maxCacheLimit = DEFAULT_CACHE_SIZE;
 
     TileTaskQueue& m_workers;
 

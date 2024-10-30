@@ -319,6 +319,15 @@ void TileManager::updateTileSets(const View& _view) {
 
     // Remove duplicates: Proxy tiles could have been added more than once
     m_tiles.erase(std::unique(m_tiles.begin(), m_tiles.end()), m_tiles.end());
+
+    // grow tile cache if needed - goal is to cache about 1 screen worth of tiles
+    if (m_tileCache->cacheSizeLimit() < m_maxCacheLimit) {
+        size_t memused = 0;
+        for (const auto& tile : m_tiles) { memused += tile->getMemoryUsage(); }
+        if (memused > 1.5*m_tileCache->cacheSizeLimit()) {
+            m_tileCache->limitCacheSize(std::min(m_maxCacheLimit, memused));
+        }
+    }
 }
 
 void TileManager::updateTileSet(TileSet& _tileSet, const ViewState& _view) {
@@ -731,7 +740,10 @@ void TileManager::clearProxyTiles(TileSet& _tileSet, const TileID& _tileID, Tile
 }
 
 void TileManager::setCacheSize(size_t _cacheSize) {
-    m_tileCache->limitCacheSize(_cacheSize);
+    m_maxCacheLimit = _cacheSize;
+    if (m_tileCache->cacheSizeLimit() > _cacheSize) {
+        m_tileCache->limitCacheSize(_cacheSize);
+    }
 }
 
 }
