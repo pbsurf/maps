@@ -9,9 +9,9 @@ namespace Tangram {
 class RenderState;
 class ShaderProgram;
 class ShaderSource;
-class StyledMesh;
 class VertexLayout;
 class View;
+struct StyledMesh;
 
 class SkyManager
 {

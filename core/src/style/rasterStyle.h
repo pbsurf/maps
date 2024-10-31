@@ -22,7 +22,7 @@ protected:
 
     UniformLocation m_uColor{"u_color"};
     UniformLocation m_uOrder{"u_order"};
-    friend class SharedMesh;
+    friend struct SharedMesh;
 
 };
 

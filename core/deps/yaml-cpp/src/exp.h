@@ -286,7 +286,7 @@ struct BreakT {
 struct BlankT {
   template <std::size_t N>
   REGEXP_INLINE static int match(Source<N> source, const size_t pos) {
-    if ((source[pos] == ' ') |
+    if ((source[pos] == ' ') ||
         (source[pos] == '\t')) return 1;
     return -1;
   }
@@ -298,8 +298,8 @@ struct BlankT {
 struct BlankOrBreakT {
   template <std::size_t N>
   REGEXP_INLINE static int match(Source<N> source, const size_t pos) {
-    if ((source[pos] == ' ') |
-        (source[pos] == '\t') |
+    if ((source[pos] == ' ') ||
+        (source[pos] == '\t') ||
         (source[pos] == '\n')) return 1;
 
     if ((source[pos] == '\r') &&

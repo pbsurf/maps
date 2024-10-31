@@ -244,13 +244,9 @@ void LabelManager::skipTransitions(const Scene& _scene, const std::vector<std::s
         TileID tileID = tile->getID();
         std::shared_ptr<Tile> proxy;
 
-        auto source = _scene.getTileSource(tile->sourceID());
-        if (!source) {
-            source = _tileManager.getClientTileSource(tile->sourceID());
-            // If tiles for this source exist, this source must exist (either tile or client source)
-            assert(source);
-            continue;
-        }
+        // TileManager has all geometry (e.g. labels) generating sources
+        auto source = _tileManager.getTileSource(tile->sourceID());
+        if (!source) { assert(source); continue; }  // should never happen
 
         if (m_lastZoom < _currentZoom) {
             // zooming in, add the one cached parent tile

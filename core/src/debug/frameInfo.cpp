@@ -136,28 +136,29 @@ void FrameInfo::draw(RenderState& rs, const View& _view, Map& _map) {
     Scene& scene = *_map.getScene();
     TileManager& tileManager = *scene.tileManager();
     auto& tileCache = *tileManager.getTileCache();
-    size_t memused = 0;
-    size_t features = 0;
-    for (const auto& tile : tileManager.getVisibleTiles()) {
-        memused += tile->getMemoryUsage();
-        features += tile->getSelectionFeatures().size();
-    }
 
     if (getDebugFlag(DebugFlags::tangram_infos)) {
         std::vector<std::string> debuginfos;
 
         auto& tiles = tileManager.getVisibleTiles();
         std::map<int, int> sourceCounts;
-        for (auto& tile : tiles) { ++sourceCounts[tile->sourceID()]; }
+        size_t memused = 0, features = 0, nproxy = 0;
+        for (const auto& tile : tiles) {
+            memused += tile->getMemoryUsage();
+            features += tile->getSelectionFeatures().size();
+            ++sourceCounts[tile->sourceID()];
+            if (tile->isProxy()) { ++nproxy; }
+        }
 
         std::string countsStr;
         for (auto count : sourceCounts) {
-            countsStr += " " + tileManager.getClientTileSource(count.first)->name() + ":" + std::to_string(count.second);
+            countsStr += " " + tileManager.getTileSource(count.first)->name()
+                + ":" + std::to_string(count.second);
         }
 
         debuginfos.push_back(fstring("zoom:%.3f (d:%.0fm, h:%.0fm); pxscale:%.2f",
             _view.getZoom(), _view.getPosition().z, _view.getEye().z, _view.pixelScale()));
-        debuginfos.push_back(fstring("tiles:%d;", tiles.size()) + countsStr);
+        debuginfos.push_back(fstring("tiles:%d (proxy:%d);", tiles.size(), nproxy) + countsStr);
         debuginfos.push_back(fstring("selectable features:%d", features));
         debuginfos.push_back(fstring("markers:%d", scene.markerManager()->markers().size()));
         debuginfos.push_back(fstring("tile cache:%d (%dKB) (max:%dKB)", tileCache.getNumEntries(),

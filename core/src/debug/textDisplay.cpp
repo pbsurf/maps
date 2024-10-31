@@ -57,10 +57,8 @@ void TextDisplay::init() {
 }
 
 void TextDisplay::deinit() {
-
     m_shader.reset(nullptr);
     m_initialized = false;
-
 }
 
 void TextDisplay::log(std::string msg) {
@@ -125,11 +123,14 @@ void TextDisplay::draw(RenderState& rs, const View& _view, const std::vector<std
 
     // Display screen log
     offset = height - margins[2] - 10;
-    m_shader->setUniformf(rs, m_uColor, 1.f, 0.f, 0.f);
+    m_shader->setUniformf(rs, m_uColor, 0.5f, 0.f, 0.f);
     //m_shader->setUniformf(rs, m_uColor, 51 / 255.f, 73 / 255.f, 120 / 255.f);
-    for (auto& str : m_log) {
-        draw(rs, str, margins[3] + 3, offset);
-        offset -= 10;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);  // prevent modification during rendering
+        for (auto& str : m_log) {
+            draw(rs, str, margins[3] + 3, offset);
+            offset -= 10;
+        }
     }
 
     rs.culling(GL_TRUE);

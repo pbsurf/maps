@@ -106,8 +106,7 @@ void TileBuilder::build(Tile& tile, const TileData& _tileData) {
 
     m_selectionFeatures.clear();
 
-    //auto tile = std::make_unique<Tile>(_tileID, _source.id(), _source.generation());
-    auto tileSrc = m_scene.getTileSource(tile.sourceID());
+    auto tileSrc = m_scene.tileManager()->getTileSource(tile.sourceID());
     if (!tileSrc) { return; }  // scene is being destroyed (?)
     std::string srcName = tileSrc->name();
 

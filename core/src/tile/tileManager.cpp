@@ -190,7 +190,7 @@ void TileManager::setTileSources(const std::vector<std::shared_ptr<TileSource>>&
     }
 }
 
-std::shared_ptr<TileSource> TileManager::getClientTileSource(int32_t _sourceId) {
+std::shared_ptr<TileSource> TileManager::getTileSource(int32_t _sourceId) {
     auto it = std::find_if(m_tileSets.begin(), m_tileSets.end(),
          [&](auto& ts) { return ts.source->id() == _sourceId; });
 
@@ -268,12 +268,9 @@ void TileManager::updateTileSets(const View& _view) {
 
     if (!getDebugFlag(DebugFlags::freeze_tiles)) {
 
-        for (auto& tileSet : m_tileSets) {
-            tileSet.visibleTiles.clear();
-        }
-
         int minZoomBias = 0;
         for (auto& tileSet : m_tileSets) {
+            tileSet.visibleTiles.clear();
             minZoomBias = std::min(minZoomBias, tileSet.source->zoomBias());
         }
 
@@ -529,8 +526,7 @@ void TileManager::enqueueTask(TileSet& _tileSet, const TileID& _tileID,
     m_loadTasks.insert(it, {distance, &_tileSet, _tileID});
 }
 
-TileManager::TileSet* TileManager::findTileSet(int64_t sourceId)
-{
+TileManager::TileSet* TileManager::findTileSet(int64_t sourceId) {
     for (auto& ts : m_tileSets) {
         if (ts.source->id() == sourceId) { return &ts; }
     }

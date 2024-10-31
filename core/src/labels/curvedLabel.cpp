@@ -182,12 +182,10 @@ void CurvedLabel::obbs(ScreenTransform& _transform, OBBBuffer& _obbs) const {
 
     float prevLength = start;
 
-    int count = 0;
     for (size_t i = sampler.curSegment()+1; i < _transform.size(); i++) {
 
         float currLength = sampler.point(i).z;
         float segmentLength = currLength - prevLength;
-        count++;
 
         if (start + width > currLength) {
             p2 = glm::vec2(sampler.point(i));

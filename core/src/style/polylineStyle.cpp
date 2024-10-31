@@ -323,7 +323,7 @@ auto PolylineStyleBuilder<V>::parseRule(const DrawRule& _rule, const Properties&
     bool outlineVisible = true;
     _rule.get(StyleParamKey::outline_visible, outlineVisible);
     if ( outlineVisible && (!p.lineOn || !_rule.findParameter(StyleParamKey::outline_style)) ) {
-        if (strokeWidth |
+        if (int(strokeWidth.valid()) |  // int() to suppress clang warning about bitwise OR
             _rule.get(StyleParamKey::outline_order, stroke.order) |
             _rule.get(StyleParamKey::outline_cap, cap) |
             _rule.get(StyleParamKey::outline_join, join) |

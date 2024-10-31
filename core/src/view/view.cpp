@@ -680,9 +680,9 @@ void View::getVisibleTiles(const std::function<void(TileID)>& _tileCb, int zoomB
             auto r00 = ndcToScreenSpace(clipSpaceToNdc(a00), screenSize);
             auto r01 = ndcToScreenSpace(clipSpaceToNdc(a01), screenSize);
             auto r10 = ndcToScreenSpace(clipSpaceToNdc(a10), screenSize);
-            auto dr01 = r01 - r00;
-            auto dr10 = r10 - r00;
-            area = std::abs(dr01.x*dr10.y - dr01.y*dr10.x);
+            auto r11 = ndcToScreenSpace(clipSpaceToNdc(a11), screenSize);
+            auto pts = {r00, r01, r11, r10};
+            area = std::abs(signedArea(pts.begin(), pts.end()));
         }
         if (area > maxArea) {
             for (int i = 0; i < 4; i++) {
