@@ -110,16 +110,18 @@ bool ContourTextStyleBuilder::addFeature(const Feature& _feat, const DrawRule& _
 
     if (!m_texture || !checkRule(_rule)) { return false; }
 
-    Properties props = {{{"name", "dummy"}}};  // applyRule() will fail if name is empty
+    bool metricUnits = static_cast<const ContourTextStyle&>(m_style).m_metricUnits;
+    // text_source: units to append units to label; '_' since applyRule() will fail if params.text is empty
+    Properties props = {{{"name", "_"}, {"units", metricUnits ? "_m": "_ft"}}};  //
     TextStyle::Parameters params = applyRule(_rule, props, false);  //_feat.props
     if (!params.font) { return false; }
     // 'angle: auto' -> labelOptions.angle = NAN to force text to always be oriented uphill
     _rule.get(StyleParamKey::angle, params.labelOptions.angle);
     params.wordWrap = false;
+    std::string suffix = params.text.substr(1);
 
     // this obviously needs to match values in contour line shader ... we could consider defining steps w/ a
     //  YAML array which can become a shader uniform and also can be read from Scene in Style::build()
-    bool metricUnits = static_cast<const ContourTextStyle&>(m_style).m_metricUnits;
     float elevStep = metricUnits ? (m_tileId.z >= 14 ? 100 : m_tileId.z >= 12 ? 200 : 500)
                                  : (m_tileId.z >= 14 ? 500 : m_tileId.z >= 12 ? 1000 : 2000)/3.28084f;
 
@@ -138,7 +140,7 @@ bool ContourTextStyleBuilder::addFeature(const Feature& _feat, const DrawRule& _
             if (std::isnan(level)) { continue; }
 
             LabelAttributes attrib;
-            params.text = std::to_string(int(metricUnits ? level : std::round(level*3.28084f)));
+            params.text = std::to_string(int(metricUnits ? level : std::round(level*3.28084f))) + suffix;
             if (!prepareLabel(params, Label::Type::line, attrib)) { return false; }
 
             //addLabel(Label::Type::line, {{ line.front(), line.back() }}, params, attrib, _rule);

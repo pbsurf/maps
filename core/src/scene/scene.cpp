@@ -95,7 +95,8 @@ static void getActiveStyles(const SceneLayer& layer, std::set<std::string>& acti
         for (const StyleParam& param : rule.parameters) {
             if (param.key == StyleParamKey::style) {
                 style = param.value.get<std::string>();
-                break;
+            } else if(param.key == StyleParamKey::outline_style) {
+                activeStyles.emplace(param.value.get<std::string>());
             }
         }
         activeStyles.emplace(style);

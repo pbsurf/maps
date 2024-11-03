@@ -275,7 +275,7 @@ void Style::setupTileShaderUniforms(RenderState& rs, const Tile& _tile,
     }
 
     _program.setUniformMatrix4f(rs, _uniformBlock.uModel, _tile.getModelMatrix());
-    _program.setUniformf(rs, _uniformBlock.uProxyDepth, _tile.isProxy() ? 1.f : 0.f);
+    _program.setUniformf(rs, _uniformBlock.uProxyDepth, float(_tile.proxyDepth()));
     _program.setUniformf(rs, _uniformBlock.uTileOrigin,
                           _tile.getOrigin().x, _tile.getOrigin().y, tileID.s, tileID.z);
 }

@@ -88,9 +88,10 @@ public:
 
     int32_t sourceID() const { return m_sourceId; }
 
-    bool isProxy() const { return m_proxyState; }
+    int8_t proxyDepth() const { return m_proxyDepth; }
+    bool isProxy() const { return m_proxyDepth > 0; }
 
-    void setProxyState(bool isProxy) { m_proxyState = isProxy; }
+    void setProxyDepth(int8_t _depth) { m_proxyDepth = _depth; }
 
 private:
 
@@ -104,7 +105,7 @@ private:
     /* State of the TileSource for which this tile was created */
     const int64_t m_sourceGeneration;
 
-    bool m_proxyState = false;
+    int8_t m_proxyDepth = 0;
 
     glm::dvec2 m_tileOrigin; // South-West corner of the tile in 2D projection space in meters (e.g. mercator meters)
 

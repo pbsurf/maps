@@ -144,7 +144,8 @@ void main() {
     gl_Position = u_proj * v_position;
 
     #ifdef TANGRAM_RASTER_STYLE
-        float layer = u_order;
+        // need sufficient offset for proxy levels to prevent terrain poking through level above
+        float layer = 48.0*u_order;
     #else
         float layer = a_position.w;
     #endif

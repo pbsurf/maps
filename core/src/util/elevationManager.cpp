@@ -1,14 +1,17 @@
 #include "util/elevationManager.h"
+
+#include "scene/scene.h"
 #include "util/asyncWorker.h"
 #include "data/rasterSource.h"
 #include "style/rasterStyle.h"
-#include "gl/shaderSource.h"
 #include "gl/framebuffer.h"
 #include "gl/renderState.h"
-#include "view/view.h"
+#include "gl/shaderProgram.h"
 #include "marker/marker.h"
 #include "log.h"
 #include "debug/frameInfo.h"
+
+#include "../../platforms/common/platform_gl.h"
 
 // with depth test enabled and no blending, final value of output should be correct depth (if larger depth
 //  written first, will be overwritten; if smaller depth written first, depth test will discard larger depth)
@@ -20,18 +23,9 @@ precision highp float;
 layout (location = 0) out highp uint depthOut;
 
 void main(void) {
-  depthOut = floatBitsToUint(gl_FragCoord.w);  //gl_FragCoord.z);
+  depthOut = floatBitsToUint(gl_FragCoord.w);  // if needed, ndcZ = (-proj[2][2]*clipW + proj[3][2])/clipW)
 }
 )RAW_GLSL";
-
-#include "polygon_vs.h"
-
-#include "rasters_glsl.h"
-#include "scene/scene.h"
-#include "gl/shaderProgram.h"
-#include "gl/hardware.h"
-
-#include "../../platforms/common/platform_gl.h"
 
 namespace Tangram {
 
@@ -57,14 +51,13 @@ public:
       auto& styleMesh = _tile.getMesh(*this);
       if (!styleMesh) { return false; }
 
-      bool styleMeshDrawn = true;
       int prevTexUnit = rs.currentTextureUnit();
       setupTileShaderUniforms(rs, _tile, *m_shaderProgram, m_mainUniforms);
       m_shaderProgram->setUniformf(rs, m_uOrder, 0.f);
 
-      if (!rasterMesh()->draw(rs, *m_shaderProgram)) {
+      bool styleMeshDrawn = rasterMesh()->draw(rs, *m_shaderProgram);
+      if (!styleMeshDrawn) {
           LOGN("Mesh built by style %s cannot be drawn", m_name.c_str());
-          styleMeshDrawn = false;
       }
 
       rs.resetTextureUnit(prevTexUnit);

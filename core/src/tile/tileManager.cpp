@@ -470,6 +470,8 @@ void TileManager::updateTileSet(TileSet& _tileSet, const ViewState& _view) {
         }
     }
 
+    int maxVisZoom = !visibleTiles.empty() ? visibleTiles.begin()->s : 0;
+
     for (auto& it : tiles) {
         auto& entry = it.second;
 
@@ -507,8 +509,8 @@ void TileManager::updateTileSet(TileSet& _tileSet, const ViewState& _view) {
         }
 
         if (entry.tile) {
-            // Mark as proxy
-            entry.tile->setProxyState(entry.getProxyCounter() > 0);
+            // with tilted view (pitch > 0), a proxy tile might overlap tiles other than those it proxies for
+            entry.tile->setProxyDepth(entry.getProxyCounter() > 0 ? std::max(maxVisZoom - it.first.s, 1) : 0);
         }
     }
 }
@@ -594,15 +596,16 @@ bool TileManager::addTile(TileSet& _tileSet, const TileID& _tileID) {
     }
 
     // Add TileEntry to TileSet
-    auto entry = _tileSet.tiles.emplace(_tileID, tile);
+    auto entryit = _tileSet.tiles.emplace(_tileID, tile);
+    TileEntry& entry = entryit.first->second;
 
     if (!tile) {
         // Add Proxy if corresponding proxy MapTile ready
-        updateProxyTiles(_tileSet, _tileID, entry.first->second);
+        updateProxyTiles(_tileSet, _tileID, entry);
 
-        entry.first->second.task = _tileSet.source->createTask(_tileID);
+        entry.task = _tileSet.source->createTask(_tileID);
     }
-    entry.first->second.setVisible(true);
+    entry.setVisible(true);
 
     return bool(tile);
 }
