@@ -64,8 +64,12 @@ void InputHandler::handleDoubleTapGesture(float _posX, float _posY) {
 void InputHandler::handlePanGesture(float _startX, float _startY, float _endX, float _endY) {
     cancelFling();
 
-    m_view.screenToGroundPlane(_startX, _startY);
-    m_view.screenToGroundPlane(_endX, _endY);
+    bool intersect;
+    float elev = 0;
+    m_view.screenPositionToLngLat(_startX, _startY, intersect, elev);
+
+    m_view.screenToGroundPlane(_startX, _startY, elev);
+    m_view.screenToGroundPlane(_endX, _endY, elev);
 
     float dx = _startX - _endX;
     float dy = _startY - _endY;
@@ -100,24 +104,32 @@ void InputHandler::handleFlingGesture(float _posX, float _posY, float _velocityX
 void InputHandler::handlePinchGesture(float _posX, float _posY, float _scale, float _velocity) {
     cancelFling();
 
-    // Early out for an invalid scale
-    if (_scale <= 0.f) {
-        // 'scale' should be a ratio between two sizes with the same sign.
-        return;
-    }
+    if (_scale <= 0.f) { return; }
 
-    float z = m_view.getZoom();
-    static float invLog2 = 1 / log(2);
+    // point at screen position (_posX, _posY) should remain fixed
+    bool intersect;
+    float elev;
+    float x0 = _posX, y0 = _posY;
+    m_view.screenPositionToLngLat(x0, y0, intersect, elev);
+    m_view.screenToGroundPlane(x0, y0, elev);
 
-    m_view.zoom(log(_scale) * invLog2);
+    //float z = m_view.getZoom();
 
-    m_view.screenToGroundPlane(_posX, _posY);
-    float s = pow(2, m_view.getZoom() - z) - 1;
-    m_view.translate(s * _posX, s * _posY);
+    m_view.zoom(std::log2(_scale));  //log(_scale) * invLog2);
+
+    float x1 = _posX, y1 = _posY;
+    m_view.screenToGroundPlane(x1, y1, elev);
+    m_view.translate(x0 - x1, y0 - y1);
+
+    // previous approach - before 3D terrain added
+    //m_view.screenToGroundPlane(_posX, _posY);
+    //float s = pow(2, m_view.getZoom() - z) - 1;
+    //m_view.translate(s * _posX, s * _posY);
 
     // Take the derivative of zoom as a function of scale:
     // z(s) = log2(s) + C
     // z'(s) = s' / s / log(2)
+    static float invLog2 = 1 / log(2);
     float vz = _velocity / _scale * invLog2;
     if (std::abs(vz) >= THRESHOLD_START_ZOOM) {
         setVelocity(vz, glm::vec2(0.f));
@@ -141,9 +153,9 @@ void InputHandler::handleRotateGesture(float _posX, float _posY, float _radians)
 void InputHandler::handleShoveGesture(float _distance) {
     cancelFling();
 
+    // note that trying to keep point at screen center fixed gives poor results
     float angle = -M_PI * _distance / m_view.getHeight();
     m_view.pitch(angle);
-
 }
 
 void InputHandler::cancelFling() {

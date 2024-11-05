@@ -689,7 +689,8 @@ void Map::flyTo(const CameraPosition& _camera, float _duration, float _speed) {
 bool Map::screenPositionToLngLat(double _x, double _y, double* _lng, double* _lat) {
 
     bool intersection = false;
-    LngLat lngLat = impl->view.screenPositionToLngLat(_x, _y, intersection);
+    float elev;
+    LngLat lngLat = impl->view.screenPositionToLngLat(_x, _y, intersection, elev);
     *_lng = lngLat.longitude;
     *_lat = lngLat.latitude;
 
@@ -704,6 +705,15 @@ bool Map::lngLatToScreenPosition(double _lng, double _lat, double* _x, double* _
     if(_y) *_y = screenPosition.y;
 
     return !outsideViewport;
+}
+
+// an alternative would be to redefine CameraPosition lng,lat to be look at target - the problem is then
+//  actual camera becomes dependent on elevation tiles
+CameraPosition Map::getCameraPositionToLookAt(LngLat _target) {
+  auto targetMeters = MapProjection::lngLatToProjectedMeters(_target);
+  auto cameraMeters = impl->view.getPositionToLookAt(targetMeters);
+  LngLat camLL = MapProjection::projectedMetersToLngLat(cameraMeters);
+  return {camLL.longitude, camLL.latitude, getZoom(), getRotation(), getTilt()};
 }
 
 void Map::setPixelScale(float _pixelsPerPoint) {
@@ -905,13 +915,9 @@ void Map::handleDoubleTapGesture(float _posX, float _posY) {
     //impl->inputHandler.handleDoubleTapGesture(_posX, _posY);  -- doesn't do any animation!
     float startZoom = impl->view.getZoom();
     impl->ease = std::make_unique<Ease>(0.35f, [=](float t) {
-        float cx = _posX, cy = _posY;
         float z0 = impl->view.getZoom();
         float z1 = ease(startZoom, startZoom+1, t, EaseType::linear);
-        impl->view.setZoom(z1);
-        impl->view.screenToGroundPlane(cx, cy);
-        double s = std::pow(2.0, z1 - z0) - 1;
-        impl->view.translate(s * cx, s * cy);  // from handlePinchGesture()
+        impl->inputHandler.handlePinchGesture(_posX, _posY, std::exp2(z1 - z0), 0);
     });
     impl->platform.requestRender();
 }

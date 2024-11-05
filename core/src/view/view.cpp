@@ -343,29 +343,29 @@ void View::setPadding(EdgePadding padding) {
     }
 }
 
-double View::screenToGroundPlane(float& _screenX, float& _screenY) {
+double View::screenToGroundPlane(float& _screenX, float& _screenY, float _elev) {
 
     if (m_dirtyMatrices) { updateMatrices(); } // Need the view matrices to be up-to-date
 
     double x = _screenX, y = _screenY;
-    double t = screenToGroundPlaneInternal(x, y);
+    double t = screenToGroundPlaneInternal(x, y, _elev);
     _screenX = x;
     _screenY = y;
     return t;
 }
 
-double View::screenToGroundPlane(double& _screenX, double& _screenY) {
+double View::screenToGroundPlane(double& _screenX, double& _screenY, double _elev) {
 
     if (m_dirtyMatrices) { updateMatrices(); } // Need the view matrices to be up-to-date
 
-    return screenToGroundPlaneInternal(_screenX, _screenY);
+    return screenToGroundPlaneInternal(_screenX, _screenY, _elev);
 }
 
 glm::vec2 View::normalizedWindowCoordinates(float _x, float _y) const {
     return { _x / m_vpWidth, 1.0 - _y / m_vpHeight };
 }
 
-double View::screenToGroundPlaneInternal(double& _screenX, double& _screenY) const {
+double View::screenToGroundPlaneInternal(double& _screenX, double& _screenY, double _elev) const {
 
     // Cast a ray and find its intersection with the z = 0 plane,
     // following the technique described here: http://antongerdelan.net/opengl/raycasting.html
@@ -389,7 +389,7 @@ double View::screenToGroundPlaneInternal(double& _screenX, double& _screenY) con
 
     double t = 0; // Distance along ray to ground plane
     if (ray_world.z != 0.f) {
-        t = -origin_world.z / ray_world.z;
+        t = -(origin_world.z - _elev) / ray_world.z;
     }
 
     ray_world *= std::abs(t);
@@ -423,6 +423,16 @@ float View::fieldOfViewToFocalLength(float radians) {
     return 1.f / tanf(radians / 2.f);
 }
 
+glm::dvec2 View::getPositionToLookAt(glm::dvec2 target) {
+    if (!m_elevationManager) return target;
+
+    bool elevOk;
+    float elev = m_elevationManager->getElevation(target, elevOk, true);
+    glm::vec3 eye = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 0.f, 1.f), m_pitch), m_roll);
+    eye *= elev/eye.z;
+    return target - glm::dvec2(eye);
+}
+
 void View::updateMatrices() {
 
     // viewport height in world space is such that each tile is [m_pixelsPerTile] px square in screen space
@@ -454,11 +464,17 @@ void View::updateMatrices() {
     m_height = exp2(-m_baseZoom) * worldHeight;
     m_width = m_height * m_aspect;
 
+    glm::vec3 up = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 1.f, 0.f), m_pitch), m_roll);
+
     //glm::vec3 at = { 0.f, 0.f, posElev };
     //m_eye = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 0.f, m_pos.z) - at, m_pitch), m_roll) + at;
-    m_eye = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 0.f, m_pos.z), m_pitch), m_roll);
+
+    //glm::vec3 at = { 0.f, 0.f, posElev };
+    //glm::vec3 eyedir = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 0.f, 1.f), m_pitch), m_roll);
+    //m_eye = eyedir*(float(m_pos.z - posElev)/eyedir.z) + at;
+
     glm::vec3 at = { 0.f, 0.f, 0.f };
-    glm::vec3 up = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 1.f, 0.f), m_pitch), m_roll);
+    m_eye = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 0.f, m_pos.z), m_pitch), m_roll);
 
     // keep eye above terrain
     if (m_elevationManager && elevOk) {
@@ -560,7 +576,7 @@ glm::vec2 View::lngLatToScreenPosition(double lng, double lat, bool& outsideView
     return screenPosition;
 }
 
-LngLat View::screenPositionToLngLat(float x, float y, bool& _intersection) {
+LngLat View::screenPositionToLngLat(float x, float y, bool& _intersection, float& _elevOut) {
 
     if (m_dirtyMatrices) { updateMatrices(); } // Need the view matrices to be up-to-date
 
@@ -581,9 +597,11 @@ LngLat View::screenPositionToLngLat(float x, float y, bool& _intersection) {
         glm::dvec4 target_world = m_invViewProj * target_clip;
         dpos = glm::dvec2(target_world);
         _intersection = clipW > 0;
+        _elevOut = target_world.z;
     } else {
         double distance = screenToGroundPlaneInternal(dpos.x, dpos.y);
         _intersection = (distance >= 0);
+        _elevOut = 0;
     }
     LngLat lngLat = MapProjection::projectedMetersToLngLat(dpos + glm::dvec2(m_pos));
     return lngLat.wrapped();

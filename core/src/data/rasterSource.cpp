@@ -81,21 +81,18 @@ public:
     void complete(TileTask& _mainTask) override {
         if (!isReady()) {  //isCanceled()?
             auto source = rasterSource();
-            if (source) {
-                // attempt to find a proxy for missing raster
-                std::shared_ptr<Texture> proxy;
-                TileID proxyId = tileId();
-                do {
-                    proxyId = proxyId.getParent();
-                    proxy = source->getTexture(proxyId);
-                } while (!proxy && proxyId.s + 2 > tileId().s);
+            if (!source) { return; }
+            // attempt to find a proxy for missing raster
+            for (TileID id = tileId().getParent(); id.s + 2 >= tileId().s; id = id.getParent()) {
+                auto proxy = source->getTexture(id);
                 if (proxy) {
-                    LOGD("Found proxy %s for missing subtask raster %s",
-                         proxyId.toString().c_str(), tileId().toString().c_str());
+                    _mainTask.tile()->rasters().emplace_back(id, proxy);
+                    LOGD("Found proxy %s for missing subtask raster %s %s",
+                         id.toString().c_str(), source->name().c_str(), tileId().toString().c_str());
+                    return;
                 }
-                _mainTask.tile()->rasters().emplace_back(proxy ? proxyId : tileId(),
-                                                         proxy ? proxy : source->m_emptyTexture);
             }
+            _mainTask.tile()->rasters().emplace_back(tileId(), source->m_emptyTexture);
         } else {
             addRaster(*_mainTask.tile());
         }

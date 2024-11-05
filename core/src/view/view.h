@@ -210,13 +210,16 @@ public:
     // replacing the input coordinates with world-space coordinates.
     // Returns the un-normalized distance 'into the screen' to the ground plane
     // (if < 0, intersection is behind the screen).
-    double screenToGroundPlane(float& _screenX, float& _screenY);
-    double screenToGroundPlane(double& _screenX, double& _screenY);
+    double screenToGroundPlane(float& _screenX, float& _screenY, float _elev = 0);
+    double screenToGroundPlane(double& _screenX, double& _screenY, double _elev = 0);
 
     // Get the screen position from a latitude/longitude.
     glm::vec2 lngLatToScreenPosition(double lng, double lat, bool& outsideViewport, bool clipToViewport = false);
 
-    LngLat screenPositionToLngLat(float x, float y, bool& intersection);
+    LngLat screenPositionToLngLat(float x, float y, bool& intersection, float& _elevOut);
+
+    // position to place target at center of screen; same as target unless tilted with 3D terrain
+    glm::dvec2 getPositionToLookAt(glm::dvec2 target);
 
     // For a position on the map in projected meters, this returns the displacement vector *from* the view *to* that
     // position, accounting for wrapping around the 180th meridian to get the smallest magnitude displacement.
@@ -249,7 +252,7 @@ protected:
 
     void applyWorldBounds();
 
-    double screenToGroundPlaneInternal(double& _screenX, double& _screenY) const;
+    double screenToGroundPlaneInternal(double& _screenX, double& _screenY, double _elev = 0) const;
 
     glm::vec4 tileCoordsToClipSpace(TileCoordinates tc, float elevation = 0.f) const;
 

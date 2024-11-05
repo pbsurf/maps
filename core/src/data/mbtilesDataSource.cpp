@@ -347,7 +347,7 @@ bool MBTilesDataSource::testSchema(SQLiteDB& db) {
         //else if (name == "grid_data") grid_data = true;
     });
     if (!metadata || !tiles) {
-        LOGW("Missing MBTiles tables");
+        LOGD("Missing MBTiles tables");
         return false;
     }
 
