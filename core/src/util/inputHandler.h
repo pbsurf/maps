@@ -20,9 +20,7 @@ public:
     void handleRotateGesture(float _posX, float _posY, float _radians);
     void handleShoveGesture(float _distance);
 
-    /*
-     * Returns true if the update results in any flinging from the inputHandler
-     */
+    // Returns true if the update results in any flinging from the inputHandler
     bool update(float _dt);
 
     void cancelFling();
@@ -31,6 +29,7 @@ public:
 
 private:
 
+    glm::vec2 getTranslation(float _startX, float _startY, float _endX, float _endY);
     void setVelocity(float _zoom, glm::vec2 _pan);
 
     View& m_view;

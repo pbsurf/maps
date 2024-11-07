@@ -237,17 +237,17 @@ void View::setZoom(float _z) {
     }
 }
 
-void View::setRoll(float _roll) {
+void View::setYaw(float _rad) {
 
-    m_roll = glm::mod(_roll, (float)TWO_PI);
+    m_yaw = glm::mod(_rad, (float)TWO_PI);
     m_dirtyMatrices = true;
     m_dirtyTiles = true;
 
 }
 
-void View::setPitch(float _pitch) {
+void View::setPitch(float _rad) {
 
-    m_pitch = _pitch;
+    m_pitch = _rad;
     m_dirtyMatrices = true;
     m_dirtyTiles = true;
 
@@ -256,24 +256,6 @@ void View::setPitch(float _pitch) {
 void View::translate(double _dx, double _dy) {
 
     setPosition(m_pos.x + _dx, m_pos.y + _dy);
-
-}
-
-void View::zoom(float _dz) {
-
-    setZoom(m_zoom + _dz);
-
-}
-
-void View::roll(float _droll) {
-
-    setRoll(m_roll + _droll);
-
-}
-
-void View::pitch(float _dpitch) {
-
-    setPitch(m_pitch + _dpitch);
 
 }
 
@@ -343,31 +325,15 @@ void View::setPadding(EdgePadding padding) {
     }
 }
 
-double View::screenToGroundPlane(float& _screenX, float& _screenY, float _elev) {
-
-    if (m_dirtyMatrices) { updateMatrices(); } // Need the view matrices to be up-to-date
-
-    double x = _screenX, y = _screenY;
-    double t = screenToGroundPlaneInternal(x, y, _elev);
-    _screenX = x;
-    _screenY = y;
-    return t;
-}
-
-double View::screenToGroundPlane(double& _screenX, double& _screenY, double _elev) {
-
-    if (m_dirtyMatrices) { updateMatrices(); } // Need the view matrices to be up-to-date
-
-    return screenToGroundPlaneInternal(_screenX, _screenY, _elev);
-}
-
 glm::vec2 View::normalizedWindowCoordinates(float _x, float _y) const {
     return { _x / m_vpWidth, 1.0 - _y / m_vpHeight };
 }
 
-double View::screenToGroundPlaneInternal(double& _screenX, double& _screenY, double _elev) const {
+glm::dvec2 View::screenToGroundPlane(float _screenX, float _screenY, float _elev, double* distOut) {
 
-    // Cast a ray and find its intersection with the z = 0 plane,
+    if (m_dirtyMatrices) { updateMatrices(); }
+
+    // Cast a ray and find its intersection with the z = _elev plane,
     // following the technique described here: http://antongerdelan.net/opengl/raycasting.html
 
     glm::dvec4 target_clip = { 2. * _screenX / m_vpWidth - 1., 1. - 2. * _screenY / m_vpHeight, -1., 1. };
@@ -403,10 +369,9 @@ double View::screenToGroundPlaneInternal(double& _screenX, double& _screenY, dou
         ray_world *= maxTileDistance / rayDistanceXY;
     }
 
-    _screenX = ray_world.x + origin_world.x;
-    _screenY = ray_world.y + origin_world.y;
+    if (distOut) { *distOut = t; }
 
-    return t;
+    return glm::dvec2(ray_world) + glm::dvec2(origin_world);
 }
 
 float View::pixelsPerMeter() const {
@@ -428,7 +393,7 @@ glm::dvec2 View::getPositionToLookAt(glm::dvec2 target) {
 
     bool elevOk;
     float elev = m_elevationManager->getElevation(target, elevOk, true);
-    glm::vec3 eye = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 0.f, 1.f), m_pitch), m_roll);
+    glm::vec3 eye = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 0.f, 1.f), m_pitch), m_yaw);
     eye *= elev/eye.z;
     return target - glm::dvec2(eye);
 }
@@ -447,42 +412,41 @@ void View::updateMatrices() {
     // set camera z to produce desired viewable area
     m_pos.z = exp2(-m_baseZoom) * worldToCameraHeight;
 
-    double posElev = 0;
-    bool elevOk = false;
-    if (m_elevationManager) {
-        m_elevationManager->setZoom(20);  //getIntegerZoom());
+    // get camera space depth (i.e. distance to terrain) at screen center - note that this unavoidably
+    //  lags by one frame, since we need to render frame to get depth
+    float prevViewZ = m_elevationManager ? m_elevationManager->getDepth({m_vpWidth/2, m_vpHeight/2}) : 0;
+    if (m_prevZoom > 0 && prevViewZ > 0 && prevViewZ < 1E9f) {
         double minCameraDist = exp2(-m_maxZoom) * worldToCameraHeight;
-        posElev = m_elevationManager->getElevation(glm::dvec2(m_pos), elevOk, true);
+        double prevCamDist = exp2(-m_prevZoom) * worldToCameraHeight;
+        double viewZ = prevViewZ + m_pos.z - prevCamDist;
         // decrease base zoom if too close to terrain (but never increase)
-        if (elevOk && m_pos.z < minCameraDist + posElev) {
-            m_pos.z = minCameraDist + posElev;
+        if (viewZ < minCameraDist) {
+            m_pos.z += minCameraDist - viewZ;
             m_baseZoom = -log2( m_pos.z / worldToCameraHeight );
+            viewZ = minCameraDist;
         }
+        m_zoom = glm::clamp(-float(log2( viewZ / worldToCameraHeight )), m_baseZoom, m_maxZoom);
+        //LOGD("viewZ: %f (prev: %f); base zoom: %.2f; zoom: %.2f", viewZ, prevViewZ, m_baseZoom, m_zoom);
     }
+    m_prevZoom = m_baseZoom;
+
 
     // m_baseZoom now has final value
     m_height = exp2(-m_baseZoom) * worldHeight;
     m_width = m_height * m_aspect;
 
-    glm::vec3 up = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 1.f, 0.f), m_pitch), m_roll);
-
-    //glm::vec3 at = { 0.f, 0.f, posElev };
-    //m_eye = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 0.f, m_pos.z) - at, m_pitch), m_roll) + at;
-
-    //glm::vec3 at = { 0.f, 0.f, posElev };
-    //glm::vec3 eyedir = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 0.f, 1.f), m_pitch), m_roll);
-    //m_eye = eyedir*(float(m_pos.z - posElev)/eyedir.z) + at;
-
+    // using non-zero elevation for camera reference creates all kinds of problems
+    glm::vec3 up = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 1.f, 0.f), m_pitch), m_yaw);
     glm::vec3 at = { 0.f, 0.f, 0.f };
-    m_eye = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 0.f, m_pos.z), m_pitch), m_roll);
+    m_eye = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 0.f, m_pos.z), m_pitch), m_yaw);
 
     // keep eye above terrain
-    if (m_elevationManager && elevOk) {
+    bool elevOk;
+    if (m_elevationManager) { // && elevOk) {
         double eyeElev = m_elevationManager->getElevation(glm::dvec2(m_eye) + glm::dvec2(m_pos), elevOk, true);
         if (elevOk && m_eye.z < eyeElev + 2) {
             m_eye.z = eyeElev + 2;
         }
-        m_zoom = -log2( glm::length(m_eye - glm::vec3(0, 0, posElev)) / worldToCameraHeight );
     }
 
     // Generate view matrix
@@ -580,7 +544,7 @@ LngLat View::screenPositionToLngLat(float x, float y, bool& _intersection, float
 
     if (m_dirtyMatrices) { updateMatrices(); } // Need the view matrices to be up-to-date
 
-    glm::dvec2 dpos(x, y);
+    glm::dvec2 dpos;
     float clipW = m_elevationManager ? m_elevationManager->getDepth({x, y}) : 0;
     if (clipW > 0 && clipW < 1E9f) {
         // ref: https://www.khronos.org/opengl/wiki/GluProject_and_gluUnProject_code (gluUnProject)
@@ -599,7 +563,8 @@ LngLat View::screenPositionToLngLat(float x, float y, bool& _intersection, float
         _intersection = clipW > 0;
         _elevOut = target_world.z;
     } else {
-        double distance = screenToGroundPlaneInternal(dpos.x, dpos.y);
+        double distance = 0;
+        dpos = screenToGroundPlane(x, y, 0, &distance);
         _intersection = (distance >= 0);
         _elevOut = 0;
     }
@@ -652,6 +617,7 @@ glm::vec4 View::tileCoordsToClipSpace(TileCoordinates tc, float elevation) const
 static bool allLess(glm::vec4 a, glm::vec4 b) { return a.x < b.x && a.y < b.y && a.z < b.z && a.w < b.w; }
 static bool allGreater(glm::vec4 a, glm::vec4 b) { return a.x > b.x && a.y > b.y && a.z > b.z && a.w > b.w; }
 
+/*
 void View::getVisibleTiles(const std::function<void(TileID)>& _tileCb, int zoomBias, TileID tile) const
 {
     //if(tile.z == 0) { FrameInfo::begin("getVisibleTiles2");  }
@@ -690,19 +656,20 @@ void View::getVisibleTiles(const std::function<void(TileID)>& _tileCb, int zoomB
 
     float maxZoom = getIntegerZoom() - zoomBias;
     if (tile.z < maxZoom) {
-        float maxEdge = 2 * m_pixelScale * float(MapProjection::tileSize()) * std::exp2(float(zoomBias));
-        float maxArea = maxEdge*maxEdge;
-        float area = std::numeric_limits<float>::max();
+        bool subdivide = true;
         if (m_pitch != 0 && allGreater(a[3], glm::vec4(0))) {
+            float maxEdge = 2 * m_pixelScale * float(MapProjection::tileSize()) * std::exp2(zoomBias + m_baseZoom - m_zoom);
+            float maxArea = maxEdge*maxEdge;
             glm::vec2 screenSize(m_vpWidth, m_vpHeight);
             auto r00 = ndcToScreenSpace(clipSpaceToNdc(a00), screenSize);
             auto r01 = ndcToScreenSpace(clipSpaceToNdc(a01), screenSize);
             auto r10 = ndcToScreenSpace(clipSpaceToNdc(a10), screenSize);
             auto r11 = ndcToScreenSpace(clipSpaceToNdc(a11), screenSize);
             auto pts = {r00, r01, r11, r10};
-            area = std::abs(signedArea(pts.begin(), pts.end()));
+            float area = std::abs(signedArea(pts.begin(), pts.end()));
+            subdivide = area > maxArea;
         }
-        if (area > maxArea) {
+        if (subdivide) {
             for (int i = 0; i < 4; i++) {
                 getVisibleTiles(_tileCb, zoomBias, tile.getChild(i, maxZoom));
             }
@@ -713,6 +680,53 @@ void View::getVisibleTiles(const std::function<void(TileID)>& _tileCb, int zoomB
     //LOGW("Tile %s area: %g", tile.toString().c_str(), area);
     _tileCb(tile);
     //if(tile.z == 0) { FrameInfo::end("getVisibleTiles2"); }
+}
+*/
+
+float View::getTileScreenArea(TileID tile) const
+{
+    TileCoordinates tc = {double(tile.x), double(tile.y), tile.z};
+    auto a00 = tileCoordsToClipSpace(tc);
+    auto a01 = tileCoordsToClipSpace({tc.x, tc.y + 1, tc.z});
+    auto a10 = tileCoordsToClipSpace({tc.x + 1, tc.y, tc.z});
+    auto a11 = tileCoordsToClipSpace({tc.x + 1, tc.y + 1, tc.z});
+    auto a = glm::transpose(glm::mat4(a00, a01, a10, a11));
+    auto wa = glm::abs(a[3]);
+
+    if (m_elevationManager && m_pitch != 0) {
+        glm::dvec3 eye(m_pos.x + m_eye.x, m_pos.y + m_eye.y, m_eye.z);
+        double dist = glm::distance(eye, glm::dvec3(MapProjection::tileCenter(tile), 0.));
+        //if(dist - std::abs(bounds.max.x - bounds.min.x)/M_SQRT2 > maxTileDistance) { return; } ... only covers ~30% of tiles
+        float elev = (dist < m_pos.z) ? std::min(9000.f, m_eye.z) : 0;  // Mt. Everest
+
+        auto b00 = tileCoordsToClipSpace(tc, elev);
+        auto b01 = tileCoordsToClipSpace({tc.x, tc.y + 1, tc.z}, elev);
+        auto b10 = tileCoordsToClipSpace({tc.x + 1, tc.y, tc.z}, elev);
+        auto b11 = tileCoordsToClipSpace({tc.x + 1, tc.y + 1, tc.z}, elev);
+        auto b = glm::transpose(glm::mat4(b00, b01, b10, b11));
+        auto wb = glm::abs(b[3]);
+
+        if(allLess(a[0], -wa) && allLess(b[0], -wb)) return 0;
+        if(allGreater(a[0], wa) && allGreater(b[0], wb)) return 0;
+        if(allLess(a[1], -wa) && allLess(b[1], -wb)) return 0;
+        if(allGreater(a[1], wa) && allGreater(b[1], wb)) return 0;
+        if(allLess(a[2], glm::vec4(0)) && allLess(b[2], glm::vec4(0))) return 0;
+        if(allGreater(a[2], wa) && allGreater(b[2], wb)) return 0;
+    } else {
+        if(allLess(a[0], -wa) || allGreater(a[0], wa)) return 0;
+        if(allLess(a[1], -wa) || allGreater(a[1], wa)) return 0;
+        if(allLess(a[2], glm::vec4(0)) || allGreater(a[2], wa)) return 0;
+    }
+
+    if (m_pitch == 0 || !allGreater(a[3], glm::vec4(0))) return FLT_MAX;
+
+    glm::vec2 screenSize(m_vpWidth, m_vpHeight);
+    auto r00 = ndcToScreenSpace(clipSpaceToNdc(a00), screenSize);
+    auto r01 = ndcToScreenSpace(clipSpaceToNdc(a01), screenSize);
+    auto r10 = ndcToScreenSpace(clipSpaceToNdc(a10), screenSize);
+    auto r11 = ndcToScreenSpace(clipSpaceToNdc(a11), screenSize);
+    auto pts = {r00, r01, r11, r10};
+    return std::exp2(2*(m_zoom - m_baseZoom)) * std::abs(signedArea(pts.begin(), pts.end()));
 }
 
 }

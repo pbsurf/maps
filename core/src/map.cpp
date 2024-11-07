@@ -402,7 +402,7 @@ void Map::setCameraPosition(const CameraPosition& _camera) {
     cancelCameraAnimation();
 
     impl->view.setZoom(_camera.zoom);
-    impl->view.setRoll(_camera.rotation);
+    impl->view.setYaw(_camera.rotation);
     impl->view.setPitch(_camera.tilt);
     impl->view.setCenterCoordinates(LngLat(_camera.longitude, _camera.latitude));
 
@@ -454,7 +454,7 @@ void Map::setCameraPositionEased(const CameraPosition& _camera, float _duration,
                                    ease(e.start.pos.y, e.end.pos.y, t, _e));
             impl->view.setZoom(ease(e.start.zoom, e.end.zoom, t, _e));
 
-            impl->view.setRoll(ease(e.start.rotation, e.end.rotation, t, _e));
+            impl->view.setYaw(ease(e.start.rotation, e.end.rotation, t, _e));
 
             impl->view.setPitch(ease(e.start.tilt, e.end.tilt, t, _e));
         });
@@ -567,12 +567,12 @@ float Map::getMaxZoom() const {
 void Map::setRotation(float _radians) {
     cancelCameraAnimation();
 
-    impl->view.setRoll(_radians);
+    impl->view.setYaw(_radians);
     impl->platform.requestRender();
 }
 
 float Map::getRotation() {
-    return impl->view.getRoll();
+    return impl->view.getYaw();
 }
 
 void Map::setTilt(float _radians) {
@@ -670,7 +670,7 @@ void Map::flyTo(const CameraPosition& _camera, float _duration, float _speed) {
             glm::dvec3 pos = fn(t);
             impl->view.setPosition(pos.x, pos.y);
             impl->view.setZoom(pos.z);
-            impl->view.setRoll(ease(rStart, rEnd, t, e));
+            impl->view.setYaw(ease(rStart, rEnd, t, e));
             impl->view.setPitch(ease(tStart, _camera.tilt, t, e));
             impl->platform.requestRender();
         };

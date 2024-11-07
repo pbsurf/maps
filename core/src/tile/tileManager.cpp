@@ -268,12 +268,47 @@ void TileManager::updateTileSets(const View& _view) {
 
     if (!getDebugFlag(DebugFlags::freeze_tiles)) {
 
-        int minZoomBias = 0;
+        //int minZoomBias = 0;
         for (auto& tileSet : m_tileSets) {
             tileSet.visibleTiles.clear();
-            minZoomBias = std::min(minZoomBias, tileSet.source->zoomBias());
+            //minZoomBias = std::min(minZoomBias, tileSet.source->zoomBias());
         }
 
+        float maxEdge = 2 * _view.pixelScale() * float(MapProjection::tileSize());
+        float maxArea = maxEdge*maxEdge;
+
+        // enable recursion by passing lambda ref to itself; auto type creates a generic (i.e. templated) lambda
+        auto getVisibleTiles = [&](auto&& self, TileID tileId){
+            // if pitch == 0, this will only return 0 or FLT_MAX
+            float area = _view.getTileScreenArea(tileId);
+            if(area <= 0) { return; }  // offscreen
+
+            bool subdivide = false;
+            for (auto& tileSet : m_tileSets) {
+                int zoomBias = tileSet.source->zoomBias();
+                int maxZoom = std::min(tileSet.source->maxZoom(), _view.getIntegerZoom() - zoomBias);
+                if(tileId.z > maxZoom) {
+                    // done with this tileset
+                } else if(tileId.z == maxZoom || area < maxArea*std::exp2(2*float(zoomBias))) {
+                    TileID visId = tileId;
+                    int soffset = int(std::ceil(std::log2(area/maxArea)/2));
+                    visId.s = std::min(tileId.z + soffset, _view.getIntegerZoom());
+                    tileSet.visibleTiles.insert(visId);
+                } else {
+                    subdivide = true;
+                }
+            }
+
+            if (subdivide) {
+                for (int i = 0; i < 4; i++) {
+                    self(self, tileId.getChild(i, 100));
+                }
+            }
+        };
+
+        getVisibleTiles(getVisibleTiles, TileID(0,0,0));
+
+        /*
         auto tileCb = [&](TileID _tileID){
             for (auto& tileSet : m_tileSets) {
                 auto zoomBias = tileSet.source->zoomBias();
@@ -283,6 +318,7 @@ void TileManager::updateTileSets(const View& _view) {
         };
 
         _view.getVisibleTiles(tileCb, minZoomBias);
+        */
     }
 
     for (auto& tileSet : m_tileSets) {

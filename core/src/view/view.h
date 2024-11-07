@@ -132,22 +132,23 @@ public:
     void setZoom(float _z);
 
     // Set the roll angle of the view in radians. Default is 0.
-    void setRoll(float _rad);
+    void setYaw(float _rad);
 
     // Set the pitch angle of the view in radians. Default is 0.
     void setPitch(float _rad);
 
     // Move the position of the view in projected meters.
     void translate(double _dx, double _dy);
+    void translate(glm::dvec2 dr) { translate(dr.x, dr.y); }
 
     // Change zoom by the given amount.
-    void zoom(float _dz);
+    void zoom(float _dz) { setZoom(m_zoom + _dz); }
 
     // Change the roll angle by the given amount in radians.
-    void roll(float _drad);
+    void yaw(float _drad) { setYaw(m_yaw + _drad); }
 
     // Change the pitch angle by the given amount in radians.
-    void pitch(float _drad);
+    void pitch(float _drad) { setPitch(m_pitch + _drad); }
 
     // Get the current zoom.
     float getZoom() const { return m_zoom; }
@@ -155,8 +156,8 @@ public:
     // Get the current zoom truncated to an integer. This is the zoom used to determine visible tiles.
     int getIntegerZoom() const { return static_cast<int>(m_zoom); }
 
-    // Get the current roll angle in radians.
-    float getRoll() const { return m_roll; }
+    // Get the current yaw angle in radians.
+    float getYaw() const { return m_yaw; }
 
     // Get the current pitch angle in radians.
     float getPitch() const { return m_pitch; }
@@ -206,12 +207,10 @@ public:
 
     void setPadding(EdgePadding padding);
 
-    // Calculate the position on the ground plane (z = 0) under the given screen space coordinates,
-    // replacing the input coordinates with world-space coordinates.
-    // Returns the un-normalized distance 'into the screen' to the ground plane
+    // Calculate the position on the z = _elev plane under the given screen space coordinates,
+    // Optionally returns the un-normalized distance 'into the screen' to the plane
     // (if < 0, intersection is behind the screen).
-    double screenToGroundPlane(float& _screenX, float& _screenY, float _elev = 0);
-    double screenToGroundPlane(double& _screenX, double& _screenY, double _elev = 0);
+    glm::dvec2 screenToGroundPlane(float _screenX, float _screenY, float _elev = 0, double* distOut = nullptr);
 
     // Get the screen position from a latitude/longitude.
     glm::vec2 lngLatToScreenPosition(double lng, double lat, bool& outsideViewport, bool clipToViewport = false);
@@ -229,7 +228,8 @@ public:
     float horizonScreenPosition();
 
     // Get the set of all tiles visible at the current position and zoom.
-    void getVisibleTiles(const std::function<void(TileID)>& _tileCb, int zoomBias, TileID tile = TileID(0,0,0)) const;
+    //void getVisibleTiles(const std::function<void(TileID)>& _tileCb, int zoomBias, TileID tile = TileID(0,0,0)) const;
+    float getTileScreenArea(TileID tile) const;
 
     // Returns true if the view properties have changed since the last call to update().
     bool changedOnLastUpdate() const { return m_changed; }
@@ -242,8 +242,6 @@ public:
     static float focalLengthToFieldOfView(float length);
     static float fieldOfViewToFocalLength(float radians);
 
-    // set elevation (camera height will be prevented from going below this value)
-    //void setElevation(float ele);
     ElevationManager* m_elevationManager = nullptr;
 
 protected:
@@ -251,8 +249,6 @@ protected:
     void updateMatrices();
 
     void applyWorldBounds();
-
-    double screenToGroundPlaneInternal(double& _screenX, double& _screenY, double _elev = 0) const;
 
     glm::vec4 tileCoordsToClipSpace(TileCoordinates tc, float elevation = 0.f) const;
 
@@ -274,13 +270,14 @@ protected:
     glm::mat3 m_normalMatrix;
     glm::mat3 m_invNormalMatrix;
 
-    float m_roll = 0.f;
+    float m_yaw = 0.f;
     float m_pitch = 0.f;
 
     float m_zoom = 0.f;
     float m_worldBoundsMinZoom = 0.f;
 
     float m_baseZoom = 0.f;  // zoom referenced to elevation = 0
+    float m_prevZoom = 0.f;
 
     float m_width;
     float m_height;

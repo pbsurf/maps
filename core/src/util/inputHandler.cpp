@@ -51,30 +51,41 @@ void InputHandler::handleTapGesture(float _posX, float _posY) {
     float viewCenterX = 0.5f * m_view.getWidth();
     float viewCenterY = 0.5f * m_view.getHeight();
 
-    m_view.screenToGroundPlane(viewCenterX, viewCenterY);
-    m_view.screenToGroundPlane(_posX, _posY);
+    auto center = m_view.screenToGroundPlane(viewCenterX, viewCenterY);
+    auto pos = m_view.screenToGroundPlane(_posX, _posY);
 
-    m_view.translate((_posX - viewCenterX), (_posY - viewCenterY));
+    m_view.translate(pos - center);
 }
 
 void InputHandler::handleDoubleTapGesture(float _posX, float _posY) {
     handlePinchGesture(_posX, _posY, 2.f, 0.f);
 }
 
-void InputHandler::handlePanGesture(float _startX, float _startY, float _endX, float _endY) {
-    cancelFling();
+glm::vec2 InputHandler::getTranslation(float _startX, float _startY, float _endX, float _endY) {
 
     bool intersect;
     float elev = 0;
     m_view.screenPositionToLngLat(_startX, _startY, intersect, elev);
 
-    m_view.screenToGroundPlane(_startX, _startY, elev);
-    m_view.screenToGroundPlane(_endX, _endY, elev);
+    auto start = m_view.screenToGroundPlane(_startX, _startY, elev);
+    auto end = m_view.screenToGroundPlane(_endX, _endY, elev);
 
-    float dx = _startX - _endX;
-    float dy = _startY - _endY;
+    glm::vec2 dr = start - end;
 
-    m_view.translate(dx, dy);
+    // prevent extreme panning when view is nearly horizontal
+    if (m_view.getPitch() > 75.0*M_PI/180) {
+        float dpx = glm::length(glm::vec2(_startX - _endX, _startY - _endY))/m_view.pixelsPerMeter();
+        float dd = glm::length(dr);
+        if (dd > dpx) {
+          dr = dr*dpx/dd;
+        }
+    }
+    return dr;
+}
+
+void InputHandler::handlePanGesture(float _startX, float _startY, float _endX, float _endY) {
+    cancelFling();
+    m_view.translate(getTranslation(_startX, _startY, _endX, _endY));
 }
 
 void InputHandler::handleFlingGesture(float _posX, float _posY, float _velocityX, float _velocityY) {
@@ -83,22 +94,13 @@ void InputHandler::handleFlingGesture(float _posX, float _posY, float _velocityX
         return;
     }
 
-    const static float epsilon = 0.0167f;
-
     cancelFling();
 
-    float startX = _posX;
-    float startY = _posY;
+    const static float epsilon = 0.0167f;
     float endX = _posX + epsilon * _velocityX;
     float endY = _posY + epsilon * _velocityY;
-
-    m_view.screenToGroundPlane(startX, startY);
-    m_view.screenToGroundPlane(endX, endY);
-
-    float dx = (startX - endX) / epsilon;
-    float dy = (startY - endY) / epsilon;
-
-    setVelocity(0.f, glm::vec2(dx, dy));
+    glm::vec2 dr = getTranslation(_posX, _posY, endX, endY);
+    setVelocity(0.f, dr / epsilon);
 }
 
 void InputHandler::handlePinchGesture(float _posX, float _posY, float _scale, float _velocity) {
@@ -109,17 +111,13 @@ void InputHandler::handlePinchGesture(float _posX, float _posY, float _scale, fl
     // point at screen position (_posX, _posY) should remain fixed
     bool intersect;
     float elev;
-    float x0 = _posX, y0 = _posY;
-    m_view.screenPositionToLngLat(x0, y0, intersect, elev);
-    m_view.screenToGroundPlane(x0, y0, elev);
-
-    //float z = m_view.getZoom();
+    m_view.screenPositionToLngLat(_posX, _posY, intersect, elev);
+    auto start = m_view.screenToGroundPlane(_posX, _posY, elev);
 
     m_view.zoom(std::log2(_scale));  //log(_scale) * invLog2);
 
-    float x1 = _posX, y1 = _posY;
-    m_view.screenToGroundPlane(x1, y1, elev);
-    m_view.translate(x0 - x1, y0 - y1);
+    auto end = m_view.screenToGroundPlane(_posX, _posY, elev);
+    m_view.translate(start - end);
 
     // previous approach - before 3D terrain added
     //m_view.screenToGroundPlane(_posX, _posY);
@@ -139,15 +137,23 @@ void InputHandler::handlePinchGesture(float _posX, float _posY, float _scale, fl
 void InputHandler::handleRotateGesture(float _posX, float _posY, float _radians) {
     cancelFling();
 
+
+    bool intersect;
+    float elev = 0;
+    m_view.screenPositionToLngLat(_posX, _posY, intersect, elev);
+
     // Get vector from center of rotation to view center
-    m_view.screenToGroundPlane(_posX, _posY);
-    glm::vec2 offset(_posX, _posY);
+    glm::vec2 offset = m_view.screenToGroundPlane(_posX, _posY, elev);
+
+    if (m_view.getPitch() > 75.0*M_PI/180) {
+        offset = glm::vec2(m_view.getEye());
+    }
 
     // Rotate vector by gesture rotation and apply difference as translation
     glm::vec2 translation = offset - glm::rotate(offset, _radians);
-    m_view.translate(translation.x, translation.y);
+    m_view.translate(translation);
 
-    m_view.roll(_radians);
+    m_view.yaw(_radians);
 }
 
 void InputHandler::handleShoveGesture(float _distance) {
@@ -159,7 +165,7 @@ void InputHandler::handleShoveGesture(float _distance) {
 }
 
 void InputHandler::cancelFling() {
-    setVelocity(0.f, { 0.f, 0.f});
+    setVelocity(0.f, { 0.f, 0.f });
 }
 
 void InputHandler::setVelocity(float _zoom, glm::vec2 _translate) {

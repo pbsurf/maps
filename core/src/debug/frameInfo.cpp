@@ -156,8 +156,8 @@ void FrameInfo::draw(RenderState& rs, const View& _view, Map& _map) {
                 + ":" + std::to_string(count.second);
         }
 
-        debuginfos.push_back(fstring("zoom:%.3f (d:%.0fm, h:%.0fm); pxscale:%.2f",
-            _view.getZoom(), _view.getPosition().z, _view.getEye().z, _view.pixelScale()));
+        debuginfos.push_back(fstring("zoom:%.3f (d:%.0fm, h:%.0fm); pitch:%.2fdeg",
+            _view.getZoom(), _view.getPosition().z, _view.getEye().z, _view.getPitch()*180/M_PI));
         debuginfos.push_back(fstring("tiles:%d (proxy:%d);", tiles.size(), nproxy) + countsStr);
         debuginfos.push_back(fstring("selectable features:%d", features));
         debuginfos.push_back(fstring("markers:%d", scene.markerManager()->markers().size()));
