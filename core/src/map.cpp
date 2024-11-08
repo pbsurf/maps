@@ -430,8 +430,11 @@ void Map::setCameraPositionEased(const CameraPosition& _camera, float _duration,
     e.start.pos = MapProjection::lngLatToProjectedMeters({lonStart, latStart});
     e.end.pos = MapProjection::lngLatToProjectedMeters({lonEnd, latEnd});
 
-    e.start.zoom = getZoom();
-    e.end.zoom = glm::clamp(_camera.zoom, getMinZoom(), getMaxZoom());
+    //e.start.zoom = getZoom();
+    //e.end.zoom = glm::clamp(_camera.zoom, getMinZoom(), getMaxZoom());
+    e.start.zoom = impl->view.getBaseZoom();
+    float endBaseZoom = -std::log2(std::exp2(-_camera.zoom) - std::exp2(-getZoom()) + std::exp2(-e.start.zoom));
+    e.end.zoom = glm::clamp(endBaseZoom, getMinZoom(), getMaxZoom());
 
     float radiansStart = getRotation();
 
@@ -452,10 +455,8 @@ void Map::setCameraPositionEased(const CameraPosition& _camera, float _duration,
         [=](float t) {
             impl->view.setPosition(ease(e.start.pos.x, e.end.pos.x, t, _e),
                                    ease(e.start.pos.y, e.end.pos.y, t, _e));
-            impl->view.setZoom(ease(e.start.zoom, e.end.zoom, t, _e));
-
+            impl->view.setBaseZoom(ease(e.start.zoom, e.end.zoom, t, _e));
             impl->view.setYaw(ease(e.start.rotation, e.end.rotation, t, _e));
-
             impl->view.setPitch(ease(e.start.tilt, e.end.tilt, t, _e));
         });
 
@@ -637,7 +638,7 @@ void Map::flyTo(const CameraPosition& _camera, float _duration, float _speed) {
 
     double lngStart = 0., latStart = 0., lngEnd = _camera.longitude, latEnd = _camera.latitude;
     getPosition(lngStart, latStart);
-    float zStart = getZoom();
+    //float zStart = getZoom();
     float rStart = getRotation();
     float tStart = getTilt();
 
@@ -658,10 +659,14 @@ void Map::flyTo(const CameraPosition& _camera, float _duration, float _speed) {
     ProjectedMeters a = MapProjection::lngLatToProjectedMeters(LngLat(lngStart, latStart));
     ProjectedMeters b = MapProjection::lngLatToProjectedMeters(LngLat(lngEnd, latEnd));
 
+    float zStart = impl->view.getBaseZoom();
+    float zEnd = -std::log2(std::exp2(-_camera.zoom) - std::exp2(-getZoom()) + std::exp2(-zStart));
+    zEnd = glm::clamp(zEnd, getMinZoom(), getMaxZoom());
+
     double distance = 0.0;
     auto fn = getFlyToFunction(impl->view,
                                glm::dvec3(a.x, a.y, zStart),
-                               glm::dvec3(b.x, b.y, _camera.zoom),
+                               glm::dvec3(b.x, b.y, zEnd),  //_camera.zoom),
                                distance);
 
     EaseType e = EaseType::cubic;
@@ -669,7 +674,7 @@ void Map::flyTo(const CameraPosition& _camera, float _duration, float _speed) {
         [=](float t) {
             glm::dvec3 pos = fn(t);
             impl->view.setPosition(pos.x, pos.y);
-            impl->view.setZoom(pos.z);
+            impl->view.setBaseZoom(pos.z);
             impl->view.setYaw(ease(rStart, rEnd, t, e));
             impl->view.setPitch(ease(tStart, _camera.tilt, t, e));
             impl->platform.requestRender();

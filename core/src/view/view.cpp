@@ -220,15 +220,19 @@ void View::setCenterCoordinates(Tangram::LngLat center) {
     setPosition(meters.x, meters.y);
 }
 
-void View::setZoom(float _z) {
+void View::setZoom(float _z, bool setBaseZoom) {
     // ensure zoom value is allowed
-    float prevZoom = m_zoom;
-    m_zoom = glm::clamp(_z, m_minZoom, m_maxZoom);
+    _z = glm::clamp(_z, m_minZoom, m_maxZoom);
 
-    if (!m_elevationManager)  //||m_baseZoom == prevZoom)
-        m_baseZoom = m_zoom;
-    else
-        m_baseZoom = -log2(exp2(-m_zoom) - exp2(-prevZoom) + exp2(-m_baseZoom));
+    if (!m_elevationManager) {  //||m_baseZoom == prevZoom)
+        m_baseZoom = m_zoom = _z;
+    } else if (setBaseZoom) {
+        m_zoom = -std::log2(std::exp2(-_z) - std::exp2(-m_baseZoom) + std::exp2(-m_zoom));
+        m_baseZoom = _z;
+    } else {
+        m_baseZoom = -std::log2(std::exp2(-_z) - std::exp2(-m_zoom) + std::exp2(-m_baseZoom));
+        m_zoom = _z;
+    }
 
     m_dirtyMatrices = true;
     m_dirtyTiles = true;
@@ -394,8 +398,7 @@ glm::dvec2 View::getPositionToLookAt(glm::dvec2 target) {
     bool elevOk;
     float elev = m_elevationManager->getElevation(target, elevOk, true);
     glm::vec3 eye = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 0.f, 1.f), m_pitch), m_yaw);
-    eye *= elev/eye.z;
-    return target - glm::dvec2(eye);
+    return target - glm::dvec2(eye*elev/eye.z);
 }
 
 void View::updateMatrices() {
@@ -613,83 +616,20 @@ glm::vec4 View::tileCoordsToClipSpace(TileCoordinates tc, float elevation) const
 // Tangram originally "rasterized" trapezoid corresponding to screen in tile space plus triangle from eye to
 //  screen bottom with fixed LOD ranges; attempted to combine with screen area based LOD calc, but was much
 //  slower than recursive approach - see 3 Oct 2024 rev
+// getVisibleTiles() (calling getTileScreenArea()) now moved to TileManager::updateTileSets()
 
 static bool allLess(glm::vec4 a, glm::vec4 b) { return a.x < b.x && a.y < b.y && a.z < b.z && a.w < b.w; }
 static bool allGreater(glm::vec4 a, glm::vec4 b) { return a.x > b.x && a.y > b.y && a.z > b.z && a.w > b.w; }
 
-/*
-void View::getVisibleTiles(const std::function<void(TileID)>& _tileCb, int zoomBias, TileID tile) const
-{
-    //if(tile.z == 0) { FrameInfo::begin("getVisibleTiles2");  }
-    TileCoordinates tc = {double(tile.x), double(tile.y), tile.z};
-    auto a00 = tileCoordsToClipSpace(tc);
-    auto a01 = tileCoordsToClipSpace({tc.x, tc.y + 1, tc.z});
-    auto a10 = tileCoordsToClipSpace({tc.x + 1, tc.y, tc.z});
-    auto a11 = tileCoordsToClipSpace({tc.x + 1, tc.y + 1, tc.z});
-    auto a = glm::transpose(glm::mat4(a00, a01, a10, a11));
-    auto wa = glm::abs(a[3]);
-
-    if (m_elevationManager && m_pitch != 0) {
-        glm::dvec3 eye(m_pos.x + m_eye.x, m_pos.y + m_eye.y, m_eye.z);
-        double dist = glm::distance(eye, glm::dvec3(MapProjection::tileCenter(tile), 0.));
-        //if(dist - std::abs(bounds.max.x - bounds.min.x)/M_SQRT2 > maxTileDistance) { return; } ... only covers ~30% of tiles
-        float elev = (dist < m_pos.z) ? std::min(9000.f, m_eye.z) : 0;  // Mt. Everest
-
-        auto b00 = tileCoordsToClipSpace(tc, elev);
-        auto b01 = tileCoordsToClipSpace({tc.x, tc.y + 1, tc.z}, elev);
-        auto b10 = tileCoordsToClipSpace({tc.x + 1, tc.y, tc.z}, elev);
-        auto b11 = tileCoordsToClipSpace({tc.x + 1, tc.y + 1, tc.z}, elev);
-        auto b = glm::transpose(glm::mat4(b00, b01, b10, b11));
-        auto wb = glm::abs(b[3]);
-
-        if(allLess(a[0], -wa) && allLess(b[0], -wb)) return;
-        if(allGreater(a[0], wa) && allGreater(b[0], wb)) return;
-        if(allLess(a[1], -wa) && allLess(b[1], -wb)) return;
-        if(allGreater(a[1], wa) && allGreater(b[1], wb)) return;
-        if(allLess(a[2], glm::vec4(0)) && allLess(b[2], glm::vec4(0))) return;
-        if(allGreater(a[2], wa) && allGreater(b[2], wb)) return;
-    } else {
-        if(allLess(a[0], -wa) || allGreater(a[0], wa)) return;
-        if(allLess(a[1], -wa) || allGreater(a[1], wa)) return;
-        if(allLess(a[2], glm::vec4(0)) || allGreater(a[2], wa)) return;
-    }
-
-    float maxZoom = getIntegerZoom() - zoomBias;
-    if (tile.z < maxZoom) {
-        bool subdivide = true;
-        if (m_pitch != 0 && allGreater(a[3], glm::vec4(0))) {
-            float maxEdge = 2 * m_pixelScale * float(MapProjection::tileSize()) * std::exp2(zoomBias + m_baseZoom - m_zoom);
-            float maxArea = maxEdge*maxEdge;
-            glm::vec2 screenSize(m_vpWidth, m_vpHeight);
-            auto r00 = ndcToScreenSpace(clipSpaceToNdc(a00), screenSize);
-            auto r01 = ndcToScreenSpace(clipSpaceToNdc(a01), screenSize);
-            auto r10 = ndcToScreenSpace(clipSpaceToNdc(a10), screenSize);
-            auto r11 = ndcToScreenSpace(clipSpaceToNdc(a11), screenSize);
-            auto pts = {r00, r01, r11, r10};
-            float area = std::abs(signedArea(pts.begin(), pts.end()));
-            subdivide = area > maxArea;
-        }
-        if (subdivide) {
-            for (int i = 0; i < 4; i++) {
-                getVisibleTiles(_tileCb, zoomBias, tile.getChild(i, maxZoom));
-            }
-            return;
-        }
-    }
-
-    //LOGW("Tile %s area: %g", tile.toString().c_str(), area);
-    _tileCb(tile);
-    //if(tile.z == 0) { FrameInfo::end("getVisibleTiles2"); }
-}
-*/
-
 float View::getTileScreenArea(TileID tile) const
 {
     TileCoordinates tc = {double(tile.x), double(tile.y), tile.z};
-    auto a00 = tileCoordsToClipSpace(tc);
-    auto a01 = tileCoordsToClipSpace({tc.x, tc.y + 1, tc.z});
-    auto a10 = tileCoordsToClipSpace({tc.x + 1, tc.y, tc.z});
-    auto a11 = tileCoordsToClipSpace({tc.x + 1, tc.y + 1, tc.z});
+    // use elevation at center of screen (used to calc m_zoom) for tile bottom
+    float elev0 = m_elevationManager ? m_eye.z * (1 - exp2(m_baseZoom - m_zoom)) : 0;
+    auto a00 = tileCoordsToClipSpace(tc, elev0);
+    auto a01 = tileCoordsToClipSpace({tc.x, tc.y + 1, tc.z}, elev0);
+    auto a10 = tileCoordsToClipSpace({tc.x + 1, tc.y, tc.z}, elev0);
+    auto a11 = tileCoordsToClipSpace({tc.x + 1, tc.y + 1, tc.z}, elev0);
     auto a = glm::transpose(glm::mat4(a00, a01, a10, a11));
     auto wa = glm::abs(a[3]);
 
@@ -697,12 +637,12 @@ float View::getTileScreenArea(TileID tile) const
         glm::dvec3 eye(m_pos.x + m_eye.x, m_pos.y + m_eye.y, m_eye.z);
         double dist = glm::distance(eye, glm::dvec3(MapProjection::tileCenter(tile), 0.));
         //if(dist - std::abs(bounds.max.x - bounds.min.x)/M_SQRT2 > maxTileDistance) { return; } ... only covers ~30% of tiles
-        float elev = (dist < m_pos.z) ? std::min(9000.f, m_eye.z) : 0;  // Mt. Everest
+        float elev1 = (dist < m_pos.z) ? std::min(9000.f, m_eye.z) : 0;  // Mt. Everest
 
-        auto b00 = tileCoordsToClipSpace(tc, elev);
-        auto b01 = tileCoordsToClipSpace({tc.x, tc.y + 1, tc.z}, elev);
-        auto b10 = tileCoordsToClipSpace({tc.x + 1, tc.y, tc.z}, elev);
-        auto b11 = tileCoordsToClipSpace({tc.x + 1, tc.y + 1, tc.z}, elev);
+        auto b00 = tileCoordsToClipSpace(tc, elev1);
+        auto b01 = tileCoordsToClipSpace({tc.x, tc.y + 1, tc.z}, elev1);
+        auto b10 = tileCoordsToClipSpace({tc.x + 1, tc.y, tc.z}, elev1);
+        auto b11 = tileCoordsToClipSpace({tc.x + 1, tc.y + 1, tc.z}, elev1);
         auto b = glm::transpose(glm::mat4(b00, b01, b10, b11));
         auto wb = glm::abs(b[3]);
 
@@ -726,7 +666,7 @@ float View::getTileScreenArea(TileID tile) const
     auto r10 = ndcToScreenSpace(clipSpaceToNdc(a10), screenSize);
     auto r11 = ndcToScreenSpace(clipSpaceToNdc(a11), screenSize);
     auto pts = {r00, r01, r11, r10};
-    return std::exp2(2*(m_zoom - m_baseZoom)) * std::abs(signedArea(pts.begin(), pts.end()));
+    return std::abs(signedArea(pts.begin(), pts.end()));
 }
 
 }

@@ -268,12 +268,6 @@ void TileManager::updateTileSets(const View& _view) {
 
     if (!getDebugFlag(DebugFlags::freeze_tiles)) {
 
-        //int minZoomBias = 0;
-        for (auto& tileSet : m_tileSets) {
-            tileSet.visibleTiles.clear();
-            //minZoomBias = std::min(minZoomBias, tileSet.source->zoomBias());
-        }
-
         float maxEdge = 2 * _view.pixelScale() * float(MapProjection::tileSize());
         float maxArea = maxEdge*maxEdge;
 
@@ -291,8 +285,8 @@ void TileManager::updateTileSets(const View& _view) {
                     // done with this tileset
                 } else if(tileId.z == maxZoom || area < maxArea*std::exp2(2*float(zoomBias))) {
                     TileID visId = tileId;
-                    int soffset = int(std::ceil(std::log2(area/maxArea)/2));
-                    visId.s = std::min(tileId.z + soffset, _view.getIntegerZoom());
+                    int s = std::max(0, tileId.z + int(std::ceil(std::log2(area/maxArea)/2)));
+                    visId.s = std::min(s, _view.getIntegerZoom());
                     tileSet.visibleTiles.insert(visId);
                 } else {
                     subdivide = true;
@@ -306,19 +300,11 @@ void TileManager::updateTileSets(const View& _view) {
             }
         };
 
+        for (auto& tileSet : m_tileSets) {
+            tileSet.visibleTiles.clear();
+        }
         getVisibleTiles(getVisibleTiles, TileID(0,0,0));
 
-        /*
-        auto tileCb = [&](TileID _tileID){
-            for (auto& tileSet : m_tileSets) {
-                auto zoomBias = tileSet.source->zoomBias();
-                auto maxZoom = tileSet.source->maxZoom();
-                tileSet.visibleTiles.insert(_tileID.zoomBiasAdjusted(zoomBias - minZoomBias).withMaxSourceZoom(maxZoom));
-            }
-        };
-
-        _view.getVisibleTiles(tileCb, minZoomBias);
-        */
     }
 
     for (auto& tileSet : m_tileSets) {

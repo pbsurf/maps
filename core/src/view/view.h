@@ -129,7 +129,8 @@ public:
     void setCenterCoordinates(LngLat center);
 
     // Set the zoom level of the view.
-    void setZoom(float _z);
+    void setZoom(float _z, bool setBaseZoom = false);
+    void setBaseZoom(float _z) { setZoom(_z, true); }
 
     // Set the roll angle of the view in radians. Default is 0.
     void setYaw(float _rad);
@@ -152,6 +153,7 @@ public:
 
     // Get the current zoom.
     float getZoom() const { return m_zoom; }
+    float getBaseZoom() const { return m_baseZoom; }
 
     // Get the current zoom truncated to an integer. This is the zoom used to determine visible tiles.
     int getIntegerZoom() const { return static_cast<int>(m_zoom); }

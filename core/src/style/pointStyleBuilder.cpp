@@ -276,6 +276,10 @@ void PointStyleBuilder::addLabel(const Point& _point, const glm::vec4& _quad, Te
         {v2, {uvBL.x, uvBL.y}},
         {v3, {uvTR.x, uvBL.y}}}
         });
+
+#ifdef DEBUG
+    m_labels.back()->debugTag = !_params.sprite.empty() ? _params.sprite : _params.spriteDefault;
+#endif
 }
 
 bool PointStyleBuilder::getTexture(const Parameters& _params, Texture **_texture) const {
