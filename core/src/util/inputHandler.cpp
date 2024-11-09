@@ -63,9 +63,8 @@ void InputHandler::handleDoubleTapGesture(float _posX, float _posY) {
 
 glm::vec2 InputHandler::getTranslation(float _startX, float _startY, float _endX, float _endY) {
 
-    bool intersect;
     float elev = 0;
-    m_view.screenPositionToLngLat(_startX, _startY, intersect, elev);
+    m_view.screenPositionToLngLat(_startX, _startY, &elev);
 
     auto start = m_view.screenToGroundPlane(_startX, _startY, elev);
     auto end = m_view.screenToGroundPlane(_endX, _endY, elev);
@@ -109,9 +108,8 @@ void InputHandler::handlePinchGesture(float _posX, float _posY, float _scale, fl
     if (_scale <= 0.f) { return; }
 
     // point at screen position (_posX, _posY) should remain fixed
-    bool intersect;
     float elev;
-    m_view.screenPositionToLngLat(_posX, _posY, intersect, elev);
+    m_view.screenPositionToLngLat(_posX, _posY, &elev);
     auto start = m_view.screenToGroundPlane(_posX, _posY, elev);
 
     m_view.zoom(std::log2(_scale));  //log(_scale) * invLog2);
@@ -137,10 +135,8 @@ void InputHandler::handlePinchGesture(float _posX, float _posY, float _scale, fl
 void InputHandler::handleRotateGesture(float _posX, float _posY, float _radians) {
     cancelFling();
 
-
-    bool intersect;
     float elev = 0;
-    m_view.screenPositionToLngLat(_posX, _posY, intersect, elev);
+    m_view.screenPositionToLngLat(_posX, _posY, &elev);
 
     // Get vector from center of rotation to view center
     glm::vec2 offset = m_view.screenToGroundPlane(_posX, _posY, elev);

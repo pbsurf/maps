@@ -126,8 +126,6 @@ public:
     void setPosition(double _x, double _y);
     void setPosition(const glm::dvec2 pos) { setPosition(pos.x, pos.y); }
 
-    void setCenterCoordinates(LngLat center);
-
     // Set the zoom level of the view.
     void setZoom(float _z, bool setBaseZoom = false);
     void setBaseZoom(float _z) { setZoom(_z, true); }
@@ -169,9 +167,6 @@ public:
 
     // Get the position of the view in projection units (z is the effective 'height' determined from zoom).
     const glm::dvec3& getPosition() const { return m_pos; }
-
-    // Get the coordinates of the point at the center of the view.
-    LngLat getCenterCoordinates() const;
 
     // Get the transformation from global space into view (camera) space; Due to precision limits, this
     // does not contain the translation of the view from the global origin (you must apply that separately).
@@ -217,10 +212,10 @@ public:
     // Get the screen position from a latitude/longitude.
     glm::vec2 lngLatToScreenPosition(double lng, double lat, bool& outsideViewport, bool clipToViewport = false);
 
-    LngLat screenPositionToLngLat(float x, float y, bool& intersection, float& _elevOut);
+    LngLat screenPositionToLngLat(float x, float y, float* elevOut = nullptr, bool* intersection = nullptr);
 
     // position to place target at center of screen; same as target unless tilted with 3D terrain
-    glm::dvec2 getPositionToLookAt(glm::dvec2 target);
+    glm::dvec2 positionToLookAt(glm::dvec2 target, float pitch = NAN, float yaw = NAN);
 
     // For a position on the map in projected meters, this returns the displacement vector *from* the view *to* that
     // position, accounting for wrapping around the 180th meridian to get the smallest magnitude displacement.

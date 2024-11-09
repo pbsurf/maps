@@ -173,11 +173,12 @@ void FrameInfo::draw(RenderState& rs, const View& _view, Map& _map) {
                     entry.first.c_str(), entry.second.avgReal, entry.second.avgCpu));
             }
         } else {
+            auto pos = _view.getPosition();
             debuginfos.push_back(fstring("avg frame cpu time:%.2fms", avgTimeCpu));
             debuginfos.push_back(fstring("avg frame render time:%.2fms", avgTimeRender));
             debuginfos.push_back(fstring("avg frame update time:%.2fms", avgTimeUpdate));
-            debuginfos.push_back(fstring("pos: %f/%f", _view.getPosition().x, _view.getPosition().y));
-            auto center = _view.getCenterCoordinates();
+            debuginfos.push_back(fstring("pos: %f/%f", pos.x, pos.y));
+            auto center = MapProjection::projectedMetersToLngLat(pos);
             debuginfos.push_back(fstring("LngLat:%f,%f", center.longitude, center.latitude));
             debuginfos.push_back(fstring("tilt:%.2fdeg", _view.getPitch() * 57.3));
         }

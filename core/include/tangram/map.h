@@ -95,6 +95,7 @@ struct CameraPosition {
     float tilt = 0;
 
     LngLat lngLat() const { return {longitude, latitude}; }
+    CameraPosition& setLngLat(LngLat ll) { longitude = ll.longitude; latitude = ll.latitude; return *this; }
 };
 
 struct EdgePadding {
@@ -310,9 +311,6 @@ public:
     // If _duration is 0, speed is used as factor to change the duration that is
     // calculated for the duration of the flight path. (Recommended range 0.1 - 2.0)
     void flyTo(const CameraPosition& _camera, float _duration, float _speed = 1.0f);
-
-    // Get camera position to place target at center of screen - needed for tilted view with 3D terrain
-    CameraPosition getCameraPositionToLookAt(LngLat _target);
 
     // Set the camera type (0 = perspective, 1 = isometric, 2 = flat)
     void setCameraType(int _type);

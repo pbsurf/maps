@@ -373,10 +373,9 @@ void Scene::prefetchTiles(const View& _view) {
     }
 
     LOGTO(">>> loadTiles");
-    LOG("Prefetch tiles for View: %fx%f / zoom:%f lon:%f lat:%f",
-        view.getWidth(), view.getHeight(), view.getZoom(),
-        view.getCenterCoordinates().longitude,
-        view.getCenterCoordinates().latitude);
+    LOG("Prefetch tiles for View: %fx%f / zoom:%f",  //lon:%f lat:%f",
+        view.getWidth(), view.getHeight(), view.getZoom());
+        //view.getCenterCoordinates().longitude, view.getCenterCoordinates().latitude);
 
     view.update();
     m_tileManager->updateTileSets(view);

@@ -215,11 +215,6 @@ void View::setPosition(double _x, double _y) {
     }
 }
 
-void View::setCenterCoordinates(Tangram::LngLat center) {
-    auto meters = MapProjection::lngLatToProjectedMeters({center.longitude, center.latitude});
-    setPosition(meters.x, meters.y);
-}
-
 void View::setZoom(float _z, bool setBaseZoom) {
     // ensure zoom value is allowed
     _z = glm::clamp(_z, m_minZoom, m_maxZoom);
@@ -261,11 +256,6 @@ void View::translate(double _dx, double _dy) {
 
     setPosition(m_pos.x + _dx, m_pos.y + _dy);
 
-}
-
-LngLat View::getCenterCoordinates() const {
-    auto center = MapProjection::projectedMetersToLngLat({m_pos.x, m_pos.y});
-    return center;
 }
 
 void View::applyWorldBounds() {
@@ -392,12 +382,14 @@ float View::fieldOfViewToFocalLength(float radians) {
     return 1.f / tanf(radians / 2.f);
 }
 
-glm::dvec2 View::getPositionToLookAt(glm::dvec2 target) {
+glm::dvec2 View::positionToLookAt(glm::dvec2 target, float pitch, float yaw) {
     if (!m_elevationManager) return target;
 
+    if (std::isnan(pitch)) { pitch = m_pitch; }
+    if (std::isnan(yaw)) { yaw = m_yaw; }
     bool elevOk;
     float elev = m_elevationManager->getElevation(target, elevOk, true);
-    glm::vec3 eye = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 0.f, 1.f), m_pitch), m_yaw);
+    glm::vec3 eye = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 0.f, 1.f), pitch), yaw);
     return target - glm::dvec2(eye*elev/eye.z);
 }
 
@@ -543,7 +535,7 @@ glm::vec2 View::lngLatToScreenPosition(double lng, double lat, bool& outsideView
     return screenPosition;
 }
 
-LngLat View::screenPositionToLngLat(float x, float y, bool& _intersection, float& _elevOut) {
+LngLat View::screenPositionToLngLat(float x, float y, float* elevOut, bool* intersection) {
 
     if (m_dirtyMatrices) { updateMatrices(); } // Need the view matrices to be up-to-date
 
@@ -563,13 +555,13 @@ LngLat View::screenPositionToLngLat(float x, float y, bool& _intersection, float
                                    -m_proj[2][2]*clipW + m_proj[3][2], clipW };
         glm::dvec4 target_world = m_invViewProj * target_clip;
         dpos = glm::dvec2(target_world);
-        _intersection = clipW > 0;
-        _elevOut = target_world.z;
+        if (intersection) { *intersection = clipW > 0; }
+        if (elevOut) { *elevOut = target_world.z; }
     } else {
         double distance = 0;
         dpos = screenToGroundPlane(x, y, 0, &distance);
-        _intersection = (distance >= 0);
-        _elevOut = 0;
+        if (intersection) { *intersection = distance >= 0; }
+        if (elevOut) { *elevOut = 0; }
     }
     LngLat lngLat = MapProjection::projectedMetersToLngLat(dpos + glm::dvec2(m_pos));
     return lngLat.wrapped();

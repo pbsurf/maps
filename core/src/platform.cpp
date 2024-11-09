@@ -184,7 +184,7 @@ void Platform::onUrlResponse(const UrlRequestHandle _request, UrlResponse&& _res
 }
 
 void logStr(const std::string& msg) {
-    logMsg(msg.c_str());
+    logMsg("%s", msg.c_str());  // to avoid problems with '%' in msg
     TextDisplay::Instance().log(msg);
 }
 

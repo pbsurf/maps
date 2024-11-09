@@ -195,9 +195,8 @@ SceneID Map::Impl::loadSceneAsync(SceneOptions&& _sceneOptions) {
     return scene->id;
 }
 
-Scene* Map::getScene()
-{
-  return impl->scene.get();
+Scene* Map::getScene() {
+    return impl->scene.get();
 }
 
 void Map::updateGlobals(const std::vector<SceneUpdate>& _sceneUpdates)
@@ -376,7 +375,6 @@ void Map::captureSnapshot(unsigned int* _data) {
                    GL_UNSIGNED_BYTE, (GLvoid*)_data);
 }
 
-
 CameraPosition Map::getCameraPosition() {
     CameraPosition camera;
 
@@ -404,7 +402,9 @@ void Map::setCameraPosition(const CameraPosition& _camera) {
     impl->view.setZoom(_camera.zoom);
     impl->view.setYaw(_camera.rotation);
     impl->view.setPitch(_camera.tilt);
-    impl->view.setCenterCoordinates(LngLat(_camera.longitude, _camera.latitude));
+    //impl->view.setCenterCoordinates(LngLat(_camera.longitude, _camera.latitude));
+    auto target = MapProjection::lngLatToProjectedMeters(_camera.lngLat());
+    impl->view.setPosition(impl->view.positionToLookAt(target));
 
     impl->platform.requestRender();
 }
@@ -419,16 +419,13 @@ void Map::setCameraPositionEased(const CameraPosition& _camera, float _duration,
 
     double lonEnd = _camera.longitude;
     double latEnd = _camera.latitude;
-
     double dLongitude = lonEnd - lonStart;
-    if (dLongitude > 180.0) {
-        lonEnd -= 360.0;
-    } else if (dLongitude < -180.0) {
-        lonEnd += 360.0;
-    }
+    if (dLongitude > 180.0) { lonEnd -= 360.0; }
+    else if (dLongitude < -180.0) { lonEnd += 360.0; }
 
-    e.start.pos = MapProjection::lngLatToProjectedMeters({lonStart, latStart});
-    e.end.pos = MapProjection::lngLatToProjectedMeters({lonEnd, latEnd});
+    auto target = MapProjection::lngLatToProjectedMeters({lonEnd, latEnd});
+    e.start.pos = impl->view.getPosition(); //MapProjection::lngLatToProjectedMeters({lonStart, latStart});
+    e.end.pos = impl->view.positionToLookAt(target, _camera.tilt, _camera.rotation);
 
     //e.start.zoom = getZoom();
     //e.end.zoom = glm::clamp(_camera.zoom, getMinZoom(), getMaxZoom());
@@ -488,8 +485,7 @@ void Map::updateCameraPosition(const CameraUpdate& _update, float _duration, Eas
         camera = getEnclosingCameraPosition(_update.bounds[0], _update.bounds[1], _update.padding);
     }
     if ((_update.set & CameraUpdate::set_lnglat) != 0) {
-        camera.longitude = _update.lngLat.longitude;
-        camera.latitude = _update.lngLat.latitude;
+        camera.setLngLat(_update.lngLat);
     }
     if ((_update.set & CameraUpdate::set_zoom) != 0) {
         camera.zoom = _update.zoom;
@@ -526,13 +522,16 @@ void Map::setPosition(double _lon, double _lat) {
     cancelCameraAnimation();
 
     glm::dvec2 meters = MapProjection::lngLatToProjectedMeters({_lon, _lat});
-    impl->view.setPosition(meters.x, meters.y);
+    impl->view.setPosition(impl->view.positionToLookAt(meters));
     impl->inputHandler.cancelFling();
     impl->platform.requestRender();
 }
 
 void Map::getPosition(double& _lon, double& _lat) {
-    LngLat degrees = impl->view.getCenterCoordinates();
+
+    LngLat degrees = impl->scene->elevationManager() ?
+          impl->view.screenPositionToLngLat(impl->view.getWidth()/2, impl->view.getHeight()/2) :
+          MapProjection::projectedMetersToLngLat(impl->view.getPosition());
     _lon = degrees.longitude;
     _lat = degrees.latitude;
 }
@@ -628,9 +627,8 @@ CameraPosition Map::getEnclosingCameraPosition(LngLat a, LngLat b, EdgePadding p
     LngLat centerLngLat = MapProjection::projectedMetersToLngLat(centerMeters);
 
     CameraPosition camera;
-    camera.zoom = static_cast<float>(finalZoom);
-    camera.longitude = centerLngLat.longitude;
-    camera.latitude = centerLngLat.latitude;
+    camera.zoom = float(finalZoom);
+    camera.setLngLat(centerLngLat);
     return camera;
 }
 
@@ -646,18 +644,16 @@ void Map::flyTo(const CameraPosition& _camera, float _duration, float _speed) {
     float radiansDelta = _camera.rotation - rStart;
     // trying to get better numerical behavior, esp. final roll == commanded roll
     if (radiansDelta < -float(PI)) { radiansDelta += float(TWO_PI); }
-    if (radiansDelta > float(PI)) { radiansDelta -= float(TWO_PI); }
+    else if (radiansDelta > float(PI)) { radiansDelta -= float(TWO_PI); }
     float rEnd = rStart + radiansDelta;
 
     double dLongitude = lngEnd - lngStart;
-    if (dLongitude > 180.0) {
-        lngEnd -= 360.0;
-    } else if (dLongitude < -180.0) {
-        lngEnd += 360.0;
-    }
+    if (dLongitude > 180.0) { lngEnd -= 360.0; }
+    else if (dLongitude < -180.0) { lngEnd += 360.0;  }
 
-    ProjectedMeters a = MapProjection::lngLatToProjectedMeters(LngLat(lngStart, latStart));
-    ProjectedMeters b = MapProjection::lngLatToProjectedMeters(LngLat(lngEnd, latEnd));
+    auto target = MapProjection::lngLatToProjectedMeters(LngLat(lngEnd, latEnd));
+    ProjectedMeters a = impl->view.getPosition();  //MapProjection::lngLatToProjectedMeters(LngLat(lngStart, latStart));
+    ProjectedMeters b = impl->view.positionToLookAt(target, _camera.tilt, _camera.rotation);
 
     float zStart = impl->view.getBaseZoom();
     float zEnd = -std::log2(std::exp2(-_camera.zoom) - std::exp2(-getZoom()) + std::exp2(-zStart));
@@ -693,9 +689,9 @@ void Map::flyTo(const CameraPosition& _camera, float _duration, float _speed) {
 
 bool Map::screenPositionToLngLat(double _x, double _y, double* _lng, double* _lat) {
 
+    float elev = 0;
     bool intersection = false;
-    float elev;
-    LngLat lngLat = impl->view.screenPositionToLngLat(_x, _y, intersection, elev);
+    LngLat lngLat = impl->view.screenPositionToLngLat(_x, _y, &elev, &intersection);
     *_lng = lngLat.longitude;
     *_lat = lngLat.latitude;
 
@@ -710,15 +706,6 @@ bool Map::lngLatToScreenPosition(double _lng, double _lat, double* _x, double* _
     if(_y) *_y = screenPosition.y;
 
     return !outsideViewport;
-}
-
-// an alternative would be to redefine CameraPosition lng,lat to be look at target - the problem is then
-//  actual camera becomes dependent on elevation tiles
-CameraPosition Map::getCameraPositionToLookAt(LngLat _target) {
-  auto targetMeters = MapProjection::lngLatToProjectedMeters(_target);
-  auto cameraMeters = impl->view.getPositionToLookAt(targetMeters);
-  LngLat camLL = MapProjection::projectedMetersToLngLat(cameraMeters);
-  return {camLL.longitude, camLL.latitude, getZoom(), getRotation(), getTilt()};
 }
 
 void Map::setPixelScale(float _pixelsPerPoint) {
