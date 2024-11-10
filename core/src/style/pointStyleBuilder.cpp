@@ -278,7 +278,8 @@ void PointStyleBuilder::addLabel(const Point& _point, const glm::vec4& _quad, Te
         });
 
 #ifdef DEBUG
-    m_labels.back()->debugTag = !_params.sprite.empty() ? _params.sprite : _params.spriteDefault;
+    m_labels.back()->debugTag =  _params.texture + ":" +
+        (!_params.sprite.empty() ? _params.sprite : _params.spriteDefault);
 #endif
 }
 

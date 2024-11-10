@@ -53,6 +53,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS images_id ON images (tile_id);
 CREATE UNIQUE INDEX IF NOT EXISTS name ON metadata (name);
 CREATE UNIQUE INDEX IF NOT EXISTS offline_index ON offline_tiles (tile_id, offline_id);
 CREATE UNIQUE INDEX IF NOT EXISTS last_access_index ON tile_last_access (tile_id);
+-- need index on map.tile_id for tile deletion
+CREATE INDEX IF NOT EXISTS map_tile_id ON map (tile_id);
 
 -- or we could use foreign keys: "tile_id REFERENCES images.tile_id ON DELETE CASCADE"
 CREATE TRIGGER IF NOT EXISTS delete_tile AFTER DELETE ON images
@@ -72,7 +74,7 @@ CREATE VIEW IF NOT EXISTS tiles AS
     FROM map
     JOIN images ON images.tile_id = map.tile_id;
 
-PRAGMA user_version = 2;
+PRAGMA user_version = 3;
 
 COMMIT;)SQL_ESC";
 
@@ -263,9 +265,11 @@ static void runMigrations(SQLiteDB& db) {
             db.stmt("SELECT strftime('%s');").exec([&](std::string t){
                 db.exec("ALTER TABLE images ADD COLUMN created_at INTEGER DEFAULT " + t + ";");
             });
-            db.exec("PRAGMA user_version = 2;");
         }
-        //if(ver < 3) { ... } -- future migrations
+        if(ver < 3) {
+            db.exec("CREATE INDEX IF NOT EXISTS map_tile_id ON map (tile_id);");
+            db.exec("PRAGMA user_version = 3;");
+        }
     });
 }
 

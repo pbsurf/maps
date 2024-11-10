@@ -75,15 +75,7 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
         }
 
         // terrain depth is from previous frame, so we must compare label position before Label::update()
-        bool isBehindTerrain = false;
-        if (useElev) {
-            glm::vec4 coord = label->screenCoord();
-            float labelz = 1/coord.w;
-            float terrainz = _elevManager->getDepth({coord.x, coord.y});  // - 2});
-            isBehindTerrain = coord.w != 0 && labelz > terrainz + 200.0f;  // why do we still get flicking using 100m ?
-            //isBehindTerrain = coord.z > terrainz + 0.005f;  -- 0.005 NDC ~ 1000 - 1500m
-            //LOGW("'%s' - Camera: label %f, terrain %f; delta: %f", label->debugTag.c_str(), labelz, terrainz, labelz - terrainz);
-        }
+        glm::vec4 screenCoord = label->screenCoord();
 
         Range transformRange;
         ScreenTransform transform { m_transforms, transformRange };
@@ -96,7 +88,15 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
             continue;
         }
 
-        if(isBehindTerrain) { continue; }
+        if (useElev) {
+            // have to use screen coord after update for newly created label
+            if (screenCoord.w == 0) { screenCoord = label->screenCoord(); }
+            float labelz = 1/screenCoord.w;
+            float terrainz = _elevManager->getDepth({screenCoord.x, screenCoord.y});  // - 2});
+            if (screenCoord.w != 0 && labelz > terrainz + 200.0f) { continue; }  // why do we still get flicking using 100m ?
+            //isBehindTerrain = coord.z > terrainz + 0.005f;  -- 0.005 NDC ~ 1000 - 1500m
+            //LOGW("'%s' - Camera: label %f, terrain %f; delta: %f", label->debugTag.c_str(), labelz, terrainz, labelz - terrainz);
+        }
 
         bool isProxy = _tile && _tile->isProxy();
         if (_onlyRender) {
