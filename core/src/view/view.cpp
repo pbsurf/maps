@@ -280,25 +280,25 @@ void View::update() {
     m_changed = false;
 
     // Ensure valid pitch angle.
-    {
-        float maxPitchRadians = glm::radians(getMaxPitch());
-        if (m_type != CameraType::perspective) {
-            // Prevent projection plane from intersecting ground plane.
-            float intersectingPitchRadians = atan2(m_pos.z, m_height * .5f);
-            maxPitchRadians = glm::min(maxPitchRadians, intersectingPitchRadians);
-        }
-        m_pitch = glm::clamp(m_pitch, 0.f, maxPitchRadians);
+    float maxPitchRadians = glm::radians(getMaxPitch());
+    if (m_type != CameraType::perspective) {
+        // Prevent projection plane from intersecting ground plane.
+        float intersectingPitchRadians = atan2(m_pos.z, m_height * .5f);
+        maxPitchRadians = glm::min(maxPitchRadians, intersectingPitchRadians);
+    }
+    m_pitch = glm::clamp(m_pitch, 0.f, maxPitchRadians);
+
+    // ensure valid zoom
+    if (!m_elevationManager && m_zoom != m_baseZoom) {
+        setZoom(m_zoom);
     }
 
     if (m_dirtyMatrices) {
-
         updateMatrices(); // Resets dirty flag
         m_changed = true;
-
     }
 
     if (m_dirtyTiles) {
-
         m_changed = true;
         m_dirtyTiles = false;
     }
