@@ -127,6 +127,11 @@ public class DefaultHttpHandler implements HttpHandler {
         }
     }
 
+    @Override
+    public void cancelAllRequests() {
+        okClient.dispatcher().cancelAll();
+    }
+
     /**
      * Override this method to customize the OkHTTP client
      * @param builder OkHTTP client builder to customize

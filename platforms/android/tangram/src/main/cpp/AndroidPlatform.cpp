@@ -245,7 +245,7 @@ void AndroidPlatform::cancelUrlRequestImpl(const UrlRequestId id) {
 
     m_jniWorker.enqueue([=](JNIEnv *jniEnv) {
 
-        jlong jRequestHandle = static_cast<jlong>(id);
+        jlong jRequestHandle = (id == UrlRequestId(-1)) ? -1 : static_cast<jlong>(id);
 
         jniEnv->CallVoidMethod(m_mapController, cancelUrlRequestMID, jRequestHandle);
     });

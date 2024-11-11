@@ -162,9 +162,10 @@ void FrameInfo::draw(RenderState& rs, const View& _view, Map& _map) {
         debuginfos.push_back(fstring("selectable features:%d", features));
         debuginfos.push_back(fstring("markers:%d", scene.markerManager()->markers().size()));
         debuginfos.push_back(fstring("tile cache:%d (%dKB) (max:%dKB)", tileCache.getNumEntries(),
-                                     tileCache.getMemoryUsage()/1024, tileCache.cacheSizeLimit()/1024));
+            tileCache.getMemoryUsage()/1024, tileCache.cacheSizeLimit()/1024));
         debuginfos.push_back(fstring("tile size:%dKB", memused / 1024));
-        debuginfos.push_back(fstring("pending downloads:%d", _map.getPlatform().activeUrlRequests()));
+        debuginfos.push_back(fstring("pending downloads:%d (%dKB downloaded)",
+            _map.getPlatform().activeUrlRequests(), _map.getPlatform().bytesDownloaded/1024));
 
         if(!profInfos.empty()) {
             end("_Frame");

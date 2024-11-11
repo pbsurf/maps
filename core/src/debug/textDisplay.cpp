@@ -103,7 +103,7 @@ void TextDisplay::draw(RenderState& rs, const View& _view, const std::vector<std
     GL::getIntegerv(GL_ARRAY_BUFFER_BINDING, &boundbuffer);
     rs.vertexBuffer(0);
 
-    constexpr float textScale = 2.0f;
+    float textScale = _view.getWidth() > _view.getHeight() ? 2 : 1; //2.0f;
     glm::vec4 margins = m_margins/textScale;
     float width = _view.getWidth()/_view.pixelScale()/textScale;
     float height = _view.getHeight()/_view.pixelScale()/textScale;

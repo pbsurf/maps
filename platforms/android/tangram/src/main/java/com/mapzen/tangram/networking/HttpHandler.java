@@ -32,6 +32,11 @@ public interface HttpHandler {
     void cancelRequest(final Object request);
 
     /**
+     * Cancel all running and queued requests
+     */
+    void cancelAllRequests();
+
+    /**
      * {@code Callback}
      * Passes network responses from underlying implementation to be processed internally
      */

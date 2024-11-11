@@ -225,23 +225,7 @@ UrlClient::UrlClient(Options options) : m_options(options) {
 }
 
 UrlClient::~UrlClient() {
-    // Cancel all tasks
-    {
-        std::lock_guard<std::mutex> lock(m_requestMutex);
-        // For all requests that have not started, finish them now with a
-        // canceled response.
-        for (auto& request : m_requests) {
-            if (request.callback) {
-                UrlResponse response;
-                response.error = Platform::cancel_message;
-                request.callback(std::move(response));
-            }
-        }
-        m_requests.clear();
-        for (auto& task : m_tasks) {
-            task.canceled = true;
-        }
-    }
+    cancelAllRequests();
 
     // Stop the curl threads.
     m_curlRunning = false;
@@ -293,7 +277,7 @@ UrlClient::RequestId UrlClient::addRequest(const std::string& _url, const HttpOp
     return id;
 }
 
-void UrlClient::cancelRequest(UrlClient::RequestId _id) {
+void UrlClient::cancelRequest(RequestId _id) {
     UrlCallback callback;
     // First check the pending request list.
     {
@@ -327,6 +311,24 @@ void UrlClient::cancelRequest(UrlClient::RequestId _id) {
             it->canceled = true;
         }
     }
+}
+
+void UrlClient::cancelAllRequests()
+{
+    std::lock_guard<std::mutex> lock(m_requestMutex);
+    for (auto& task : m_tasks) {
+        task.canceled = true;
+    }
+    // For all requests that have not started, finish them now with a
+    // canceled response.
+    for (auto& request : m_requests) {
+        if (request.callback) {
+            UrlResponse response;
+            response.error = Platform::cancel_message;
+            request.callback(std::move(response));
+        }
+    }
+    m_requests.clear();
 }
 
 void UrlClient::startPendingRequests() {

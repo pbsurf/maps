@@ -113,6 +113,7 @@ public:
     size_t activeUrlRequests() const { return m_urlCallbacks.size(); }
     void notifyStorage(int64_t dtot, int64_t doffl) const { if(onNotifyStorage) onNotifyStorage(dtot, doffl); }
 
+    std::atomic_uint_fast64_t bytesDownloaded = {0};
     std::atomic_bool isOffline{false};
     size_t urlRequestsThreshold = 0;
     std::function<void(void)> onUrlRequestsThreshold;

@@ -128,6 +128,16 @@ UrlRequestHandle Platform::startUrlRequest(Url _url, const HttpOptions& _options
 void Platform::cancelUrlRequest(const UrlRequestHandle _request) {
     if (_request == 0) { return; }
 
+    // -1 cancels all requests
+    if (_request == UrlRequestHandle(-1)) {
+        cancelUrlRequestImpl(UrlRequestId(-1));
+        {
+            std::lock_guard<std::mutex> lock(m_callbackMutex);
+            m_urlCallbacks.clear();
+        }
+        return;
+    }
+
     UrlRequestId id = 0;
     UrlCallback callback;
     bool cancelable = false;
@@ -167,6 +177,7 @@ void Platform::onUrlResponse(const UrlRequestHandle _request, UrlResponse&& _res
         LOGW("onUrlResponse after shutdown");
         return;
     }
+    bytesDownloaded += _response.content.size();
     // Find the callback associated with the request.
     UrlCallback callback;
     {

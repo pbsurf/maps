@@ -139,6 +139,7 @@ SceneID Map::loadScene(SceneOptions&& _sceneOptions, bool _async) {
 SceneID Map::Impl::loadScene(SceneOptions&& _sceneOptions) {
 
     Scene* oldScene = scene.release();
+    oldScene->cancelTasks();
     scene = std::make_unique<Scene>(platform, std::move(_sceneOptions), nullptr, oldScene);
     // oldScene may have been loaded async, so dispose on worker thread (after loading complete)
     view.m_elevationManager = nullptr;

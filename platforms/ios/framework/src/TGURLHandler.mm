@@ -91,7 +91,7 @@
 {
     [self.session getTasksWithCompletionHandler:^(NSArray* dataTasks, NSArray* uploadTasks, NSArray* downloadTasks) {
         for (NSURLSessionTask* task in dataTasks) {
-            if ([task taskIdentifier] == taskIdentifier) {
+            if ([task taskIdentifier] == taskIdentifier || taskIdentifier == (NSUInteger)-1) {
                 [task cancel];
                 break;
             }

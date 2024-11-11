@@ -67,6 +67,11 @@ void Scene::cancelTasks() {
     auto state = m_state;
     m_state = State::canceled;
 
+    // cancel all URL requests so queued requests don't delay loading of next Scene
+    if (state != State::initial) {
+        m_platform.cancelUrlRequest(UrlRequestHandle(-1));
+    }
+
     if (state == State::loading) {
         /// Cancel loading Scene data
         if (m_importer) {

@@ -83,7 +83,10 @@ bool LinuxPlatform::startUrlRequestImpl(const Url& _url, const HttpOptions& _opt
 }
 
 void LinuxPlatform::cancelUrlRequestImpl(const UrlRequestId _id) {
-    if (m_urlClient) {
+    if (!m_urlClient) { return; }
+    if (_id == UrlRequestId(-1)) {
+        m_urlClient->cancelAllRequests();
+    } else {
         m_urlClient->cancelRequest(_id);
     }
 }

@@ -38,6 +38,7 @@ public:
     RequestId addRequest(const std::string& url, const HttpOptions& _options, UrlCallback cb);
 
     void cancelRequest(RequestId request);
+    void cancelAllRequests();
 
 private:
 
