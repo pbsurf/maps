@@ -268,6 +268,7 @@ ElevationManager::ElevationManager(std::shared_ptr<RasterSource> src, Style& sty
 ElevationManager::~ElevationManager()
 {
   offscreenWorker->enqueue([_style=m_style.release(), _fb=m_frameBuffer.release()](){
+    m_renderState->framebuffer(0);  // make sure RenderState doesn't cache handle of deleted framebuffer
     delete _style;
     delete _fb;
     //delete _rs;

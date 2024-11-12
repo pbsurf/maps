@@ -1,5 +1,8 @@
 #include "platform_gl.h"
 
+// enable GL error checking
+//#define DEBUG 1
+
 #include "gl.h"
 #include "gl/glError.h"
 

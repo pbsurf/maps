@@ -117,6 +117,10 @@ void FrameBuffer::init(RenderState& _rs) {
     }
 
     GL::genFramebuffers(1, &m_glFrameBufferHandle);
+    if (!m_glFrameBufferHandle) {
+        LOGE("glGenFramebuffers returned 0");
+        return;
+    }
 
     _rs.framebuffer(m_glFrameBufferHandle);
 
@@ -124,55 +128,29 @@ void FrameBuffer::init(RenderState& _rs) {
     if (m_colorRenderBuffer) {
         GL::genRenderbuffers(1, &m_glColorRenderBufferHandle);
         GL::bindRenderbuffer(GL_RENDERBUFFER, m_glColorRenderBufferHandle);
-        GL::renderbufferStorage(GL_RENDERBUFFER, GL_RGBA8_OES,
-                                m_width, m_height);
-
+        GL::renderbufferStorage(GL_RENDERBUFFER, GL_RGBA8_OES, m_width, m_height);
         GL::framebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                     GL_RENDERBUFFER, m_glColorRenderBufferHandle);
     } else {
         m_texture = std::make_unique<RenderTexture>(m_width, m_height, m_pixelFormat);
         m_texture->bind(_rs, 0);
-
         GL::framebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                  GL_TEXTURE_2D, m_texture->glHandle(), 0);
     }
 
-    {
-        // Create depth render buffer
-        GL::genRenderbuffers(1, &m_glDepthRenderBufferHandle);
-        GL::bindRenderbuffer(GL_RENDERBUFFER, m_glDepthRenderBufferHandle);
-        GL::renderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16,
-                                m_width, m_height);
-
-        GL::framebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
-                                    GL_RENDERBUFFER, m_glDepthRenderBufferHandle);
-    }
+    // Create depth render buffer
+    GL::genRenderbuffers(1, &m_glDepthRenderBufferHandle);
+    GL::bindRenderbuffer(GL_RENDERBUFFER, m_glDepthRenderBufferHandle);
+    GL::renderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, m_width, m_height);
+    GL::framebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+                                GL_RENDERBUFFER, m_glDepthRenderBufferHandle);
 
     GLenum status = GL::checkFramebufferStatus(GL_FRAMEBUFFER);
     GL_CHECK({});
 
-    if (status != GL_FRAMEBUFFER_COMPLETE) {
-        LOGE("Framebuffer status is incomplete:");
-
-        switch (status) {
-            case GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT:
-                LOGE("\tGL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT");
-                break;
-            case GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT:
-                LOGE("\tGL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT");
-                break;
-            case GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS:
-                LOGE("\tGL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS");
-                break;
-            case GL_FRAMEBUFFER_UNSUPPORTED:
-                LOGE("\tGL_FRAMEBUFFER_UNSUPPORTED");
-                break;
-            default:
-                LOGE("\tUnknown framebuffer issue");
-                break;
-        }
-    } else {
-        m_valid = true;
+    m_valid = (status == GL_FRAMEBUFFER_COMPLETE);
+    if (!m_valid) {
+        LOGE("Framebuffer status is incomplete: 0x%X", status);
     }
 
     m_rs = &_rs;
@@ -185,7 +163,6 @@ FrameBuffer::~FrameBuffer() {
 }
 
 void FrameBuffer::drawDebug(RenderState& _rs, glm::vec2 _dim) {
-
     if (m_texture) {
         Primitives::drawTexture(_rs, *m_texture, glm::vec2{}, _dim);
     }

@@ -59,12 +59,12 @@ bool CurvedLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& 
     LineSampler<ScreenTransform> sampler { _transform };
 
     for (auto& p : m_modelTransform) {
-        glm::vec2 sp = worldToScreenSpace(_mvp, glm::vec4(p, 1.0),
+        glm::vec4 sp = worldToScreenSpace(_mvp, glm::vec4(p, 1.0),
                                           _viewState.viewportSize, clipped);
 
-        if (clipped) { return false; }
+        if (clipped || sp.z > 1.0f) { return false; }
 
-        sampler.add(sp);
+        sampler.add(glm::vec2(sp));
 
         if (!inside) {
             if ((sp.x > min.x && sp.x < max.x &&

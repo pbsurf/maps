@@ -129,6 +129,8 @@ bool SpriteLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& 
         if (clipSpaceIsBehindCamera(proj)) { return false; }
 
         glm::vec3 ndc = clipSpaceToNdc(proj);
+        if (ndc.z > 1.0f) { return false; }  // beyond far plane
+
         glm::vec2 pos = ndcToScreenSpace(ndc, _viewState.viewportSize) + m_options.offset;
         m_screenCenter = glm::vec4(pos, ndc.z, 1/proj.w);
 
@@ -138,8 +140,9 @@ bool SpriteLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& 
         if (clipSpaceIsBehindCamera(projected)) { return false; }
 
         glm::vec3 ndc = clipSpaceToNdc(projected);
-        glm::vec2 position = ndcToScreenSpace(ndc, _viewState.viewportSize) + m_options.offset;
+        if (ndc.z > 1.0f) { return false; }  // beyond far plane
 
+        glm::vec2 position = ndcToScreenSpace(ndc, _viewState.viewportSize) + m_options.offset;
         if (_bounds) {
             auto aabb = m_options.anchors.extents(m_dim);
             aabb.min += position;

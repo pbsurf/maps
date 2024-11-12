@@ -421,10 +421,9 @@ void View::updateMatrices() {
             viewZ = minCameraDist;
         }
         m_zoom = glm::clamp(-float(log2( viewZ / worldToCameraHeight )), m_baseZoom, m_maxZoom);
-        //LOGD("viewZ: %f (prev: %f); base zoom: %.2f; zoom: %.2f", viewZ, prevViewZ, m_baseZoom, m_zoom);
+        //LOGW("viewZ: %f (prev: %f); base zoom: %.2f; zoom: %.2f", viewZ, prevViewZ, m_baseZoom, m_zoom);
     }
     m_prevZoom = m_baseZoom;
-
 
     // m_baseZoom now has final value
     m_height = exp2(-m_baseZoom) * worldHeight;
