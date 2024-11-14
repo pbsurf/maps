@@ -80,9 +80,9 @@ ViewState View::state() const {
 
     return {
         m_changed,
-        glm::dvec2(m_pos.x, m_pos.y),
+        glm::dvec2(m_pos),
         m_zoom,
-        powf(2.f, m_zoom),
+        m_pos.z/exp2(-m_baseZoom),  // worldToCameraHeight  //powf(2.f, m_zoom),
         m_zoom - std::floor(m_zoom),
         glm::vec2(m_vpWidth, m_vpHeight),
         (float)MapProjection::tileSize() * m_pixelScale
@@ -641,12 +641,12 @@ float View::getTileScreenArea(TileID tile) const
         if(allGreater(a[0], wa) && allGreater(b[0], wb)) return 0;
         if(allLess(a[1], -wa) && allLess(b[1], -wb)) return 0;
         if(allGreater(a[1], wa) && allGreater(b[1], wb)) return 0;
-        if(allLess(a[2], glm::vec4(0)) && allLess(b[2], glm::vec4(0))) return 0;
+        if(allLess(a[2], -wa) && allLess(b[2], -wa)) return 0;
         if(allGreater(a[2], wa) && allGreater(b[2], wb)) return 0;
     } else {
         if(allLess(a[0], -wa) || allGreater(a[0], wa)) return 0;
         if(allLess(a[1], -wa) || allGreater(a[1], wa)) return 0;
-        if(allLess(a[2], glm::vec4(0)) || allGreater(a[2], wa)) return 0;
+        if(allLess(a[2], -wa) || allGreater(a[2], wa)) return 0;
     }
 
     if (m_pitch == 0 || !allGreater(a[3], glm::vec4(0))) return FLT_MAX;

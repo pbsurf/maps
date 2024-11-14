@@ -17,5 +17,5 @@ void main() {
 
     gl_Position = u_proj * u_view * u_model * a_position;
     // adjust depth so that modes w/ depth enabled work (will have no effect for overlay mode of course)
-    gl_Position.z += -1010.0 * (TANGRAM_DEPTH_DELTA * gl_Position.w + 0.02);
+    gl_Position.z += -1010.0 * (TANGRAM_DEPTH_DELTA * gl_Position.w - 0.02*u_proj[2][3]);
 }

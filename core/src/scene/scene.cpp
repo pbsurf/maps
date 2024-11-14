@@ -248,8 +248,6 @@ bool Scene::load() {
               [&](auto& style){ return style->type() == StyleType::raster; });
         if (terrainSrc && terrainStyle != m_styles.end()) {
             m_elevationManager = std::make_unique<ElevationManager>(terrainSrc, **terrainStyle);
-            // w/ default settings, seems horizon never visible w/o 3D terrain
-            m_skyManager = std::make_unique<SkyManager>();
         }
         else
           LOGE("Unable to find elevation source or raster style needed for 3D terrain!");
@@ -259,6 +257,9 @@ bool Scene::load() {
         terrainSrc->m_keepTextureData = true;
     }
     LOGTO("<<< elevationManager");
+
+    // won't be initialized until sky is visible
+    m_skyManager = std::make_unique<SkyManager>();
 
     for (auto& style : m_styles) { style->build(*this); }
     if (m_elevationManager) { m_elevationManager->m_style->build(*this); }
@@ -644,9 +645,7 @@ bool Scene::render(RenderState& _rs, View& _view) {
     bool drawnAnimatedStyle = false;
 
     // draw the sky (if horizon if visible)
-    if (m_skyManager) {
-        m_skyManager->draw(_rs, _view);
-    }
+    m_skyManager->draw(_rs, _view);
 
     for (const auto& style : m_styles) {
 

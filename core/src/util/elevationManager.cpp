@@ -20,10 +20,12 @@ const static char* terrain_depth_fs = R"RAW_GLSL(#version 300 es
 precision highp float;
 #endif
 
+in vec4 v_position;
+
 layout (location = 0) out highp uint depthOut;
 
 void main(void) {
-  depthOut = floatBitsToUint(gl_FragCoord.w);  // if needed, ndcZ = (-proj[2][2]*clipW + proj[3][2])/clipW)
+  depthOut = floatBitsToUint(-v_position.z);  // if needed, ndcZ = (-proj[2][2]*clipW + proj[3][2])/clipW)
 }
 )RAW_GLSL";
 
@@ -242,7 +244,7 @@ float ElevationManager::getDepth(glm::vec2 screenpos)
   //GL::readPixels(floorf(screenpos.x), floorf(screenpos.y), 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel);
   // convert from 0..1 (glDepthRange) to -1..1 (NDC)
   //return 2*m_depthData[int(pos.x) + int(h - pos.y - 1)*w] - 1;
-  return 1/m_depthData[int(pos.x) + int(h - pos.y - 1)*w];
+  return m_depthData[int(pos.x) + int(h - pos.y - 1)*w];
 }
 
 void ElevationManager::setZoom(int z)

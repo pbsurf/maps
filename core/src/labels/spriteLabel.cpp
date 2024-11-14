@@ -87,16 +87,22 @@ bool SpriteLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& 
 
     glm::vec3 p0 = m_coordinates;
 
+    glm::vec4 proj = worldToClipSpace(_mvp, glm::vec4(p0, 1.f));
+    if (clipSpaceIsBehindCamera(proj)) { return false; }
+
+    glm::vec3 ndc = clipSpaceToNdc(proj);
+    if (ndc.z > 1.0f) { return false; }  // beyond far plane
+
+    glm::vec2 pos = ndcToScreenSpace(ndc, _viewState.viewportSize) + m_options.offset;
+    m_screenCenter = glm::vec4(pos, ndc.z, 1/proj.w);
+
     if (m_options.flat) {
 
         std::array<glm::vec2, 4> positions;
         std::array<glm::vec4, 4> projected;
 
-        float sourceScale = powf(2, m_zoom);
-
-        float scale = float(sourceScale / (_viewState.zoomScale * _viewState.tileSize));
+        float scale = std::pow(2, m_zoom) / (_viewState.zoomScale/proj.w * _viewState.tileSize);
         float zoomFactor = m_vertexAttrib.extrudeScale * _viewState.fractZoom;
-
         glm::vec2 dim = (m_dim + zoomFactor) * scale * 0.5f;
 
         positions[0] = -dim;
@@ -124,35 +130,16 @@ bool SpriteLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& 
         if (_bounds && !aabb.intersect(*_bounds)) { return false; }
 
         FlatTransform(_transform).set(positions, projected);
-
-        glm::vec4 proj = worldToClipSpace(_mvp, glm::vec4(p0, 1.f));
-        if (clipSpaceIsBehindCamera(proj)) { return false; }
-
-        glm::vec3 ndc = clipSpaceToNdc(proj);
-        if (ndc.z > 1.0f) { return false; }  // beyond far plane
-
-        glm::vec2 pos = ndcToScreenSpace(ndc, _viewState.viewportSize) + m_options.offset;
-        m_screenCenter = glm::vec4(pos, ndc.z, 1/proj.w);
-
     } else {
 
-        glm::vec4 projected = worldToClipSpace(_mvp, glm::vec4(p0, 1.f));
-        if (clipSpaceIsBehindCamera(projected)) { return false; }
-
-        glm::vec3 ndc = clipSpaceToNdc(projected);
-        if (ndc.z > 1.0f) { return false; }  // beyond far plane
-
-        glm::vec2 position = ndcToScreenSpace(ndc, _viewState.viewportSize) + m_options.offset;
         if (_bounds) {
             auto aabb = m_options.anchors.extents(m_dim);
-            aabb.min += position;
-            aabb.max += position;
+            aabb.min += pos;
+            aabb.max += pos;
             if (!aabb.intersect(*_bounds)) { return false; }
         }
 
-        m_screenCenter = glm::vec4(position, ndc.z, 1/projected.w);
-
-        BillboardTransform(_transform).set(position, ndc, _viewState.viewportSize, _viewState.fractZoom);
+        BillboardTransform(_transform).set(pos, ndc, _viewState.viewportSize, _viewState.fractZoom);
     }
 
     return true;

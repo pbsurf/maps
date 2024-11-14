@@ -275,17 +275,20 @@ void TileManager::updateTileSets(const View& _view) {
         auto getVisibleTiles = [&](auto&& self, TileID tileId){
             // if pitch == 0, this will only return 0 or FLT_MAX
             float area = _view.getTileScreenArea(tileId);
-            if(area <= 0) { return; }  // offscreen
+            if (area <= 0) { return; }  // offscreen
 
             bool subdivide = false;
             for (auto& tileSet : m_tileSets) {
                 int zoomBias = tileSet.source->zoomBias();
                 int maxZoom = std::min(tileSet.source->maxZoom(), _view.getIntegerZoom() - zoomBias);
-                if(tileId.z > maxZoom) {
+                if (tileId.z > maxZoom) {
                     // done with this tileset
-                } else if(tileId.z == maxZoom || area < maxArea*std::exp2(2*float(zoomBias))) {
+                } else if (tileId.z == maxZoom || area < maxArea*std::exp2(2*float(zoomBias))) {
                     TileID visId = tileId;
-                    int s = std::max(0, tileId.z + int(std::ceil(std::log2(area/maxArea)/2)));
+                    // if we want to allow s < z (which increases number of tiles w/ minimal benefit), we
+                    //  need to add proxy tile support (otherwise we get flashes of missing tiles)
+                    //int s = std::max(0, tileId.z + int(std::ceil(std::log2(area/maxArea)/2)));
+                    int s = tileId.z + std::max(0, int(std::ceil(std::log2(area/maxArea)/2)));
                     visId.s = std::min(s, _view.getIntegerZoom());
                     tileSet.visibleTiles.insert(visId);
                 } else {
