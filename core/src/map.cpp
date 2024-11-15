@@ -428,15 +428,12 @@ void Map::setCameraPositionEased(const CameraPosition& _camera, float _duration,
     e.start.pos = impl->view.getPosition(); //MapProjection::lngLatToProjectedMeters({lonStart, latStart});
     e.end.pos = impl->view.positionToLookAt(target, _camera.tilt, _camera.rotation);
 
-    //e.start.zoom = getZoom();
-    //e.end.zoom = glm::clamp(_camera.zoom, getMinZoom(), getMaxZoom());
     e.start.zoom = impl->view.getBaseZoom();
     float endBaseZoom = -std::log2(std::exp2(-_camera.zoom) - std::exp2(-getZoom()) + std::exp2(-e.start.zoom));
     e.end.zoom = glm::clamp(endBaseZoom, getMinZoom(), getMaxZoom());
 
-    float radiansStart = getRotation();
-
     // Ease over the smallest angular distance needed
+    float radiansStart = getRotation();
     float radiansDelta = _camera.rotation - radiansStart;
     // trying to get better numerical behavior, esp. final roll == commanded roll; both mod and floor
     //  produce issues w/ very small deltas

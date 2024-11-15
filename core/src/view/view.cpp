@@ -82,7 +82,7 @@ ViewState View::state() const {
         m_changed,
         glm::dvec2(m_pos),
         m_zoom,
-        m_pos.z/exp2(-m_baseZoom),  // worldToCameraHeight  //powf(2.f, m_zoom),
+        m_type == CameraType::perspective ? m_pos.z/exp2(-m_baseZoom) : powf(2.f, m_zoom),
         m_zoom - std::floor(m_zoom),
         glm::vec2(m_vpWidth, m_vpHeight),
         (float)MapProjection::tileSize() * m_pixelScale
@@ -390,6 +390,9 @@ glm::dvec2 View::positionToLookAt(glm::dvec2 target, float pitch, float yaw) {
     bool elevOk;
     float elev = m_elevationManager->getElevation(target, elevOk, true);
     glm::vec3 eye = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 0.f, 1.f), pitch), yaw);
+    if (m_type == CameraType::isometric) {
+        target += m_obliqueAxis * elev;  // not quite right
+    }
     return target - glm::dvec2(eye*elev/eye.z);
 }
 
@@ -410,7 +413,8 @@ void View::updateMatrices() {
     // get camera space depth (i.e. distance to terrain) at screen center - note that this unavoidably
     //  lags by one frame, since we need to render frame to get depth
     float prevViewZ = m_elevationManager ? m_elevationManager->getDepth({m_vpWidth/2, m_vpHeight/2}) : 0;
-    if (m_prevZoom > 0 && prevViewZ > 0 && prevViewZ < 1E9f) {
+    if (m_type != CameraType::perspective) {
+    } else if (m_prevZoom > 0 && prevViewZ > 0 && prevViewZ < 1E9f) {
         double minCameraDist = exp2(-m_maxZoom) * worldToCameraHeight;
         double prevCamDist = exp2(-m_prevZoom) * worldToCameraHeight;
         double viewZ = prevViewZ + m_pos.z - prevCamDist;
@@ -539,8 +543,8 @@ LngLat View::screenPositionToLngLat(float x, float y, float* elevOut, bool* inte
     if (m_dirtyMatrices) { updateMatrices(); } // Need the view matrices to be up-to-date
 
     glm::dvec2 dpos;
-    float clipW = m_elevationManager ? m_elevationManager->getDepth({x, y}) : 0;
-    if (clipW > 0 && clipW < 1E9f) {
+    float z = m_elevationManager ? m_elevationManager->getDepth({x, y}) : 0;
+    if (z > 0 && z < 1E9f) {
         // ref: https://www.khronos.org/opengl/wiki/GluProject_and_gluUnProject_code (gluUnProject)
         //double ndcZ = m_elevationManager->getDepth({x, y});
         //glm::dvec4 target_clip = { 2*x/m_vpWidth - 1, 1 - 2*y/m_vpHeight, ndcZ, 1. };
@@ -549,13 +553,15 @@ LngLat View::screenPositionToLngLat(float x, float y, float* elevOut, bool* inte
         //dpos = glm::dvec2(target_world);
         //_intersection = ndcZ > -1;
 
-        // unprojection using clip space w (= -1 * view space z)
-        glm::dvec4 target_clip = { clipW*(2*x/m_vpWidth - 1), clipW*(1 - 2*y/m_vpHeight),
-                                   -m_proj[2][2]*clipW + m_proj[3][2], clipW };
+        // z is -1 * view space z (to make it positive)
+        glm::dvec4 target_clip = m_type == CameraType::perspective ?
+            glm::dvec4(z*(2*x/m_vpWidth - 1), z*(1 - 2*y/m_vpHeight), -m_proj[2][2]*z + m_proj[3][2], z) :
+            glm::dvec4(2*x/m_vpWidth - 1, 1 - 2*y/m_vpHeight, -m_proj[2][2]*z + m_proj[3][2], 1.0);
+
         glm::dvec4 target_world = m_invViewProj * target_clip;
         dpos = glm::dvec2(target_world);
-        if (intersection) { *intersection = clipW > 0; }
-        if (elevOut) { *elevOut = target_world.z; }
+        if (intersection) { *intersection = z > 0; }
+        if (elevOut) { *elevOut = std::max(0.0, target_world.z); }
     } else {
         double distance = 0;
         dpos = screenToGroundPlane(x, y, 0, &distance);
@@ -641,7 +647,7 @@ float View::getTileScreenArea(TileID tile) const
         if(allGreater(a[0], wa) && allGreater(b[0], wb)) return 0;
         if(allLess(a[1], -wa) && allLess(b[1], -wb)) return 0;
         if(allGreater(a[1], wa) && allGreater(b[1], wb)) return 0;
-        if(allLess(a[2], -wa) && allLess(b[2], -wa)) return 0;
+        if(allLess(a[2], -wa) && allLess(b[2], -wb)) return 0;
         if(allGreater(a[2], wa) && allGreater(b[2], wb)) return 0;
     } else {
         if(allLess(a[0], -wa) || allGreater(a[0], wa)) return 0;

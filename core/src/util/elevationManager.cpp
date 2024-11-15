@@ -172,8 +172,6 @@ bool ElevationManager::hasTile(TileID tileId)
   //return bool(m_elevationSource->getTexture(tileId));
 }
 
-//static std::atomic<int> nqueued {0};
-
 void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
                                           const std::vector<std::shared_ptr<Tile>>& _tiles)
 {
