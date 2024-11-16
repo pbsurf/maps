@@ -103,14 +103,15 @@ struct EdgePadding {
     int top = 0;
     int right = 0;
     int bottom = 0;
+    bool isVisible = true;
 
-    EdgePadding(int _pad = 0) : left(_pad), top(_pad), right(_pad), bottom(_pad) {}
+    EdgePadding(int _pad = 0, bool _vis = true) : EdgePadding(_pad, _pad, _pad, _pad, _vis) {}
 
-    EdgePadding(int _left, int _top, int _right, int _bottom)
-        : left(_left), top(_top), right(_right), bottom(_bottom) {}
+    EdgePadding(int _left, int _top, int _right, int _bottom, bool _vis = true)
+        : left(_left), top(_top), right(_right), bottom(_bottom), isVisible(_vis) {}
 
-    bool operator==(const EdgePadding& other) const {
-        return left == other.left && top == other.top && right == other.right && bottom == other.bottom;
+    bool operator==(const EdgePadding& b) const {
+        return left == b.left && top == b.top && right == b.right && bottom == b.bottom && isVisible == b.isVisible;
     }
 
     bool operator!=(const EdgePadding& other) const {

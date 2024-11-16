@@ -385,14 +385,20 @@ float View::fieldOfViewToFocalLength(float radians) {
 glm::dvec2 View::positionToLookAt(glm::dvec2 target, float pitch, float yaw) {
     if (!m_elevationManager) return target;
 
-    if (std::isnan(pitch)) { pitch = m_pitch; }
-    if (std::isnan(yaw)) { yaw = m_yaw; }
     bool elevOk;
     float elev = m_elevationManager->getElevation(target, elevOk, true);
-    glm::vec3 eye = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 0.f, 1.f), pitch), yaw);
-    if (m_type == CameraType::isometric) {
-        target += m_obliqueAxis * elev;  // not quite right
+    if (std::isnan(pitch)) { pitch = m_pitch; }
+    if (std::isnan(yaw)) { yaw = m_yaw; }
+    if (pitch == m_pitch && yaw == m_yaw) {
+        glm::vec2 center = glm::vec2(m_vpWidth, m_vpHeight)/2.0f;
+        if (!m_padding.isVisible) {
+            center += glm::vec2(m_padding.right - m_padding.left, m_padding.top - m_padding.bottom)/2.0f;
+        }
+        return target - screenToGroundPlane(center.x, center.y, elev);
     }
+
+    glm::vec3 eye = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 0.f, 1.f), pitch), yaw);
+    //if (m_type == CameraType::isometric) { target += m_obliqueAxis * elev; }  // not quite right
     return target - glm::dvec2(eye*elev/eye.z);
 }
 
@@ -460,7 +466,7 @@ void View::updateMatrices() {
 
     glm::vec2 viewportSize = { m_vpWidth, m_vpHeight };
     glm::vec2 paddingOffset = { m_padding.right - m_padding.left, m_padding.top - m_padding.bottom };
-    glm::vec2 centerOffset = paddingOffset / viewportSize;
+    glm::vec2 centerOffset = m_padding.isVisible ? paddingOffset / viewportSize : glm::vec2(0, 0);
 
     // Generate projection matrix based on camera type
     switch (m_type) {
@@ -535,6 +541,12 @@ glm::vec2 View::lngLatToScreenPosition(double lng, double lat, bool& outsideView
 
     glm::vec2 screenSize(m_vpWidth, m_vpHeight);
     glm::vec2 screenPosition = ndcToScreenSpace(ndc, screenSize);
+
+    if (!m_padding.isVisible && !outsideViewport) {
+        outsideViewport = screenPosition.x < m_padding.left || screenPosition.x > m_vpWidth - m_padding.right
+            || screenPosition.y < m_padding.top || screenPosition.x > m_vpHeight - m_padding.bottom;
+    }
+
     return screenPosition;
 }
 
