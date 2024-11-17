@@ -4,6 +4,7 @@
 #include "gl/texture.h"
 #include "tile/tileTask.h"
 #include "tile/tileHash.h"
+#include "util/mapProjection.h"
 
 #include <functional>
 #include <map>
@@ -50,6 +51,8 @@ public:
     const char* mimeType() const override { return "image/png"; };
 
     std::shared_ptr<Texture> getTexture(TileID _tile);
+
+    Raster getRaster(ProjectedMeters _meters);
 
     std::shared_ptr<TileTask> createTask(TileID _tile) override;
 

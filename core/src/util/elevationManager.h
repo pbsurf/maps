@@ -22,7 +22,6 @@ public:
   ~ElevationManager();
   double getElevation(ProjectedMeters pos, bool& ok, bool ascend = false);
   float getDepth(glm::vec2 screenpos);
-  void setZoom(int z);
   bool hasTile(TileID tileId);
 
   void renderTerrainDepth(RenderState& _rs, const View& _view,
@@ -32,7 +31,6 @@ public:
   static double elevationLerp(const Texture& tex, TileID tileId, ProjectedMeters meters);
 
   std::shared_ptr<RasterSource> m_elevationSource;
-  int m_currZoom = 0;
 
   std::unique_ptr<Style> m_style;
   std::vector<float> m_depthData;

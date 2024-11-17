@@ -223,10 +223,23 @@ std::shared_ptr<Texture> RasterSource::cacheTexture(const TileID& _tileId, std::
     return texture;
 }
 
-std::shared_ptr<Texture> RasterSource::getTexture(TileID _tile)
-{
-  auto texIt = m_textures->find(_tile);
-  return texIt != m_textures->end() ? texIt->second.lock() : nullptr;
+std::shared_ptr<Texture> RasterSource::getTexture(TileID _tile) {
+    auto texIt = m_textures->find(_tile);
+    return texIt != m_textures->end() ? texIt->second.lock() : nullptr;
+}
+
+Raster RasterSource::getRaster(ProjectedMeters _meters) {
+    if (m_textures->empty()) { return Raster(NOT_A_TILE, nullptr); }
+
+    TileID tileId = MapProjection::projectedMetersTile(_meters, m_textures->begin()->first.z);
+    auto minz = m_textures->rbegin()->first.z;
+    do {
+        auto tex = getTexture(tileId);
+        if(tex) { return Raster(tileId, tex); }
+        tileId = tileId.getParent();
+    } while(tileId.z >= minz);
+
+    return Raster(NOT_A_TILE, nullptr);
 }
 
 }

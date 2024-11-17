@@ -403,10 +403,16 @@ void Map::setCameraPosition(const CameraPosition& _camera) {
     impl->view.setZoom(_camera.zoom);
     impl->view.setYaw(_camera.rotation);
     impl->view.setPitch(_camera.tilt);
-    //impl->view.setCenterCoordinates(LngLat(_camera.longitude, _camera.latitude));
-    auto target = MapProjection::lngLatToProjectedMeters(_camera.lngLat());
-    impl->view.setPosition(impl->view.positionToLookAt(target));
 
+    bool elevOk;
+    auto target = MapProjection::lngLatToProjectedMeters(_camera.lngLat());
+    auto pos = impl->view.positionToLookAt(target, elevOk);
+    impl->view.setPosition(pos);
+    if (!elevOk) {
+        if (_camera.tilt > M_PI/4) { impl->view.setPitch(M_PI/4); }
+        if (impl->view.getBaseZoom() > 14.5f) { impl->view.setBaseZoom(14.5f); }
+    }
+\
     impl->platform.requestRender();
 }
 
@@ -414,19 +420,6 @@ void Map::setCameraPositionEased(const CameraPosition& _camera, float _duration,
     cancelCameraAnimation();
 
     CameraEase e;
-
-    double lonStart, latStart;
-    getPosition(lonStart, latStart);
-
-    double lonEnd = _camera.longitude;
-    double latEnd = _camera.latitude;
-    double dLongitude = lonEnd - lonStart;
-    if (dLongitude > 180.0) { lonEnd -= 360.0; }
-    else if (dLongitude < -180.0) { lonEnd += 360.0; }
-
-    auto target = MapProjection::lngLatToProjectedMeters({lonEnd, latEnd});
-    e.start.pos = impl->view.getPosition(); //MapProjection::lngLatToProjectedMeters({lonStart, latStart});
-    e.end.pos = impl->view.positionToLookAt(target, _camera.tilt, _camera.rotation);
 
     e.start.zoom = impl->view.getBaseZoom();
     float endBaseZoom = -std::log2(std::exp2(-_camera.zoom) - std::exp2(-getZoom()) + std::exp2(-e.start.zoom));
@@ -445,6 +438,26 @@ void Map::setCameraPositionEased(const CameraPosition& _camera, float _duration,
 
     e.start.tilt = getTilt();
     e.end.tilt = _camera.tilt;
+
+    double lonStart, latStart, lonEnd = _camera.longitude, latEnd = _camera.latitude;
+    getPosition(lonStart, latStart);
+
+    double dLongitude = lonEnd - lonStart;
+    if (dLongitude > 180.0) { lonEnd -= 360.0; }
+    else if (dLongitude < -180.0) { lonEnd += 360.0; }
+
+    auto target = MapProjection::lngLatToProjectedMeters({lonEnd, latEnd});
+    e.start.pos = impl->view.getPosition();
+    if (e.end.zoom != e.start.zoom) { impl->view.setBaseZoom(e.end.zoom); }
+    if (e.end.rotation != e.start.rotation) { impl->view.setYaw(e.end.rotation); }
+    if (e.end.tilt != e.start.tilt) { impl->view.setPitch(e.end.tilt); }
+    bool elevOk;
+    e.end.pos = impl->view.positionToLookAt(target, elevOk);
+    if (!elevOk) {
+        e.end.tilt = std::min(e.end.tilt, float(M_PI/4));
+        e.end.zoom = std::min(e.end.zoom, 14.5f);
+    }
+
 
     impl->ease = std::make_unique<Ease>(_duration,
         [=](float t) {
@@ -519,17 +532,22 @@ void Map::updateCameraPosition(const CameraUpdate& _update, float _duration, Eas
 void Map::setPosition(double _lon, double _lat) {
     cancelCameraAnimation();
 
+    bool elevOk;
     glm::dvec2 meters = MapProjection::lngLatToProjectedMeters({_lon, _lat});
-    impl->view.setPosition(impl->view.positionToLookAt(meters));
-    impl->inputHandler.cancelFling();
+    impl->view.setPosition(impl->view.positionToLookAt(meters, elevOk));
     impl->platform.requestRender();
 }
 
 void Map::getPosition(double& _lon, double& _lat) {
 
-    LngLat degrees = impl->scene->elevationManager() ?
-          impl->view.screenPositionToLngLat(impl->view.getWidth()/2, impl->view.getHeight()/2) :
-          MapProjection::projectedMetersToLngLat(impl->view.getPosition());
+    //LngLat degrees = impl->scene->elevationManager() ?
+    //      impl->view.screenPositionToLngLat(impl->view.getWidth()/2, impl->view.getHeight()/2) :
+    //      MapProjection::projectedMetersToLngLat(impl->view.getPosition());
+
+    glm::vec2 center(impl->view.getWidth()/2, impl->view.getHeight()/2);
+    auto padding = impl->view.getPadding();
+    center += glm::vec2(padding.right - padding.left, padding.top - padding.bottom)/2.0f;
+    LngLat degrees = impl->view.screenPositionToLngLat(impl->view.getWidth()/2, impl->view.getHeight()/2);
     _lon = degrees.longitude;
     _lat = degrees.latitude;
 }
@@ -538,7 +556,6 @@ void Map::setZoom(float _z) {
     cancelCameraAnimation();
 
     impl->view.setZoom(_z);
-    impl->inputHandler.cancelFling();
     impl->platform.requestRender();
 }
 
@@ -632,12 +649,9 @@ CameraPosition Map::getEnclosingCameraPosition(LngLat a, LngLat b, EdgePadding p
 
 void Map::flyTo(const CameraPosition& _camera, float _duration, float _speed) {
 
-    double lngStart = 0., latStart = 0., lngEnd = _camera.longitude, latEnd = _camera.latitude;
-    getPosition(lngStart, latStart);
-    //float zStart = getZoom();
-    float rStart = getRotation();
-    float tStart = getTilt();
+    float tStart = getTilt(), tEnd = _camera.tilt;
 
+    float rStart = getRotation();
     // Ease over the smallest angular distance needed
     float radiansDelta = _camera.rotation - rStart;
     // trying to get better numerical behavior, esp. final roll == commanded roll
@@ -645,17 +659,28 @@ void Map::flyTo(const CameraPosition& _camera, float _duration, float _speed) {
     else if (radiansDelta > float(PI)) { radiansDelta -= float(TWO_PI); }
     float rEnd = rStart + radiansDelta;
 
+    float zStart = impl->view.getBaseZoom();
+    float zEnd = -std::log2(std::exp2(-_camera.zoom) - std::exp2(-getZoom()) + std::exp2(-zStart));
+    zEnd = glm::clamp(zEnd, getMinZoom(), getMaxZoom());
+
+    double lngStart = 0., latStart = 0., lngEnd = _camera.longitude, latEnd = _camera.latitude;
+    getPosition(lngStart, latStart);
+
     double dLongitude = lngEnd - lngStart;
     if (dLongitude > 180.0) { lngEnd -= 360.0; }
     else if (dLongitude < -180.0) { lngEnd += 360.0;  }
 
+    bool elevOk;
     auto target = MapProjection::lngLatToProjectedMeters(LngLat(lngEnd, latEnd));
-    ProjectedMeters a = impl->view.getPosition();  //MapProjection::lngLatToProjectedMeters(LngLat(lngStart, latStart));
-    ProjectedMeters b = impl->view.positionToLookAt(target, _camera.tilt, _camera.rotation);
-
-    float zStart = impl->view.getBaseZoom();
-    float zEnd = -std::log2(std::exp2(-_camera.zoom) - std::exp2(-getZoom()) + std::exp2(-zStart));
-    zEnd = glm::clamp(zEnd, getMinZoom(), getMaxZoom());
+    ProjectedMeters a = impl->view.getPosition();
+    if (zEnd != zStart) { impl->view.setBaseZoom(zEnd); }
+    if (rEnd != rStart) { impl->view.setYaw(rEnd); }
+    if (tEnd != tStart) { impl->view.setPitch(tEnd); }
+    ProjectedMeters b = impl->view.positionToLookAt(target, elevOk);
+    if (!elevOk) {
+        tEnd = std::min(tEnd, float(M_PI/4));
+        zEnd = std::min(zEnd, 14.5f);
+    }
 
     double distance = 0.0;
     auto fn = getFlyToFunction(impl->view,
@@ -670,7 +695,7 @@ void Map::flyTo(const CameraPosition& _camera, float _duration, float _speed) {
             impl->view.setPosition(pos.x, pos.y);
             impl->view.setBaseZoom(pos.z);
             impl->view.setYaw(ease(rStart, rEnd, t, e));
-            impl->view.setPitch(ease(tStart, _camera.tilt, t, e));
+            impl->view.setPitch(ease(tStart, tEnd, t, e));
             impl->platform.requestRender();
         };
 

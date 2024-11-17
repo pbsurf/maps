@@ -215,7 +215,7 @@ public:
     LngLat screenPositionToLngLat(float x, float y, float* elevOut = nullptr, bool* intersection = nullptr);
 
     // position to place target at center of screen; same as target unless tilted with 3D terrain
-    glm::dvec2 positionToLookAt(glm::dvec2 target, float pitch = NAN, float yaw = NAN);
+    glm::dvec2 positionToLookAt(glm::dvec2 target, bool& elevOk);  //, float pitch = NAN, float yaw = NAN);
 
     // For a position on the map in projected meters, this returns the displacement vector *from* the view *to* that
     // position, accounting for wrapping around the 180th meridian to get the smallest magnitude displacement.

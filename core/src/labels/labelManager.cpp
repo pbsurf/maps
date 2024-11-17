@@ -55,9 +55,6 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
     // use blendOrder == INT_MAX to indicate debug style
     bool useElev = _elevManager && _style->blendOrder() < INT_MAX;
     bool setElev = useElev && (_marker || _elevManager->hasTile(_tile->getID()));
-    if (setElev) {
-        _elevManager->setZoom(_tile ? _tile->getID().z : _marker->builtZoomLevel());
-    }
 
     for (auto& label : _labelSet->getLabels()) {
         if (!drawAllLabels && (label->state() == Label::State::dead) ) {

@@ -115,50 +115,25 @@ double ElevationManager::elevationLerp(const Texture& tex, TileID tileId, Projec
   return elevationLerp(tex, glm::vec2(ox, oy));
 }
 
-//static TileID lngLatTile(LngLat ll, int z)
-//{
-//  int x = int(floor((ll.longitude + 180.0) / 360.0 * (1 << z)));
-//  double latrad = ll.latitude * M_PI/180.0;
-//  int y = int(floor((1.0 - asinh(tan(latrad)) / M_PI) / 2.0 * (1 << z)));
-//  return TileID(x, y, z);
-//}
-
-static TileID projMetersTile(ProjectedMeters ll, int z)
-{
-  constexpr double hc = MapProjection::EARTH_HALF_CIRCUMFERENCE_METERS;
-  double metersPerTile = MapProjection::metersPerTileAtZoom(z);
-  return TileID(int((ll.x + hc)/metersPerTile), int((hc - ll.y)/metersPerTile), z);
-}
-
 double ElevationManager::getElevation(ProjectedMeters pos, bool& ok, bool ascend)
 {
   static std::weak_ptr<Texture> prevTex;
   static TileID prevTileId = {0, 0, 0, 0};
 
-  //constexpr double hc = MapProjection::EARTH_HALF_CIRCUMFERENCE_METERS;
-  //double metersPerTile = MapProjection::metersPerTileAtZoom(m_currZoom);
-  //double tile_x = (pos.x + hc)/metersPerTile;
-  //double tile_y = (hc - pos.y)/metersPerTile;
-
-
   ok = true;
-  //TileID llId = lngLatTile(MapProjection::projectedMetersToLngLat(pos), m_currZoom);
-  TileID tileId = projMetersTile(pos, m_currZoom);
+  TileID tileId = MapProjection::projectedMetersTile(pos, prevTileId.z);
   if(tileId == prevTileId) {
     if(auto tex = prevTex.lock())
       return elevationLerp(*tex.get(), tileId, pos);
   }
 
-  int minz = std::max(0, tileId.z - 6);  // MAX_LOD
-  do {
-    auto newtex = m_elevationSource->getTexture(tileId);
-    if(newtex) {
-      prevTileId = tileId;
-      prevTex = newtex;
-      return elevationLerp(*newtex, tileId, pos);
-    }
-    tileId = tileId.getParent();
-  } while(/*ascend &&*/ tileId.z >= minz);
+  Raster raster = m_elevationSource->getRaster(pos);
+  if(raster.texture) {
+    prevTileId = raster.tileID;
+    prevTex = raster.texture;
+    return elevationLerp(*raster.texture, raster.tileID, pos);
+  }
+
   ok = false;
   return 0;
 }
@@ -166,10 +141,8 @@ double ElevationManager::getElevation(ProjectedMeters pos, bool& ok, bool ascend
 bool ElevationManager::hasTile(TileID tileId)
 {
   bool ok = false;
-  setZoom(tileId.z);
   getElevation(MapProjection::tileCenter(tileId), ok);
   return ok;
-  //return bool(m_elevationSource->getTexture(tileId));
 }
 
 void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
@@ -243,11 +216,6 @@ float ElevationManager::getDepth(glm::vec2 screenpos)
   // convert from 0..1 (glDepthRange) to -1..1 (NDC)
   //return 2*m_depthData[int(pos.x) + int(h - pos.y - 1)*w] - 1;
   return m_depthData[int(pos.x) + int(h - pos.y - 1)*w];
-}
-
-void ElevationManager::setZoom(int z)
-{
-  m_currZoom = std::min(m_elevationSource->maxZoom(), z);
 }
 
 ElevationManager::ElevationManager(std::shared_ptr<RasterSource> src, Style& style) : m_elevationSource(src)
