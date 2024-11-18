@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <mutex>
+#include <atomic>
 #include "util/mapProjection.h"
 
 namespace Tangram {
@@ -35,6 +36,7 @@ public:
   std::unique_ptr<Style> m_style;
   std::vector<float> m_depthData;
   std::unique_ptr<FrameBuffer> m_frameBuffer;
+  std::atomic<float> m_depthBaseZoom{0.0f};
 
   static std::unique_ptr<RenderState> m_renderState;
   static std::unique_ptr<AsyncWorker> offscreenWorker;

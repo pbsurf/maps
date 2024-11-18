@@ -274,7 +274,6 @@ protected:
     float m_worldBoundsMinZoom = 0.f;
 
     float m_baseZoom = 0.f;  // zoom referenced to elevation = 0
-    float m_prevZoom = 0.f;
 
     float m_width;
     float m_height;

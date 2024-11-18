@@ -59,11 +59,13 @@ struct TileID {
 
     TileID zoomBiasAdjusted(int32_t _zoomBias) const {
         assert(_zoomBias >= 0);
-
         if (!_zoomBias) { return *this; }
 
-        auto scaledZ = std::max(0, z - _zoomBias);
-        return TileID(x >> _zoomBias, y >> _zoomBias, scaledZ, z);
+        auto sBias = std::min(std::max(s - z, 0), _zoomBias);
+        auto zBias = _zoomBias - sBias;
+        auto scaledZ = std::max(0, z - zBias);
+        auto scaledS = std::max(scaledZ, s - _zoomBias);
+        return TileID(x >> zBias, y >> zBias, scaledZ, scaledS);
     }
 
     TileID getParent(int32_t _zoomBias = 0) const {

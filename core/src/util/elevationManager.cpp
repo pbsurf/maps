@@ -190,6 +190,7 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
     }
     m_frameBuffer->applyAsRenderTarget(*m_renderState);  // this does the glClear()
 
+    float z = _view.getBaseZoom();
     // originally, we were reusing mesh from another style, but this will use the uniform location for the
     //  other style (since SharedMesh saves Style*); also creates problems when deleting Scene if
     //  first raster tile was drawn by offscreen worker; also, VAOs can't be shared between contexts
@@ -200,6 +201,7 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
     drawCond.notify_all();
 
     GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, m_depthData.data());
+    m_depthBaseZoom = z;
   });
 
   // wait for draw to finish to avoid, e.g., duplicate texture uploads

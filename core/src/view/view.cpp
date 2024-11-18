@@ -410,9 +410,9 @@ void View::updateMatrices() {
     //  lags by one frame, since we need to render frame to get depth
     float prevViewZ = m_elevationManager ? m_elevationManager->getDepth({m_vpWidth/2, m_vpHeight/2}) : 0;
     if (m_type != CameraType::perspective) {
-    } else if (m_prevZoom > 0 && prevViewZ > 0 && prevViewZ < 1E9f) {
+    } else if (prevViewZ > 0 && prevViewZ < 1E9f) {
         double minCameraDist = exp2(-m_maxZoom) * worldToCameraHeight;
-        double prevCamDist = exp2(-m_prevZoom) * worldToCameraHeight;
+        double prevCamDist = exp2(-m_elevationManager->m_depthBaseZoom) * worldToCameraHeight;
         double viewZ = prevViewZ + m_pos.z - prevCamDist;
         // decrease base zoom if too close to terrain (but never increase)
         if (viewZ < minCameraDist) {
@@ -423,7 +423,6 @@ void View::updateMatrices() {
         m_zoom = glm::clamp(-float(log2( viewZ / worldToCameraHeight )), m_baseZoom, m_maxZoom);
         //LOGW("viewZ: %f (prev: %f); base zoom: %.2f; zoom: %.2f", viewZ, prevViewZ, m_baseZoom, m_zoom);
     }
-    m_prevZoom = m_baseZoom;
 
     // m_baseZoom now has final value
     m_height = exp2(-m_baseZoom) * worldHeight;
@@ -632,7 +631,7 @@ float View::getTileScreenArea(TileID tile) const
     auto a = glm::transpose(glm::mat4(a00, a01, a10, a11));
     auto wa = glm::abs(a[3]);
 
-    if (m_elevationManager && m_pitch != 0) {
+    if (m_elevationManager) {  //&& m_pitch != 0) {
         glm::dvec3 eye(m_pos.x + m_eye.x, m_pos.y + m_eye.y, m_eye.z);
         double dist = glm::distance(eye, glm::dvec3(MapProjection::tileCenter(tile), 0.));
         //if(dist - std::abs(bounds.max.x - bounds.min.x)/M_SQRT2 > maxTileDistance) { return; } ... only covers ~30% of tiles
