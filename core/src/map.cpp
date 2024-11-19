@@ -636,7 +636,9 @@ CameraPosition Map::getEnclosingCameraPosition(LngLat a, LngLat b, EdgePadding p
     double finalMetersPerPixel = MapProjection::metersPerPixelAtZoom(finalZoom);
 
     // Adjust the center of the final visible region using the padding converted to Mercator meters.
-    glm::dvec2 paddingMeters = glm::dvec2(padding.right - padding.left, padding.top - padding.bottom) * finalMetersPerPixel;
+    glm::dvec2 paddingMeters = padding.isVisible ?
+          glm::dvec2(padding.right - padding.left, padding.top - padding.bottom) * finalMetersPerPixel :
+          glm::dvec2(0,0);
     glm::dvec2 centerMeters = 0.5 * (aMeters + bMeters + paddingMeters);
 
     LngLat centerLngLat = MapProjection::projectedMetersToLngLat(centerMeters);

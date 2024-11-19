@@ -90,7 +90,7 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
             if (screenCoord.w == 0) { screenCoord = label->screenCoord(); }
             float labelz = 1/screenCoord.w;
             float terrainz = _elevManager->getDepth({screenCoord.x, screenCoord.y});
-            // why do we still get flicking using 100m ?
+            // why do we still get flickering using 100m ?
             if (terrainz != 0 && screenCoord.w != 0 && labelz > terrainz + 200.0f) { continue; }
             //isBehindTerrain = coord.z > terrainz + 0.005f;  -- 0.005 NDC ~ 1000 - 1500m
             //LOGW("'%s' - Camera: label %f, terrain %f; delta: %f", label->debugTag.c_str(), labelz, terrainz, labelz - terrainz);
