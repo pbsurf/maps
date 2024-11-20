@@ -433,26 +433,18 @@ void Builders::buildPolyLine(const Line& _line, PolyLineBuilder& _ctx) {
                 buildPolyLineSegment(_line, _ctx, cut, i + 1);
                 cut = i + 1;
             } else if (!_ctx.closedPolygon) {
+                // note that both endpoints can be outside tile even if the line segment intersects tile!
                 bool currOutside = isOutsideTile(coordCurr);
                 bool nextOutside = isOutsideTile(coordNext);
 
                 if (currOutside || nextOutside) {
-                    float tx0 = -coordCurr.x/(coordNext.x - coordCurr.x);
-                    float tx1 = (1 - coordCurr.x)/(coordNext.x - coordCurr.x);
-                    float ty0 = -coordCurr.y/(coordNext.y - coordCurr.y);
-                    float ty1 = (1 - coordCurr.y)/(coordNext.y - coordCurr.y);
-
-                    if (currOutside) {
-                        float tmax = std::max({
-                            tx0 < 1 ? tx0 : 0, tx1 < 1 ? tx1 : 0, ty0 < 1 ? ty0 : 0, ty1 < 1 ? ty1 : 0 });
-                        glm::vec2 p = coordCurr + tmax*(coordNext - coordCurr);
-                        buildPolyLineSegment({ p, coordNext }, _ctx, 0, 2, false, i+1 == lineSize-1);
-                    } else if (nextOutside) {
-                        float tmin = std::min({
-                            tx0 > 0 ? tx0 : 1, tx1 > 0 ? tx1 : 1, ty0 > 0 ? ty0 : 1, ty1 > 0 ? ty1 : 1 });
-                        glm::vec2 p = coordCurr + tmin*(coordNext - coordCurr);
+                    if (!currOutside) {
                         buildPolyLineSegment(_line, _ctx, cut, i + 1, true, false);
-                        buildPolyLineSegment({ coordCurr, p }, _ctx, 0, 2, i == 0, false);
+                    }
+                    glm::vec2 a = coordCurr, b = coordNext;
+                    if (clipLine(a, b, {0, 0}, {1, 1})) {
+                        buildPolyLineSegment({ a, b }, _ctx, 0, 2,
+                                             !currOutside && i == 0, !nextOutside && i+1 == lineSize-1);
                     }
                     cut = i + 1;
                 }

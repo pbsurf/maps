@@ -2,6 +2,7 @@
 
 #include "glm/gtx/norm.hpp"
 #include <cmath>
+#include <algorithm>
 
 namespace Tangram {
 
@@ -36,7 +37,29 @@ float pointSegmentDistanceSq(const glm::vec2& p, const glm::vec2& a, const glm::
 }
 
 float pointSegmentDistance(const glm::vec2& p, const glm::vec2& a, const glm::vec2& b) {
-    return sqrt(pointSegmentDistanceSq(p, a, b));
+    return std::sqrt(pointSegmentDistanceSq(p, a, b));
+}
+
+bool clipLine(glm::vec2& a, glm::vec2& b, glm::vec2 min, glm::vec2 max) {
+    glm::vec2 dr = b - a;
+    float t0 = 0, t1 = 1;
+    //if (isZero(dx) && isZero(dy) && pointInside(a)) return;
+
+    auto clipT = [&](float p, float q){
+        if (q == 0) return p <= 0;
+        if (q > 0) { t0 = std::max(t0, p/q); }
+        else { t1 = std::min(t1, p/q); }
+        return t0 < t1;
+    };
+
+    if (clipT(min.x - a.x, dr.x) && clipT(a.x - max.x, -dr.x) &&
+        clipT(min.y - a.y, dr.y) && clipT(a.y - max.y, -dr.y)) {
+
+        if (t1 < 1) { b = a + t1*dr; }
+        if (t0 > 0) { a = a + t0*dr; }
+        return true;
+    }
+    return false;
 }
 
 }

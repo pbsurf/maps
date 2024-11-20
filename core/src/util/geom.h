@@ -165,4 +165,8 @@ float pointSegmentDistanceSq(const glm::vec2& p, const glm::vec2& a, const glm::
 /// Return the distance from the point 'p' to the nearest point on the segment from 'a' to 'b'.
 float pointSegmentDistance(const glm::vec2& p, const glm::vec2& a, const glm::vec2& b);
 
+/// Clip line segment a -> b to rectangle defined by corners min, max using the Liang-Barsky algorithm
+/// returns false if segment completely outside rectangle
+bool clipLine(glm::vec2& a, glm::vec2& b, glm::vec2 min, glm::vec2 max);
+
 }
