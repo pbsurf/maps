@@ -28,7 +28,6 @@ set(TEST_SOURCES
   unit/labelsTests.cpp
   unit/labelTests.cpp
   unit/layerTests.cpp
-  unit/lineWrapTests.cpp
   unit/lngLatTests.cpp
   unit/mapProjectionTests.cpp
   unit/meshTests.cpp
@@ -48,6 +47,10 @@ set(TEST_SOURCES
   unit/yamlFilterTests.cpp
   unit/yamlUtilTests.cpp
 )
+
+if(NOT TANGRAM_USE_FONTCONTEXT_STB)
+  set(TEST_SOURCES ${TEST_SOURCES} unit/lineWrapTests.cpp)
+endif()
 
 if(TANGRAM_BUNDLE_TESTS)
 
@@ -75,7 +78,7 @@ if(TANGRAM_BUNDLE_TESTS)
   )
 
   # Copy resources into output directory (only needs to be performed for one target)
-  add_resources(${EXECUTABLE_NAME} "${PROJECT_SOURCE_DIR}/scenes" "res")
+  #add_resources(${EXECUTABLE_NAME} "${PROJECT_SOURCE_DIR}/scenes" "res")
 
 else()
   # create an executable per test

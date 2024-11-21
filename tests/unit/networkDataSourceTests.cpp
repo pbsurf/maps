@@ -24,7 +24,7 @@ TEST_CASE("Distinguish URLs that contain tile patterns", TAGS) {
 
 TEST_CASE("Build URL for tile from template", TAGS) {
 
-    NetworkDataSource::UrlOptions urlOptions;
+    UrlOptions urlOptions;
 
     SECTION("Template with x/y/z") {
         std::string url = "https://some.domain/tiles/{z}/{x}/{y}.json";

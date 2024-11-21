@@ -63,7 +63,7 @@ protected:
 
     void skipTransitions(const std::vector<const Style*>& _styles, Tile& _tile, Tile& _proxy) const;
 
-    void handleOcclusions(const ViewState& _viewState, const Scene& _scene);
+    void handleOcclusions(const ViewState& _viewState, bool _hideExtraLabels = false);
 
     bool withinRepeatDistance(Label *_label);
 

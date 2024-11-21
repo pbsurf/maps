@@ -44,12 +44,12 @@ TEST_CASE( "Test evalFilterFn with feature and keywords", "[Duktape][evalFilterF
 
     StyleContext ctx;
     ctx.setFeature(feature);
-    ctx.setZoom(5);
+    ctx.setTileID(TileID(1, 1, 5));  //setZoom(5);
 
     REQUIRE(ctx.setFunctions({ R"(function() { return (feature.scalerank * .5) <= ($zoom - 4); })"}));
     REQUIRE(ctx.evalFilter(0) == true);
 
-    ctx.setZoom(4);
+    ctx.setTileID(TileID(1, 1, 4));  //setZoom(4);
     REQUIRE(ctx.evalFilter(0) == false);
 }
 
@@ -58,10 +58,10 @@ TEST_CASE( "Test $meters_per_pixel keyword in JS function", "[Duktape]") {
 
     REQUIRE(ctx.setFunctions({ R"(function() { return $meters_per_pixel <= 100; })"}));
 
-    ctx.setZoom(10); // $meters_per_pixel should be 152.9
+    ctx.setTileID(TileID(1, 1, 10));  //setZoom(10); // $meters_per_pixel should be 152.9
     REQUIRE(ctx.evalFilter(0) == false);
 
-    ctx.setZoom(11); // $meters_per_pixel should be 76.4
+    ctx.setTileID(TileID(1, 1, 11));  //setZoom(11); // $meters_per_pixel should be 76.4
     REQUIRE(ctx.evalFilter(0) == true);
 }
 
@@ -190,9 +190,8 @@ TEST_CASE( "Test evalStyleFn - StyleParamKey::extrude", "[Duktape][evalStyleFn]"
     StyleParam::Value value;
 
     REQUIRE(ctx.evalStyle(0, StyleParamKey::extrude, value) == true);
-    REQUIRE(value.is<glm::vec2>() == true);
-    StyleParam::Value e1(glm::vec2(NAN, NAN));
-    REQUIRE(std::isnan(value.get<glm::vec2>()[0]) == true);
+    REQUIRE(value.is<StyleParam::TextSource>() == true);
+    REQUIRE(value.get<StyleParam::TextSource>() == StyleParam::TextSource({"min_height", "height"}));
 
     REQUIRE(ctx.evalStyle(1, StyleParamKey::extrude, value) == true);
     REQUIRE(value.is<glm::vec2>() == true);

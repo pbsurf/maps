@@ -266,21 +266,15 @@ auto Stops::Numbers(const YAML::Node& node) -> Stops {
 auto Stops::evalExpFloat(float _key) const -> float {
     if (frames.empty()) { return 0; }
 
-    if (_key <= frames[0].key) {
+    // logic has been modified to support repeated values in stops list so we can have steps in value
+    if (_key < frames[0].key) {
         return frames[0].value.get<float>();
     }
 
     auto upper = nearestHigherFrame(_key);
     auto lower = upper - 1;
 
-    if (upper == frames.end())  {
-        return lower->value.get<float>();
-    }
-
-    if (upper->key <= _key) {
-        return upper->value.get<float>();
-    }
-    if (lower->key >= _key) {
+    if (upper == frames.end() || lower->key >= _key) {
         return lower->value.get<float>();
     }
 
@@ -295,14 +289,14 @@ auto Stops::evalExpFloat(float _key) const -> float {
 auto Stops::evalFloat(float _key) const -> float {
     if (frames.empty()) { return 0; }
 
-    if (_key <= frames[0].key) {
+    if (_key < frames[0].key) {
         return frames[0].value.get<float>();
     }
 
     auto upper = nearestHigherFrame(_key);
     auto lower = upper - 1;
 
-    if (upper == frames.end()) {
+    if (upper == frames.end() || lower->key >= _key) {
         return lower->value.get<float>();
     }
 
@@ -314,13 +308,13 @@ auto Stops::evalFloat(float _key) const -> float {
 auto Stops::evalColor(float _key) const -> uint32_t {
     if (frames.empty()) { return 0; }
 
-    if (_key <= frames[0].key) {
+    if (_key < frames[0].key) {
         return frames[0].value.get<Color>().abgr;
     }
 
     auto upper = nearestHigherFrame(_key);
     auto lower = upper - 1;
-    if (upper == frames.end())  {
+    if (upper == frames.end() || lower->key >= _key) {
         return lower->value.get<Color>().abgr;
     }
 
@@ -332,14 +326,14 @@ auto Stops::evalColor(float _key) const -> uint32_t {
 auto Stops::evalExpVec2(float _key) const -> glm::vec2 {
     if (frames.empty()) { return glm::vec2{0.f}; }
 
-    if (_key <= frames[0].key) {
+    if (_key < frames[0].key) {
         return frames[0].value.get<glm::vec2>();
     }
 
     auto upper = nearestHigherFrame(_key);
     auto lower = upper - 1;
 
-    if (upper == frames.end()) {
+    if (upper == frames.end() || lower->key >= _key) {
         return lower->value.get<glm::vec2>();
     }
 
@@ -358,14 +352,14 @@ auto Stops::evalExpVec2(float _key) const -> glm::vec2 {
 auto Stops::evalVec2(float _key) const -> glm::vec2 {
     if (frames.empty()) { return glm::vec2{0.f}; }
 
-    if (_key <= frames[0].key) {
+    if (_key < frames[0].key) {
         return frames[0].value.get<glm::vec2>();
     }
 
     auto upper = nearestHigherFrame(_key);
     auto lower = upper - 1;
 
-    if (upper == frames.end()) {
+    if (upper == frames.end() || lower->key >= _key) {
         return lower->value.get<glm::vec2>();
     }
 
@@ -383,14 +377,14 @@ auto Stops::evalSize(float _key, const glm::vec2& _cssSize) const -> glm::vec2 {
 
     if (frames.empty()) { return {NAN, NAN}; }
 
-    if (_key <= frames[0].key) {
+    if (_key < frames[0].key) {
         return frames[0].value.get<StyleParam::SizeValue>().getSizePixels(_cssSize);
     }
 
     auto upper = nearestHigherFrame(_key);
     auto lower = upper - 1;
 
-    if (upper == frames.end()) {
+    if (upper == frames.end() || lower->key >= _key) {
         return lower->value.get<StyleParam::SizeValue>().getSizePixels(_cssSize);
     }
 
@@ -410,7 +404,7 @@ auto Stops::evalSize(float _key, const glm::vec2& _cssSize) const -> glm::vec2 {
 auto Stops::nearestHigherFrame(float _key) const -> std::vector<Frame>::const_iterator {
 
     return std::lower_bound(frames.begin(), frames.end(), _key,
-                            [](const Frame& f, float z) { return f.key < z; });
+                            [](const Frame& f, float z) { return f.key <= z; });
 }
 
 void Stops::eval(const Stops& _stops, StyleParamKey _key, float _zoom, StyleParam::Value& _result) {

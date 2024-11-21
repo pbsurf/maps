@@ -131,6 +131,8 @@ void GL::vertexAttribPointer(GLuint index, GLint size, GLenum type, GLboolean no
                              GLsizei stride, const void *pointer) {
 }
 
+void GL::bindAttribLocation(GLuint program, GLuint index, const GLchar *name) {}
+
 void GL::drawArrays(GLenum mode, GLint first, GLsizei count ) {
 }
 void GL::drawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices ) {

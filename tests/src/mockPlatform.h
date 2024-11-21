@@ -15,7 +15,8 @@ public:
     void shutdown() override {}
     void requestRender() const override;
     std::vector<FontSourceHandle> systemFontFallbacksHandle() const override;
-    bool startUrlRequestImpl(const Url& _url, const UrlRequestHandle _request, UrlRequestId& _id) override;
+    bool startUrlRequestImpl(const Url& _url, const HttpOptions& _options,
+                             const UrlRequestHandle _request, UrlRequestId& _id) override;
     void cancelUrlRequestImpl(const UrlRequestId _id) override;
 
     // Put content at a URL to be retrieved by startUrlRequest.

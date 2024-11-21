@@ -384,7 +384,7 @@ bool PolylineStyleBuilder<V>::evalWidth(const StyleParam& _styleParam, float& wi
         width = _styleParam.value.get<float>();
         width *= pixelWidthScale;
 
-        slope = _styleParam.stops->evalExpFloat(m_zoom + 1);
+        slope = _styleParam.stops->evalExpFloat(std::nextafter(m_zoom + 1.f, 0.f));
         slope *= pixelWidthScale;
         return true;
     }

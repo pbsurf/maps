@@ -22,7 +22,17 @@
 #define PATH_MAX 512
 #endif
 
+//#ifdef FONTCONTEXT_STB
+#define FONTSTASH_IMPLEMENTATION
+#include "fontstash.h"
+
+void TANGRAM_WakeEventLoop() {}
+
 namespace Tangram {
+
+class Texture;
+bool userLoadSvg(const char* svg, size_t len, Texture* texture) { return false; }
+FONScontext* userCreateFontstash(FONSparams* params, int atlasFontPx) { return fonsCreateInternal(params); }
 
 void logMsg(const char* fmt, ...) {
     va_list args;
@@ -49,7 +59,8 @@ std::vector<FontSourceHandle> MockPlatform::systemFontFallbacksHandle() const {
     return handles;
 }
 
-bool MockPlatform::startUrlRequestImpl(const Url& _url, const UrlRequestHandle _handle, UrlRequestId& _id) {
+bool MockPlatform::startUrlRequestImpl(const Url& _url, const HttpOptions& _options,
+                                       const UrlRequestHandle _handle, UrlRequestId& _id) {
 
     UrlResponse response;
 

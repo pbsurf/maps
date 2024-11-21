@@ -57,7 +57,7 @@ void init() {
     bike.props.set("check", "available");
     bike.props.set("serial", 4398046511105); // 2^42 + 1
 
-    ctx.setZoom(10);
+    ctx.setTileID(TileID(1,1,10));  //setZoom(10);
 }
 
 

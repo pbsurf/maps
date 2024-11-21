@@ -340,7 +340,7 @@ bool PointStyleBuilder::evalSizeParam(const DrawRule& _rule, Parameters& _params
 
     if (sizeParam.stops) {
         glm::vec2 lower = sizeParam.stops->evalSize(m_styleZoom, spriteSize);
-        glm::vec2 higher = sizeParam.stops->evalSize(m_styleZoom + 1, spriteSize);
+        glm::vec2 higher = sizeParam.stops->evalSize(std::nextafter(m_styleZoom + 1.0f, 0.0f), spriteSize);
         if ((std::isnan(lower.x) || std::isnan(lower.y)) || (std::isnan(higher.x) || std::isnan(higher.y))) {
             // Illegal size values were evaluated.
             return false;
