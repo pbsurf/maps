@@ -74,6 +74,12 @@ bool TextLabel::setElevation(ElevationManager& elevMgr, glm::dvec2 origin, doubl
   bool ok1 = true, ok2 = true;
   m_coordinates[0].z = elevMgr.getElevation(origin + glm::dvec2(m_coordinates[0])*scale, ok1)/scale;
   m_coordinates[1].z = elevMgr.getElevation(origin + glm::dvec2(m_coordinates[1])*scale, ok2)/scale;
+
+  if (debugTag == "Strona" && m_coordinates[0].z*scale > 550) {
+    LOGW("Bad elevation for Strona");
+    auto again = elevMgr.getElevation(origin + glm::dvec2(m_coordinates[0])*scale, ok1)/scale;
+  }
+
   return ok1 && ok2;
 }
 

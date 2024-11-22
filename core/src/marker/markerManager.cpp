@@ -288,7 +288,7 @@ bool MarkerManager::update(const View& _view, float _dt) {
         }
     }
 
-    m_zoom = _view.getZoom();
+    m_zoom = _view.getIntegerZoom();
 
     bool rebuilt = false;
     bool easing = false;

@@ -75,9 +75,9 @@ void main(void) {
         #endif
 
         #if defined(TANGRAM_BLEND_OPAQUE)
-            if (color.a < TANGRAM_ALPHA_TEST) {
-                discard;
-            }
+            if (color.a < TANGRAM_ALPHA_TEST) { discard; }
+        #else
+            if (color.a <= 0.0) { discard; }
         #endif
     #endif
 

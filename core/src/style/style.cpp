@@ -436,9 +436,9 @@ bool Style::draw(RenderState& rs, const View& _view,
         meshDrawn |= draw(rs, *marker);
     }
 
-    if (meshDrawn) {
-        if (m_blend == Blending::translucent) {
-            rs.colorMask(true, true, true, true);
+    if (m_blend == Blending::translucent) {
+        rs.colorMask(true, true, true, true);
+        if (meshDrawn) {
             GL::depthFunc(GL_EQUAL);
 
             GL::enable(GL_STENCIL_TEST);

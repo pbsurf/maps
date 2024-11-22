@@ -83,15 +83,17 @@ public:
             auto source = rasterSource();
             if (!source) { return; }
             // attempt to find a proxy for missing raster
-            for (TileID id = tileId().getParent(); id.s + 2 >= tileId().s; id = id.getParent()) {
+            TileID id(m_tileId.x, m_tileId.y, m_tileId.z);
+            do {
+                id = id.getParent();
                 auto proxy = source->getTexture(id);
                 if (proxy) {
-                    _mainTask.tile()->rasters().emplace_back(id, proxy);
+                    _mainTask.tile()->rasters().emplace_back(TileID(id.x, id.y, id.z, m_tileId.s), proxy);
                     LOGD("Found proxy %s for missing subtask raster %s %s",
                          id.toString().c_str(), source->name().c_str(), tileId().toString().c_str());
                     return;
                 }
-            }
+            } while(id.z > 0 && id.z + 2 >= m_tileId.z);
             _mainTask.tile()->rasters().emplace_back(tileId(), source->m_emptyTexture);
         } else {
             addRaster(*_mainTask.tile());

@@ -72,7 +72,7 @@ void FrameBuffer::apply(RenderState& _rs, GLuint _handle, glm::vec4 _viewport, C
     _rs.culling(GL_TRUE);
     _rs.cullFace(GL_BACK);
 
-    GL::clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    GL::clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 }
 
 void FrameBuffer::bind(RenderState& _rs) const {

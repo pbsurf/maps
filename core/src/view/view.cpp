@@ -406,6 +406,7 @@ void View::updateMatrices() {
     // set camera z to produce desired viewable area
     m_pos.z = exp2(-m_baseZoom) * worldToCameraHeight;
 
+    m_zoom = m_baseZoom;
     // get camera space depth (i.e. distance to terrain) at screen center - note that this unavoidably
     //  lags by one frame, since we need to render frame to get depth
     float prevViewZ = m_elevationManager ? m_elevationManager->getDepth({m_vpWidth/2, m_vpHeight/2}) : 0;

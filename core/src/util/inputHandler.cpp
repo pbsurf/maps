@@ -135,14 +135,16 @@ void InputHandler::handlePinchGesture(float _posX, float _posY, float _scale, fl
 void InputHandler::handleRotateGesture(float _posX, float _posY, float _radians) {
     cancelFling();
 
-    float elev = 0;
-    m_view.screenPositionToLngLat(_posX, _posY, &elev);
-
-    // Get vector from center of rotation to view center
-    glm::vec2 offset = m_view.screenToGroundPlane(_posX, _posY, elev);
-
-    if (m_view.getPitch() > 75.0*M_PI/180) {
+    glm::vec2 offset;
+    // at large tilt (pitch), we want to rotate about eye position instead of look at position, but
+    //  let user control this by passing NAN for _posX, _posY
+    if (std::isnan(_posX) || std::isnan(_posY)) {
         offset = glm::vec2(m_view.getEye());
+    } else {
+        float elev = 0;
+        m_view.screenPositionToLngLat(_posX, _posY, &elev);
+        // Get vector from center of rotation to view center
+        offset = m_view.screenToGroundPlane(_posX, _posY, elev);
     }
 
     // Rotate vector by gesture rotation and apply difference as translation

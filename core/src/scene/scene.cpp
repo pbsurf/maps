@@ -64,6 +64,7 @@ Scene::~Scene() {
 }
 
 void Scene::cancelTasks() {
+    if (m_state == State::canceled) { return; }
     auto state = m_state;
     m_state = State::canceled;
 
@@ -146,7 +147,7 @@ bool Scene::load() {
     auto result = SceneLoader::applyUpdates(m_config, m_options.updates);
     if (result.error != Error::none) {
         m_errors.push_back(result);
-        LOGE("Applying SceneUpdates failed!");
+        LOGE("Applying SceneUpdates failed (error %d)", int(result.error));
         return false;
     }
     LOGTO("<<< applyUpdates");
