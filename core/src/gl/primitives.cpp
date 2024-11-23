@@ -31,6 +31,7 @@ static std::unique_ptr<ShaderProgram> s_textureShader;
 static std::unique_ptr<VertexLayout> s_textureLayout;
 
 static UniformLocation s_uTextureProj{"u_proj"};
+static UniformLocation s_uTextureScale{"u_scale"};
 
 void init() {
 
@@ -111,10 +112,12 @@ void drawPoly(RenderState& rs, const glm::vec2* _polygon, size_t _n) {
     rs.vertexBuffer(boundBuffer);
 }
 
-void drawTexture(RenderState& rs, Texture& _tex, glm::vec2 _pos, glm::vec2 _dim) {
+void drawTexture(RenderState& rs, Texture& _tex, glm::vec2 _pos, glm::vec2 _dim, float _scale) {
     init();
 
     if (!s_textureShader->use(rs)) { return; }
+
+    s_textureShader->setUniformf(rs, s_uTextureScale, _scale);
 
     GLint boundBuffer;
     GL::getIntegerv(GL_ARRAY_BUFFER_BINDING, &boundBuffer);

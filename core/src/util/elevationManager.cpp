@@ -7,6 +7,7 @@
 #include "gl/framebuffer.h"
 #include "gl/renderState.h"
 #include "gl/shaderProgram.h"
+#include "gl/primitives.h"
 #include "marker/marker.h"
 #include "log.h"
 #include "debug/frameInfo.h"
@@ -115,16 +116,18 @@ double ElevationManager::elevationLerp(const Texture& tex, TileID tileId, Projec
   return elevationLerp(tex, glm::vec2(ox, oy));
 }
 
-double ElevationManager::getElevation(ProjectedMeters pos, bool& ok, bool ascend)
+double ElevationManager::getElevation(ProjectedMeters pos, bool& ok)
 {
   static std::weak_ptr<Texture> prevTex;
   static TileID prevTileId = {0, 0, 0, 0};
 
   ok = true;
-  TileID tileId = MapProjection::projectedMetersTile(pos, prevTileId.z);
-  if(tileId == prevTileId) {
-    if(auto tex = prevTex.lock())
-      return elevationLerp(*tex.get(), tileId, pos);
+  if (prevTileId.z >= m_minZoom) {
+    TileID tileId = MapProjection::projectedMetersTile(pos, prevTileId.z);
+    if(tileId == prevTileId) {
+      if(auto tex = prevTex.lock())
+        return elevationLerp(*tex.get(), tileId, pos);
+    }
   }
 
   Raster raster = m_elevationSource->getRaster(pos);
@@ -218,6 +221,21 @@ float ElevationManager::getDepth(glm::vec2 screenpos)
   // convert from 0..1 (glDepthRange) to -1..1 (NDC)
   //return 2*m_depthData[int(pos.x) + int(h - pos.y - 1)*w] - 1;
   return m_depthData[int(pos.x) + int(h - pos.y - 1)*w];
+}
+
+void ElevationManager::drawDepthDebug(RenderState& _rs, glm::vec2 _dim)
+{
+  TextureOptions texoptions;
+  texoptions.pixelFormat = PixelFormat::FLOAT;
+  texoptions.magFilter = TextureMagFilter::NEAREST;
+  texoptions.minFilter = TextureMinFilter::NEAREST;
+  Texture tex(texoptions);
+  int w = m_frameBuffer->getWidth(), h = m_frameBuffer->getHeight();
+  tex.setPixelData(w, h, 4, (GLubyte*)m_depthData.data(), m_depthData.size()*4);
+
+  float worldTileSize = MapProjection::EARTH_CIRCUMFERENCE_METERS * std::exp2(-m_depthBaseZoom);
+  float maxTileDistance = worldTileSize * (std::exp2(7.0f) - 1.0f);
+  Primitives::drawTexture(_rs, tex, {0, 0}, _dim, 1/maxTileDistance);
 }
 
 ElevationManager::ElevationManager(std::shared_ptr<RasterSource> src, Style& style) : m_elevationSource(src)

@@ -313,6 +313,7 @@ void Map::render() {
 
     // Render feature selection pass to offscreen framebuffer
     bool drawSelectionDebug = getDebugFlag(DebugFlags::selection_buffer);
+    bool drawDepthDebug = scene.elevationManager() && getDebugFlag(DebugFlags::depth_buffer);
     bool drawSelectionBuffer = !impl->selectionQueries.empty();
 
     if (drawSelectionBuffer || drawSelectionDebug) {
@@ -326,7 +327,8 @@ void Map::render() {
     }
 
     // Get background color for frame based on zoom level, if there are stops
-    impl->background = scene.backgroundColor(view.getIntegerZoom());
+    impl->background = (drawSelectionDebug || drawDepthDebug) ?
+            Color(0, 0, 0, 255) : scene.backgroundColor(view.getIntegerZoom());
 
     // Setup default framebuffer for a new frame
     FrameBuffer::apply(renderState, renderState.defaultFrameBuffer(),
@@ -334,19 +336,20 @@ void Map::render() {
 
     if (drawSelectionDebug) {
         impl->selectionBuffer->drawDebug(renderState, {viewport.z, viewport.w});
-        FrameInfo::draw(renderState, view, *this);
-        return;
+    } else if (drawDepthDebug) {
+        scene.elevationManager()->drawDepthDebug(renderState, {viewport.z, viewport.w});
+    } else {
+        // Render scene
+        bool drawnAnimatedStyle = scene.render(renderState, view);
+
+        if (scene.animated() != Scene::animate::no &&
+            drawnAnimatedStyle != platform->isContinuousRendering()) {
+            platform->setContinuousRendering(drawnAnimatedStyle);
+        }
+
+        scene.labelManager()->drawDebug(renderState, view);
     }
 
-    // Render scene
-    bool drawnAnimatedStyle = scene.render(renderState, view);
-
-    if (scene.animated() != Scene::animate::no &&
-        drawnAnimatedStyle != platform->isContinuousRendering()) {
-        platform->setContinuousRendering(drawnAnimatedStyle);
-    }
-
-    scene.labelManager()->drawDebug(renderState, view);
     FrameInfo::draw(renderState, view, *this);
 
     // if almost out of font atlas textures, reset

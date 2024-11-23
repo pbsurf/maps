@@ -54,6 +54,9 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
 
     // use blendOrder == INT_MAX to indicate debug style
     bool useElev = _elevManager && _style->blendOrder() < INT_MAX;
+    if (useElev && _tile) {
+        _elevManager->setMinZoom(!_tile->rasters().empty() ? _tile->rasters().back().tileID.z : 0);
+    }
     bool setElev = useElev && (_marker || _elevManager->hasTile(_tile->getID()));
 
     for (auto& label : _labelSet->getLabels()) {
@@ -89,23 +92,20 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
             // have to use screen coord after update for newly created label
             if (screenCoord.w == 0) { screenCoord = label->screenCoord(); }
             float labelz = 1/screenCoord.w;
-            float terrainz = _elevManager->getDepth({screenCoord.x, screenCoord.y});
+            float zdn = _elevManager->getDepth({screenCoord.x, screenCoord.y+2});
+            float zup = _elevManager->getDepth({screenCoord.x, screenCoord.y-2});
 
-            //bool wasBehind = label->state() == Label::State::out_of_screen;
-            float thresh = std::max(200.0f, terrainz/100); // * (wasBehind ? 1 : 2);
+            // need some hysteresis to reduce label flashing
+            bool wasBehind = label->state() == Label::State::out_of_screen;
+            float terrainz = wasBehind ? zdn : zup;
+            float thresh = 200.0f;  //std::max(200.0f, std::abs(zup - z00)) * (wasBehind ? 1 : 2);
 
-            if (label->debugTag == "Strona") {
-              //LOGW("Strona: labelz - terrainz: %f - %f = %f; threshold %f", labelz, terrainz, labelz - terrainz, thresh);
-            }
-
-            // why do we still get flickering using 100m ?
             if (terrainz != 0 && screenCoord.w != 0 && labelz > terrainz + thresh) {
-                //label->enterState(Label::State::out_of_screen);
+                label->enterState(Label::State::out_of_screen);
                 continue;
+            } else if (wasBehind) {
+                label->enterState(Label::State::sleep);
             }
-            //else if (wasBehind) {
-            //    label->enterState(Label::State::sleep);
-            //}
             //isBehindTerrain = coord.z > terrainz + 0.005f;  -- 0.005 NDC ~ 1000 - 1500m
             //LOGW("'%s' - Camera: label %f, terrain %f; delta: %f", label->debugTag.c_str(), labelz, terrainz, labelz - terrainz);
         }
@@ -128,6 +128,8 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
             m_selectionLabels.emplace_back(label.get(), _style, _tile, _marker, isProxy, transformRange);
         }
     }
+
+    if(_elevManager) { _elevManager->setMinZoom(0); }
 }
 
 std::pair<Label*, const Tile*> LabelManager::getLabel(uint32_t _selectionColor) const {

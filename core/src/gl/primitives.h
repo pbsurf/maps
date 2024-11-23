@@ -27,7 +27,7 @@ void drawRect(RenderState& rs, const glm::vec2& _origin, const glm::vec2& _desti
 /* Draws a polyon of containing _n points in screen space for the screen resolution _resolution */
 void drawPoly(RenderState& rs, const glm::vec2* _polygon, size_t _n);
 
-void drawTexture(RenderState& rs, Texture& _tex, glm::vec2 _pos, glm::vec2 _dim);
+void drawTexture(RenderState& rs, Texture& _tex, glm::vec2 _pos, glm::vec2 _dim, float _scale = 1.0f);
 
 }
 

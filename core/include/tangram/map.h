@@ -494,6 +494,7 @@ enum DebugFlags {
     draw_all_labels,    // Draw all labels
     tangram_stats,      // Tangram frame graph stats
     selection_buffer,   // Render selection framebuffer
+    depth_buffer,   // Render depth framebuffer
 };
 
 // Set debug features on or off using a boolean (see debug.h)

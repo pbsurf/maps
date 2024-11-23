@@ -66,6 +66,9 @@ void View::setCamera(const Camera& _camera) {
     } else {
         setMaxPitch(_camera.maxTilt);
     }
+
+    // reset zoom
+    m_zoom = m_baseZoom;
 }
 
 void View::setCameraType(CameraType _type) {
@@ -384,7 +387,7 @@ float View::fieldOfViewToFocalLength(float radians) {
 
 glm::dvec2 View::positionToLookAt(glm::dvec2 target, bool& elevOk) {
     elevOk = true;
-    float elev = m_elevationManager ? m_elevationManager->getElevation(target, elevOk, true) : 0;
+    float elev = m_elevationManager ? m_elevationManager->getElevation(target, elevOk) : 0;
     glm::vec2 center = glm::vec2(m_vpWidth, m_vpHeight)/2.0f;
     if (!m_padding.isVisible) {
         center += glm::vec2(m_padding.right - m_padding.left, m_padding.top - m_padding.bottom)/2.0f;
@@ -406,7 +409,7 @@ void View::updateMatrices() {
     // set camera z to produce desired viewable area
     m_pos.z = exp2(-m_baseZoom) * worldToCameraHeight;
 
-    m_zoom = m_baseZoom;
+    //m_zoom = m_baseZoom; -- this creates large jumps in zoom if an elevation tile isn't loaded (yet)
     // get camera space depth (i.e. distance to terrain) at screen center - note that this unavoidably
     //  lags by one frame, since we need to render frame to get depth
     float prevViewZ = m_elevationManager ? m_elevationManager->getDepth({m_vpWidth/2, m_vpHeight/2}) : 0;
@@ -437,7 +440,7 @@ void View::updateMatrices() {
     // keep eye above terrain
     bool elevOk;
     if (m_elevationManager) { // && elevOk) {
-        double eyeElev = m_elevationManager->getElevation(glm::dvec2(m_eye) + glm::dvec2(m_pos), elevOk, true);
+        double eyeElev = m_elevationManager->getElevation(glm::dvec2(m_eye) + glm::dvec2(m_pos), elevOk);
         if (elevOk && m_eye.z < eyeElev + 2) {
             m_eye.z = eyeElev + 2;
         }

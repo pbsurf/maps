@@ -290,6 +290,10 @@ void TileManager::updateTileSets(const View& _view) {
                     //int s = std::max(0, tileId.z + int(std::ceil(std::log2(area/maxArea)/2)));
                     int s = tileId.z + std::max(0, int(std::ceil(std::log2(area/maxArea)/2)));
                     visId.s = std::min(s, _view.getIntegerZoom());
+
+                    if (visId.z < tileSet.source->maxZoom())
+                      visId.s = visId.z + zoomBias;
+
                     tileSet.visibleTiles.insert(visId);
                 } else {
                     subdivide = true;
