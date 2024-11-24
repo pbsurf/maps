@@ -12,9 +12,11 @@
 #include "glm/gtx/norm.hpp"
 
 #include <algorithm>
+#include <bitset>
 
 namespace Tangram {
 
+#define MAX_TILE_SETS 64
 
 enum class TileManager::ProxyID : uint8_t {
     no_proxies = 0,
@@ -188,6 +190,7 @@ void TileManager::setTileSources(const std::vector<std::shared_ptr<TileSource>>&
             m_auxTileSets.push_back({ source, false });
         }
     }
+    while (m_tileSets.size() > MAX_TILE_SETS) { m_tileSets.pop_back(); }
 }
 
 std::shared_ptr<TileSource> TileManager::getTileSource(int32_t _sourceId) {
@@ -272,18 +275,18 @@ void TileManager::updateTileSets(const View& _view) {
         float maxArea = maxEdge*maxEdge;
 
         // enable recursion by passing lambda ref to itself; auto type creates a generic (i.e. templated) lambda
-        auto getVisibleTiles = [&](auto&& self, TileID tileId){
+        auto getVisibleTiles = [&](auto&& self, TileID tileId, std::bitset<MAX_TILE_SETS> active){
             // if pitch == 0, this will only return 0 or FLT_MAX
             float area = _view.getTileScreenArea(tileId);
             if (area <= 0) { return; }  // offscreen
 
-            bool subdivide = false;
-            for (auto& tileSet : m_tileSets) {
+            std::bitset<MAX_TILE_SETS> nextActive = active;
+            for (size_t ii = 0; ii < m_tileSets.size(); ++ii) {  //auto& tileSet : m_tileSets) {
+                if (!active[ii]) { continue; }
+                auto& tileSet = m_tileSets[ii];
                 int zoomBias = tileSet.source->zoomBias();
                 int maxZoom = std::min(tileSet.source->maxZoom(), _view.getIntegerZoom() - zoomBias);
-                if (tileId.z > maxZoom) {
-                    // done with this tileset
-                } else if (tileId.z == maxZoom || area < maxArea*std::exp2(2*float(zoomBias))) {
+                if (tileId.z >= maxZoom || area < maxArea*std::exp2(2*float(zoomBias))) {
                     TileID visId = tileId;
                     // if we want to allow s < z (which increases number of tiles w/ minimal benefit), we
                     //  need to add proxy tile support (otherwise we get flashes of missing tiles)
@@ -295,14 +298,13 @@ void TileManager::updateTileSets(const View& _view) {
                       visId.s = visId.z + zoomBias;
 
                     tileSet.visibleTiles.insert(visId);
-                } else {
-                    subdivide = true;
+                    nextActive.reset(ii);
                 }
             }
-
-            if (subdivide) {
+            // subdivide if any active tile sets remaining
+            if (nextActive.any()) {
                 for (int i = 0; i < 4; i++) {
-                    self(self, tileId.getChild(i, 100));
+                    self(self, tileId.getChild(i, 100), nextActive);
                 }
             }
         };
@@ -310,7 +312,8 @@ void TileManager::updateTileSets(const View& _view) {
         for (auto& tileSet : m_tileSets) {
             tileSet.visibleTiles.clear();
         }
-        getVisibleTiles(getVisibleTiles, TileID(0,0,0));
+        std::bitset<MAX_TILE_SETS> allActive = (1 << m_tileSets.size()) - 1;
+        getVisibleTiles(getVisibleTiles, TileID(0,0,0), allActive);
 
     }
 
@@ -364,12 +367,6 @@ void TileManager::updateTileSet(TileSet& _tileSet, const ViewState& _view) {
         _tileSet.sourceGeneration = _tileSet.source->generation();
     }
 
-    // Tile load request above this zoom-level will be canceled in order to
-    // not wait for tiles that are too small to contribute significantly to
-    // the current view.
-    int maxZoom = glm::round(_view.zoom + 1.f);
-    int minZoom = glm::round(_view.zoom - 2.f);
-
     std::vector<TileID> removeTiles;
     auto& tiles = _tileSet.tiles;
 
@@ -385,6 +382,15 @@ void TileManager::updateTileSet(TileSet& _tileSet, const ViewState& _view) {
     }
 
     const auto& visibleTiles = _tileSet.visibleTiles;
+
+    // Pending proxy tiles too far from current zoom level will be canceled
+    int maxZoom = 0, minZoom = 0, maxVisZoom = 0;
+    if (!visibleTiles.empty()) {
+        int zmax = visibleTiles.begin()->z, zmin = visibleTiles.rbegin()->z;
+        maxZoom = zmin != zmax ? zmax + 2 : int(glm::round(_view.zoom + 1.f));
+        minZoom = zmin != zmax ? zmin - 3 : int(glm::round(_view.zoom - 2.f));
+        maxVisZoom = visibleTiles.begin()->s;
+    }
 
     // Loop over visibleTiles and add any needed tiles to tileSet
     auto curTilesIt = tiles.begin();
@@ -433,6 +439,26 @@ void TileManager::updateTileSet(TileSet& _tileSet, const ViewState& _view) {
                     // Tile needs update - enqueue for loading
                     entry.task = _tileSet.source->createTask(visTileId);
                     enqueueTask(_tileSet, visTileId, _view);
+#ifdef TANGRAM_PROXY_FOR_FAILED
+                // This change is too dangerous to make just before a release
+                } else if (!_tileSet.clientTileSource) {
+                    TileID parentId = visTileId.getParent();  //zoomBias);
+                    if (entry.setProxy(ProxyID::parent)) {
+                        LOGD("Requesting parent %s as proxy for failed tile %s for %s",
+                             parentId.toString().c_str(), visTileId.toString().c_str(), _tileSet.source->name().c_str());
+                        addProxyForFailed(parentId);
+                        assert(minZoom < parentId.z);  //minZoom = std::min(minZoom, parentId.z - 1);
+                    } else {
+                        auto parentIt = tiles.find(parentId);
+                        if (parentIt != tiles.end() && parentIt->second.isCanceled() && entry.setProxy(ProxyID::parent2)) {
+                            TileID parent2Id = parentId.getParent();  //zoomBias);
+                            LOGD("Requesting grandparent %s as proxy for failed tile %s for %s",
+                                 parent2Id.toString().c_str(), visTileId.toString().c_str(), _tileSet.source->name().c_str());
+                            addProxyForFailed(parent2Id);
+                            assert(minZoom < parent2Id.z);  //minZoom = std::min(minZoom, parent2Id.z - 1);
+                        }
+                    }
+#endif
                 }
             }
 
@@ -474,6 +500,7 @@ void TileManager::updateTileSet(TileSet& _tileSet, const ViewState& _view) {
                     m_tiles.push_back(entry.tile);
                 } else if (entry.isInProgress()) {
                     if (curTileId.z >= maxZoom || curTileId.z <= minZoom) {
+                        LOGD("Canceling proxy tile %s (out of zoom range)", curTileId.toString().c_str());
                         // Cancel tile loading but keep tile entry for referencing
                         // this tiles proxy tiles.
                         _tileSet.source->cancelLoadingTile(*entry.task);
@@ -498,8 +525,6 @@ void TileManager::updateTileSet(TileSet& _tileSet, const ViewState& _view) {
             removeTile(_tileSet, it);
         }
     }
-
-    int maxVisZoom = !visibleTiles.empty() ? visibleTiles.begin()->s : 0;
 
     for (auto& it : tiles) {
         auto& entry = it.second;
@@ -659,6 +684,37 @@ void TileManager::removeTile(TileSet& _tileSet, std::map<TileID, TileEntry>::ite
     _tileIt = _tileSet.tiles.erase(_tileIt);
 }
 
+#ifdef TANGRAM_PROXY_FOR_FAILED
+void TileManager::addProxyForFailed(TileSet& _tileSet, const TileID& _proxyTileId, const ViewState& _view) {
+
+    auto tileIt = _tileSet.tiles.find(_proxyTileId);
+    if (tileIt != _tileSet.tiles.end()) {
+        tileIt->second.incProxyCounter();
+        return;
+    }
+
+    auto tile = m_tileCache->get(_tileSet.source->id(), _proxyTileId);
+    if (tile) {
+        if (tile->sourceGeneration() == _tileSet.source->generation()) {
+            m_tiles.push_back(tile);
+            tile->resetState();
+        } else {
+            tile.reset();
+        }
+    }
+
+    // Add TileEntry to TileSet
+    auto entryit = _tileSet.tiles.emplace(_proxyTileId, tile);
+    if (!tile) {
+        TileEntry& entry = entryit.first->second;
+        entry.task = _tileSet.source->createTask(_proxyTileId);
+        enqueueTask(_tileSet, _proxyTileId, _view);
+        m_tilesInProgress++;
+        entry.incProxyCounter();
+    }
+};
+#endif
+
 bool TileManager::updateProxyTile(TileSet& _tileSet, TileEntry& _tile, const TileID& _proxyTileId, ProxyID _proxyId) {
 
     if (!_proxyTileId.isValid()) { return false; }
@@ -666,37 +722,56 @@ bool TileManager::updateProxyTile(TileSet& _tileSet, TileEntry& _tile, const Til
     auto& tiles = _tileSet.tiles;
 
     // check if the proxy exists in the visible tile set
-    {
-        const auto& it = tiles.find(_proxyTileId);
-        if (it != tiles.end()) {
-            if (_tile.setProxy(_proxyId)) {
-                auto& entry = it->second;
-                entry.incProxyCounter();
+    const auto& it = tiles.find(_proxyTileId);
+    if (it != tiles.end()) {
+        if (_tile.setProxy(_proxyId)) {
+            auto& entry = it->second;
+            entry.incProxyCounter();
 
-                if (entry.tile) {
-                    m_tiles.push_back(entry.tile);
-                }
-                return true;
+            if (entry.tile) {
+                m_tiles.push_back(entry.tile);
             }
-            // Note: No need to check the cache: When the tile is in
-            // tileSet it has already been fetched from cache
-            return false;
+            return true;
         }
+        // Note: No need to check the cache: When the tile is in
+        // tileSet it has already been fetched from cache
+        return false;
+    }
+
+    if (_tileSet.source->isRaster()) {
+      for(auto& tile : tiles) {
+        TileID id = tile.first;
+        id.s = _proxyTileId.s;
+        if(id == _proxyTileId) {
+          LOGW("Found requested proxy %s in visible tiles as %s for %s",
+               _proxyTileId.toString().c_str(), tile.first.toString().c_str(), _tileSet.source->name().c_str());
+        }
+      }
     }
 
     // check if the proxy exists in the cache
-    {
-        auto proxyTile = m_tileCache->get(_tileSet.source->id(), _proxyTileId);
-        if (proxyTile && _tile.setProxy(_proxyId)) {
+    auto proxyTile = m_tileCache->get(_tileSet.source->id(), _proxyTileId);
+    if (proxyTile && _tile.setProxy(_proxyId)) {
 
-            auto result = tiles.emplace(_proxyTileId, proxyTile);
-            auto& entry = result.first->second;
-            entry.incProxyCounter();
+        auto result = tiles.emplace(_proxyTileId, proxyTile);
+        auto& entry = result.first->second;
+        entry.incProxyCounter();
 
-            m_tiles.push_back(proxyTile);
-            return true;
-        }
+        m_tiles.push_back(proxyTile);
+        return true;
     }
+
+
+    if (_tileSet.source->isRaster()) {
+      TileID id2 = _proxyTileId;
+      for(id2.s = _proxyTileId.s - 6; id2.s <= _proxyTileId.s + 6; ++id2.s) {
+        if(m_tileCache->contains(_tileSet.source->id(), id2)) {
+          LOGW("Found requested proxy %s in cached tiles as %s for %s",
+               _proxyTileId.toString().c_str(), id2.toString().c_str(), _tileSet.source->name().c_str());
+        }
+      }
+    }
+
 
     return false;
 }
