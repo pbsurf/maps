@@ -537,7 +537,7 @@ glm::vec2 View::lngLatToScreenPosition(double lng, double lat, bool& outsideView
 
     if (!m_padding.isVisible && !outsideViewport) {
         outsideViewport = screenPosition.x < m_padding.left || screenPosition.x > m_vpWidth - m_padding.right
-            || screenPosition.y < m_padding.top || screenPosition.x > m_vpHeight - m_padding.bottom;
+            || screenPosition.y < m_padding.top || screenPosition.y > m_vpHeight - m_padding.bottom;
     }
 
     return screenPosition;

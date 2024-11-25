@@ -274,29 +274,29 @@ void TileManager::updateTileSets(const View& _view) {
         float maxEdge = 2 * _view.pixelScale() * float(MapProjection::tileSize());
         float maxArea = maxEdge*maxEdge;
 
+        using TileSetMask = std::bitset<MAX_TILE_SETS>;
         // enable recursion by passing lambda ref to itself; auto type creates a generic (i.e. templated) lambda
-        auto getVisibleTiles = [&](auto&& self, TileID tileId, std::bitset<MAX_TILE_SETS> active){
+        auto getVisibleTiles = [&](auto&& self, TileID tileId, TileSetMask active){
             // if pitch == 0, this will only return 0 or FLT_MAX
             float area = _view.getTileScreenArea(tileId);
             if (area <= 0) { return; }  // offscreen
 
-            std::bitset<MAX_TILE_SETS> nextActive = active;
-            for (size_t ii = 0; ii < m_tileSets.size(); ++ii) {  //auto& tileSet : m_tileSets) {
+            TileSetMask nextActive = active;
+            for (size_t ii = 0; ii < m_tileSets.size(); ++ii) {
                 if (!active[ii]) { continue; }
                 auto& tileSet = m_tileSets[ii];
                 int zoomBias = tileSet.source->zoomBias();
                 int maxZoom = std::min(tileSet.source->maxZoom(), _view.getIntegerZoom() - zoomBias);
                 if (tileId.z >= maxZoom || area < maxArea*std::exp2(2*float(zoomBias))) {
                     TileID visId = tileId;
-                    // if we want to allow s < z (which increases number of tiles w/ minimal benefit), we
-                    //  need to add proxy tile support (otherwise we get flashes of missing tiles)
-                    //int s = std::max(0, tileId.z + int(std::ceil(std::log2(area/maxArea)/2)));
-                    int s = tileId.z + std::max(0, int(std::ceil(std::log2(area/maxArea)/2)));
-                    visId.s = std::min(s, _view.getIntegerZoom());
-
-                    if (visId.z < tileSet.source->maxZoom())
-                      visId.s = visId.z + zoomBias;
-
+                    // Ensure that s = z + bias (larger s OK if overzoomed) so that proxy tiles can be found
+                    // - otherwise, we get frames where tiles disappear due to no proxy for new tile
+                    if (visId.z < tileSet.source->maxZoom()) {
+                        visId.s = visId.z + zoomBias;
+                    } else {
+                        int s = tileId.z + std::max(0, int(std::ceil(std::log2(area/maxArea)/2)));
+                        visId.s = std::max(std::min(s, _view.getIntegerZoom()), visId.z + zoomBias);
+                    }
                     tileSet.visibleTiles.insert(visId);
                     nextActive.reset(ii);
                 }
@@ -312,9 +312,9 @@ void TileManager::updateTileSets(const View& _view) {
         for (auto& tileSet : m_tileSets) {
             tileSet.visibleTiles.clear();
         }
-        std::bitset<MAX_TILE_SETS> allActive = (1 << m_tileSets.size()) - 1;
-        getVisibleTiles(getVisibleTiles, TileID(0,0,0), allActive);
 
+        TileSetMask allActive = (1 << m_tileSets.size()) - 1;
+        getVisibleTiles(getVisibleTiles, TileID(0,0,0), allActive);
     }
 
     for (auto& tileSet : m_tileSets) {
@@ -738,17 +738,6 @@ bool TileManager::updateProxyTile(TileSet& _tileSet, TileEntry& _tile, const Til
         return false;
     }
 
-    if (_tileSet.source->isRaster()) {
-      for(auto& tile : tiles) {
-        TileID id = tile.first;
-        id.s = _proxyTileId.s;
-        if(id == _proxyTileId) {
-          LOGW("Found requested proxy %s in visible tiles as %s for %s",
-               _proxyTileId.toString().c_str(), tile.first.toString().c_str(), _tileSet.source->name().c_str());
-        }
-      }
-    }
-
     // check if the proxy exists in the cache
     auto proxyTile = m_tileCache->get(_tileSet.source->id(), _proxyTileId);
     if (proxyTile && _tile.setProxy(_proxyId)) {
@@ -760,18 +749,6 @@ bool TileManager::updateProxyTile(TileSet& _tileSet, TileEntry& _tile, const Til
         m_tiles.push_back(proxyTile);
         return true;
     }
-
-
-    if (_tileSet.source->isRaster()) {
-      TileID id2 = _proxyTileId;
-      for(id2.s = _proxyTileId.s - 6; id2.s <= _proxyTileId.s + 6; ++id2.s) {
-        if(m_tileCache->contains(_tileSet.source->id(), id2)) {
-          LOGW("Found requested proxy %s in cached tiles as %s for %s",
-               _proxyTileId.toString().c_str(), id2.toString().c_str(), _tileSet.source->name().c_str());
-        }
-      }
-    }
-
 
     return false;
 }
@@ -796,12 +773,11 @@ void TileManager::updateProxyTiles(TileSet& _tileSet, const TileID& _tileID, Til
             && updateProxyTile(_tileSet, _tile, grandparentID, ProxyID::parent2)) {
         return;
     }
-    // Try children
-    if (maxZoom > _tileID.z) {
-        for (int i = 0; i < 4; i++) {
-            auto childID = _tileID.getChild(i, maxZoom);
-            updateProxyTile(_tileSet, _tile, childID, static_cast<ProxyID>(1 << i));
-        }
+    // Try children (just one if overzoomed)
+    int nchild = _tileID.z < maxZoom ? 4 : 1;
+    for (int i = 0; i < nchild; i++) {
+        auto childID = _tileID.getChild(i, maxZoom);
+        updateProxyTile(_tileSet, _tile, childID, ProxyID(1 << i));
     }
 }
 
