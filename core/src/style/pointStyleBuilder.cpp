@@ -137,14 +137,10 @@ auto PointStyleBuilder::applyRule(const DrawRule& _rule) const -> Parameters {
     p.labelOptions.offset *= m_style.pixelScale();
     _rule.get(StyleParamKey::buffer, p.labelOptions.buffer);
 
-    float priority = 0;
     std::string repeatGroup;
     StyleParam::Width repeatDistance;
 
-    if (_rule.get(StyleParamKey::priority, priority)) {
-        p.labelOptions.priority = priority*Label::priority_scale;
-    }
-
+    _rule.get(StyleParamKey::priority, p.labelOptions.priority);
     _rule.get(StyleParamKey::sprite_default, p.spriteDefault);
     p.dynamicTexture = _rule.get(StyleParamKey::texture, p.texture);
 

@@ -666,16 +666,13 @@ TextStyle::Parameters TextStyleBuilder::applyRule(const DrawRule& _rule,
 
     _rule.get(StyleParamKey::text_max_lines, p.maxLines);
 
-    float priority = 0;
     size_t repeatGroupHash = 0;
     std::string repeatGroup;
     StyleParam::Width repeatDistance;
     glm::vec2 defaultBuffer = glm::vec2(p.fontSize * 0.25f);
 
     if (_iconText) {
-        if (_rule.get(StyleParamKey::text_priority, priority)) {
-            p.labelOptions.priority = priority*Label::priority_scale;
-        }
+        _rule.get(StyleParamKey::text_priority, p.labelOptions.priority);
         _rule.get(StyleParamKey::text_collide, p.labelOptions.collide);
         if (!_rule.get(StyleParamKey::text_interactive, p.interactive)) {
             _rule.get(StyleParamKey::interactive, p.interactive);
@@ -715,9 +712,7 @@ TextStyle::Parameters TextStyleBuilder::applyRule(const DrawRule& _rule,
             p.labelOptions.buffer = defaultBuffer;
         }
     } else {
-        if (_rule.get(StyleParamKey::priority, priority)) {
-            p.labelOptions.priority = priority*Label::priority_scale;
-        }
+        _rule.get(StyleParamKey::priority, p.labelOptions.priority);
         _rule.get(StyleParamKey::collide, p.labelOptions.collide);
         _rule.get(StyleParamKey::interactive, p.interactive);
         _rule.get(StyleParamKey::offset, p.labelOptions.offset);

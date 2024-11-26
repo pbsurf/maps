@@ -280,16 +280,17 @@ void LabelManager::skipTransitions(const Scene& _scene, const std::vector<std::s
 
 bool LabelManager::priorityComparator(const LabelEntry& _a, const LabelEntry& _b) {
     if (_a.proxy != _b.proxy) {
-        return _b.proxy;
+        return _b.proxy;  // non-proxy over proxy
     }
-    if (_a.priority != _b.priority) {
-        return _a.priority < _b.priority;
+    if (int(_a.priority) != int(_b.priority)) {
+        return int(_a.priority) < int(_b.priority);
     }
-    if (!_a.tile || !_b.tile) {
-        return (bool)_a.tile;
-    }
-    if (_a.tile->getID().z != _b.tile->getID().z) {
-        return _a.tile->getID().z > _b.tile->getID().z;
+    if (_a.tile && _b.tile) {
+        if (_a.tile->getID().z != _b.tile->getID().z) {
+            return _a.tile->getID().z > _b.tile->getID().z;  // higher zoom over lower zoom
+        }
+    } else if (_a.tile || _b.tile) {
+        return (bool)_a.tile;  // marker labels over tile labels
     }
 
     auto l1 = _a.label;
@@ -298,12 +299,24 @@ bool LabelManager::priorityComparator(const LabelEntry& _a, const LabelEntry& _b
     // Note: This causes non-deterministic placement, i.e. depending on
     // navigation history.
     if (l1->occludedLastFrame() != l2->occludedLastFrame()) {
-        return l2->occludedLastFrame();
+        return l2->occludedLastFrame();  // non-occluded over occluded
     }
     // This prefers labels within screen over out_of_screen.
     // Important for repeat groups!
     if (l1->visibleState() != l2->visibleState()) {
         return l1->visibleState();
+    }
+
+    // give priority to labels closer to camera
+    float z1 = l1->screenCoord().z, z2 = l2->screenCoord().z;
+    if (z1 != z2) {
+        return z1 < z2;
+    }
+
+    // fractional part of priority gives ordering among otherwise equivalent labels
+    float rank1 = _a.priority - int(_a.priority), rank2 = _b.priority - int(_b.priority);
+    if (rank1 != rank2) {
+        return rank1 < rank2;
     }
 
     if (l1->options().repeatGroup != l2->options().repeatGroup) {
@@ -318,7 +331,7 @@ bool LabelManager::priorityComparator(const LabelEntry& _a, const LabelEntry& _b
         return l1->hash() < l2->hash();
     }
 
-    return l1 < l2;
+    return l1 < l2;  // if all else fails, order by memory address!
 }
 
 bool LabelManager::zOrderComparator(const LabelEntry& _a, const LabelEntry& _b) {
