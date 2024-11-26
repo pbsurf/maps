@@ -166,6 +166,7 @@ void setResolution(RenderState& rs, float _width, float _height) {
 
     glm::mat4 proj = glm::ortho(0.f, _width, _height, 0.f, -1.f, 1.f);
     s_shader->setUniformMatrix4f(rs, s_uProj, proj);
+    s_shader->setUniformf(rs, s_uColor, 1.0f, 1.0f, 1.0f);  // reset color
     s_textureShader->setUniformMatrix4f(rs, s_uTextureProj, proj);
 }
 

@@ -189,7 +189,7 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
     int w = _view.getWidth()/bufferScale, h = _view.getHeight()/bufferScale;
     if (!m_frameBuffer || m_frameBuffer->getWidth() != w || m_frameBuffer->getHeight() != h) {
       m_frameBuffer = std::make_unique<FrameBuffer>(w, h, false, GL_R32UI);
-      m_depthData.resize(w * h, 1.0f);
+      m_depthData.resize(w * h, 0.0f);
     }
     m_frameBuffer->applyAsRenderTarget(*m_renderState);  // this does the glClear()
 

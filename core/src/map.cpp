@@ -961,9 +961,6 @@ void Map::setupGL() {
                                                               impl->selectionBuffer->getHeight());
     }
 
-    // Set default primitive render color
-    Primitives::setColor(impl->renderState, 0xffffff);
-
     // Load GL extensions and capabilities
     Hardware::loadCapabilities();
     Hardware::loadExtensions();
