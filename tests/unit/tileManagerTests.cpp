@@ -12,7 +12,7 @@
 
 using namespace Tangram;
 
-ViewState viewState { true, glm::vec2(0), 1, 0, 1.f, glm::vec2(0), 256.f };
+ViewState viewState { glm::vec2(0), 1, 0, 1.f, glm::vec2(0), 256.f };
 
 struct TestTileWorker : TileTaskQueue {
     int processedCount = 0;

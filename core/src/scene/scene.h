@@ -166,7 +166,7 @@ public:
     struct UpdateState {
         bool tilesLoading, animateLabels, animateMarkers;
     };
-    UpdateState update(RenderState& _rs, const View& _view, float _dt);
+    UpdateState update(RenderState& _rs, View& _view, float _dt);
 
     void renderBeginFrame(RenderState& _rs);
     bool render(RenderState& _rs, View& _view);

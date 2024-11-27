@@ -263,7 +263,7 @@ void TileManager::clearTileSet(int32_t _sourceId) {
     m_tileSetChanged = true;
 }
 
-void TileManager::updateTileSets(const View& _view) {
+bool TileManager::updateTileSets(const View& _view) {
 
     m_tiles.clear();
     m_tilesInProgress = 0;
@@ -357,6 +357,8 @@ void TileManager::updateTileSets(const View& _view) {
             m_tileCache->limitCacheSize(std::min(m_maxCacheLimit, memused));
         }
     }
+
+    return m_tileSetChanged;
 }
 
 void TileManager::updateTileSet(TileSet& _tileSet, const ViewState& _view) {

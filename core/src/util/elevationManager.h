@@ -37,9 +37,9 @@ public:
   std::shared_ptr<RasterSource> m_elevationSource;
 
   std::unique_ptr<Style> m_style;
-  std::vector<float> m_depthData;
   std::unique_ptr<FrameBuffer> m_frameBuffer;
-  std::atomic<float> m_depthBaseZoom{0.0f};
+  std::vector<float> m_depthData[2];
+  float m_depthBaseZoom[2] = {0, 0};
   int m_minZoom = 0;
 
   static std::unique_ptr<RenderState> m_renderState;

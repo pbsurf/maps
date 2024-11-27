@@ -41,7 +41,7 @@ public:
     void setTileSources(const std::vector<std::shared_ptr<TileSource>>& _sources);
 
     /* Updates visible tile set and load missing tiles */
-    void updateTileSets(const View& _view);
+    bool updateTileSets(const View& _view);
 
     void clearTileSets(bool clearSourceCaches = false);
 
@@ -52,7 +52,7 @@ public:
     /* Returns the set of currently visible tiles */
     const auto& getVisibleTiles() const { return m_tiles; }
 
-    bool hasTileSetChanged() const { return m_tileSetChanged; }
+    //bool hasTileSetChanged() const { return m_tileSetChanged; }
 
     bool hasLoadingTiles() const {
         return m_tilesInProgress > 0;

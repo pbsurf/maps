@@ -75,7 +75,7 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
         }
 
         // terrain depth is from previous frame, so we must compare label position before Label::update()
-        glm::vec4 screenCoord = label->screenCoord();
+        glm::vec4 screenCoord = label->screenCoord();   //glm::vec4(0);
 
         Range transformRange;
         ScreenTransform transform { m_transforms, transformRange };
@@ -90,7 +90,7 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
 
         if (useElev) {
             // have to use screen coord after update for newly created label
-            if (screenCoord.w == 0) { screenCoord = label->screenCoord(); }
+            //if (screenCoord.w == 0) { screenCoord = label->screenCoord(); }
             float labelz = 1/screenCoord.w;
             float zdn = _elevManager->getDepth({screenCoord.x, screenCoord.y+2});
             float zup = _elevManager->getDepth({screenCoord.x, screenCoord.y-2});
@@ -290,11 +290,17 @@ bool LabelManager::priorityComparator(const LabelEntry& _a, const LabelEntry& _b
             return _a.tile->getID().z > _b.tile->getID().z;  // higher zoom over lower zoom
         }
     } else if (_a.tile || _b.tile) {
-        return (bool)_a.tile;  // marker labels over tile labels
+        return (bool)_a.tile;  // tile labels over marker labels (maybe reverse this?)
     }
 
     auto l1 = _a.label;
     auto l2 = _b.label;
+
+    // make sure ordering of related labels is preserved regardless of occluded state or camera distance
+    bool related = l1->relative() == l2 || l2->relative() == l1;
+    if (related && _a.priority != _b.priority) {
+        return _a.priority < _b.priority;
+    }
 
     // Note: This causes non-deterministic placement, i.e. depending on
     // navigation history.
@@ -313,10 +319,9 @@ bool LabelManager::priorityComparator(const LabelEntry& _a, const LabelEntry& _b
         return z1 < z2;
     }
 
-    // fractional part of priority gives ordering among otherwise equivalent labels
-    float rank1 = _a.priority - int(_a.priority), rank2 = _b.priority - int(_b.priority);
-    if (rank1 != rank2) {
-        return rank1 < rank2;
+    // we already know int parts are equal
+    if (_a.priority != _b.priority) {
+        return _a.priority < _b.priority;
     }
 
     if (l1->options().repeatGroup != l2->options().repeatGroup) {
@@ -514,13 +519,15 @@ bool LabelManager::withinRepeatDistance(Label *_label) {
 
 void LabelManager::updateLabelSet(const ViewState& _viewState, float _dt, const Scene& _scene,
                             const std::vector<std::shared_ptr<Tile>>& _tiles,
-                            const std::vector<std::unique_ptr<Marker>>& _markers) {
+                            const std::vector<std::unique_ptr<Marker>>& _markers,
+                            bool _onlyRender) {
 
     m_transforms.clear();
     m_obbs.clear();
 
     /// Collect and update labels from visible tiles
-    updateLabels(_viewState, _dt, _scene, _tiles, _markers, false);
+    updateLabels(_viewState, _dt, _scene, _tiles, _markers, _onlyRender);
+    if (_onlyRender) { return; }
 
     std::sort(m_labels.begin(), m_labels.end(), LabelManager::priorityComparator);
 

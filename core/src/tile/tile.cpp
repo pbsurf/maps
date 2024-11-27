@@ -35,7 +35,7 @@ void Tile::initGeometry(uint32_t _size) {
     m_geometry.resize(_size);
 }
 
-void Tile::update(float _dt, const View& _view) {
+void Tile::update(const View& _view, float _dt) {
     // Get the relative position of the *center* of the tile, to ensure that the result places the tile as close to
     // the view center as possible.
     auto centerOffset = glm::dvec2(m_scale / 2.0);

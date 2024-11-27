@@ -153,27 +153,30 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
 {
   FrameInfo::scope _trace("renderTerrainDepth");
 
-  /*
-  int w = _view.getWidth()/bufferScale, h = _view.getHeight()/bufferScale;
-  if (!m_frameBuffer || m_frameBuffer->getWidth() != w || m_frameBuffer->getHeight() != h) {
-    m_frameBuffer = std::make_unique<FrameBuffer>(w, h, false, GL_R32UI);
-    m_depthData.resize(w * h, 1.0f);
-
-    _rs.m_terrainDepthTexture = m_frameBuffer->getTextureHandle();
-  }
-
-  _rs.cacheDefaultFramebuffer();
-  m_frameBuffer->applyAsRenderTarget(_rs);
-  m_style->draw(_rs, _view, _tiles, {});
-
-  //GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, m_depthData.data());
-  _rs.framebuffer(_rs.defaultFrameBuffer());
-  */
-
+  //offscreenWorker.reset();
   if(!offscreenWorker) {
     LOGE("Offscreen worker has not been created!");
+
+    int w = _view.getWidth()/bufferScale, h = _view.getHeight()/bufferScale;
+    if (!m_frameBuffer || m_frameBuffer->getWidth() != w || m_frameBuffer->getHeight() != h) {
+      m_frameBuffer = std::make_unique<FrameBuffer>(w, h, false, GL_R32UI);
+      m_depthData[0].resize(w * h, 0.0f);
+      //_rs.m_terrainDepthTexture = m_frameBuffer->getTextureHandle();
+    }
+
+    _rs.cacheDefaultFramebuffer();
+    m_frameBuffer->applyAsRenderTarget(_rs);
+    m_style->draw(_rs, _view, _tiles, {});
+
+    GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, m_depthData[0].data());
+    _rs.framebuffer(_rs.defaultFrameBuffer());
+    m_depthBaseZoom[0] = _view.getBaseZoom();
+
     return;
   }
+
+  // glReadPixels() blocks on mobile, even when reading to a pixel buffer object, so render and read depth
+  //  data on a separate thread using a shared GL context
 
   if(!m_renderState)
     m_renderState = std::make_unique<RenderState>();
@@ -181,19 +184,22 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
   std::mutex drawMutex;
   std::condition_variable drawCond;
   bool drawFinished = false;
-  std::unique_lock<std::mutex> mainLock(drawMutex); //, std::defer_lock);
+  std::unique_lock<std::mutex> mainLock(drawMutex);
 
   offscreenWorker->enqueue([&](){
     std::unique_lock<std::mutex> workerLock(drawMutex);
+    std::swap(m_depthData[0], m_depthData[1]);
+    std::swap(m_depthBaseZoom[0], m_depthBaseZoom[1]);
+
     m_renderState->flushResourceDeletion();
     int w = _view.getWidth()/bufferScale, h = _view.getHeight()/bufferScale;
-    if (!m_frameBuffer || m_frameBuffer->getWidth() != w || m_frameBuffer->getHeight() != h) {
+    if (!m_frameBuffer || m_frameBuffer->getWidth() != w || m_frameBuffer->getHeight() != h)
       m_frameBuffer = std::make_unique<FrameBuffer>(w, h, false, GL_R32UI);
-      m_depthData.resize(w * h, 0.0f);
-    }
+    if (m_depthData[1].size() != w * h)
+      m_depthData[1].resize(w * h, 0.0f);
     m_frameBuffer->applyAsRenderTarget(*m_renderState);  // this does the glClear()
 
-    float z = _view.getBaseZoom();
+    m_depthBaseZoom[1] = _view.getBaseZoom();
     // originally, we were reusing mesh from another style, but this will use the uniform location for the
     //  other style (since SharedMesh saves Style*); also creates problems when deleting Scene if
     //  first raster tile was drawn by offscreen worker; also, VAOs can't be shared between contexts
@@ -203,24 +209,25 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
     workerLock.unlock();
     drawCond.notify_all();
 
-    GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, m_depthData.data());
-    m_depthBaseZoom = z;
+    GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, m_depthData[1].data());
   });
 
-  // wait for draw to finish to avoid, e.g., duplicate texture uploads
+  // wait for draw to finish to avoid changes to tiles, duplicate texture uploads, etc.
   drawCond.wait(mainLock, [&]{ return drawFinished; });
 }
 
 float ElevationManager::getDepth(glm::vec2 screenpos)
 {
-  if(!m_frameBuffer || m_depthData.empty()) { return 0; }
+  if(!m_frameBuffer || m_depthData[0].empty()) { return 0; }
   // for now, clamp to screen bounds to handle offscreen labels (extendedBounds in processLabelUpdate())
   int w = m_frameBuffer->getWidth(), h = m_frameBuffer->getHeight();
-  glm::vec2 pos = glm::clamp(glm::round(screenpos/bufferScale), {0, 0}, {w-1, h-1});
+  glm::vec2 pos = glm::round(screenpos/bufferScale);
+  if(pos.x < 0 || pos.y < 0 || pos.x >= w || pos.y >= h) { return 0; }
+  //glm::vec2 pos = glm::clamp(glm::round(screenpos/bufferScale), {0, 0}, {w-1, h-1});
   //GL::readPixels(floorf(screenpos.x), floorf(screenpos.y), 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel);
   // convert from 0..1 (glDepthRange) to -1..1 (NDC)
   //return 2*m_depthData[int(pos.x) + int(h - pos.y - 1)*w] - 1;
-  return m_depthData[int(pos.x) + int(h - pos.y - 1)*w];
+  return m_depthData[0][int(pos.x) + int(h - pos.y - 1)*w];
 }
 
 void ElevationManager::drawDepthDebug(RenderState& _rs, glm::vec2 _dim)
@@ -231,9 +238,9 @@ void ElevationManager::drawDepthDebug(RenderState& _rs, glm::vec2 _dim)
   texoptions.minFilter = TextureMinFilter::NEAREST;
   Texture tex(texoptions);
   int w = m_frameBuffer->getWidth(), h = m_frameBuffer->getHeight();
-  tex.setPixelData(w, h, 4, (GLubyte*)m_depthData.data(), m_depthData.size()*4);
+  tex.setPixelData(w, h, 4, (GLubyte*)m_depthData[0].data(), m_depthData[0].size()*4);
 
-  float worldTileSize = MapProjection::EARTH_CIRCUMFERENCE_METERS * std::exp2(-m_depthBaseZoom);
+  float worldTileSize = MapProjection::EARTH_CIRCUMFERENCE_METERS * std::exp2(-m_depthBaseZoom[0]);
   float maxTileDistance = worldTileSize * (std::exp2(7.0f) - 1.0f);
   Primitives::drawTexture(_rs, tex, {0, 0}, _dim, 1/maxTileDistance);
 }
@@ -255,6 +262,7 @@ ElevationManager::ElevationManager(std::shared_ptr<RasterSource> src, Style& sty
 
 ElevationManager::~ElevationManager()
 {
+  if(!offscreenWorker) { return; }
   offscreenWorker->enqueue([_style=m_style.release(), _fb=m_frameBuffer.release()](){
     m_renderState->framebuffer(0);  // make sure RenderState doesn't cache handle of deleted framebuffer
     delete _style;

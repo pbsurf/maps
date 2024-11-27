@@ -38,7 +38,7 @@ struct Camera {
 };
 
 struct ViewState {
-    bool changedOnLastUpdate;
+    //bool changedOnLastUpdate;
     glm::dvec2 center;
     float zoom;
     double zoomScale;
@@ -162,8 +162,9 @@ public:
     // Get the current pitch angle in radians.
     float getPitch() const { return m_pitch; }
 
-    // Update the view and projection matrices if properties have changed.
-    void update();
+    // Update the view and projection matrices if properties have changed; returns true if view changed
+    //  since last update
+    bool update();
 
     // Get the position of the view in projection units (z is the effective 'height' determined from zoom).
     const glm::dvec3& getPosition() const { return m_pos; }
@@ -227,9 +228,6 @@ public:
     // Get the set of all tiles visible at the current position and zoom.
     //void getVisibleTiles(const std::function<void(TileID)>& _tileCb, int zoomBias, TileID tile = TileID(0,0,0)) const;
     float getTileScreenArea(TileID tile) const;
-
-    // Returns true if the view properties have changed since the last call to update().
-    bool changedOnLastUpdate() const { return m_changed; }
 
     const glm::mat4& getOrthoViewportMatrix() const { return m_orthoViewport; };
 

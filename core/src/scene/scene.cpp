@@ -598,13 +598,15 @@ void Scene::runFontTasks() {
     }
 }
 
-Scene::UpdateState Scene::update(RenderState& _rs, const View& _view, float _dt) {
+Scene::UpdateState Scene::update(RenderState& _rs, View& _view, float _dt) {
 
     m_time += _dt;
 
+    bool viewChanged = _view.update();
+
     bool markersChanged = m_markerManager->update(_view, _dt);
 
-    m_tileManager->updateTileSets(_view);
+    bool tilesChanged = m_tileManager->updateTileSets(_view);
 
     for (const auto& style : m_styles) {
         style->onBeginUpdate();
@@ -613,22 +615,20 @@ Scene::UpdateState Scene::update(RenderState& _rs, const View& _view, float _dt)
     auto& tiles = m_tileManager->getVisibleTiles();
     auto& markers = m_markerManager->markers();
 
-    if (_view.changedOnLastUpdate() ||
-        m_tileManager->hasTileSetChanged() ||
-        markersChanged) {
-
+    bool changed = viewChanged || tilesChanged || markersChanged;
+    if (changed) {
         for (const auto& tile : tiles) {
-            tile->update(_dt, _view);
+            tile->update(_view, _dt);
         }
-
-        if (m_elevationManager) {
-            m_elevationManager->renderTerrainDepth(_rs, _view, tiles);
-        }
-
-        m_labelManager->updateLabelSet(_view.state(), _dt, *this, tiles, markers);
-    } else {
-        m_labelManager->updateLabels(_view.state(), _dt, *this, tiles, markers);
     }
+
+    // because of 1 frame lag for terrain depth, we must always render even if onlyRender = true for
+    //  updateLabelSet() since label coordinates will still be updated
+    if (m_elevationManager) {
+        m_elevationManager->renderTerrainDepth(_rs, _view, tiles);
+    }
+
+    m_labelManager->updateLabelSet(_view.state(), _dt, *this, tiles, markers, !changed);
 
     return { m_tileManager->hasLoadingTiles(), m_labelManager->needUpdate(), markersChanged };
 }

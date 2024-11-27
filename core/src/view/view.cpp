@@ -82,7 +82,7 @@ void View::setCameraType(CameraType _type) {
 ViewState View::state() const {
 
     return {
-        m_changed,
+        //m_changed,
         glm::dvec2(m_pos),
         m_zoom,
         m_type == CameraType::perspective ? m_pos.z/exp2(-m_baseZoom) : powf(2.f, m_zoom),
@@ -278,41 +278,28 @@ void View::applyWorldBounds() {
     m_pos.y = m_constraint.getConstrainedY(m_pos.y);
 }
 
-void View::update() {
-
-    m_changed = false;
-
-    // Ensure valid pitch angle.
-    float maxPitchRadians = glm::radians(getMaxPitch());
-    if (m_type != CameraType::perspective) {
-        // Prevent projection plane from intersecting ground plane.
-        float intersectingPitchRadians = atan2(m_pos.z, m_height * .5f);
-        maxPitchRadians = glm::min(maxPitchRadians, intersectingPitchRadians);
-    }
-    m_pitch = glm::clamp(m_pitch, 0.f, maxPitchRadians);
+bool View::update() {
 
     // ensure valid zoom
     if (!m_elevationManager && m_zoom != m_baseZoom) {
         setZoom(m_zoom);
     }
 
-    if (m_dirtyMatrices) {
-        updateMatrices(); // Resets dirty flag
-        m_changed = true;
-    }
+    // updateMatrices() sets m_changed = true
+    if (m_dirtyMatrices) { updateMatrices(); }
 
     if (m_dirtyTiles) {
         m_changed = true;
         m_dirtyTiles = false;
     }
+
+    return std::exchange(m_changed, false);
 }
 
 glm::dmat2 View::getBoundsRect() const {
-
     double hw = m_width * 0.5;
     double hh = m_height * 0.5;
     return glm::dmat2(m_pos.x - hw, m_pos.y - hh, m_pos.x + hw, m_pos.y + hh);
-
 }
 
 void View::setPadding(EdgePadding padding) {
@@ -416,7 +403,7 @@ void View::updateMatrices() {
     if (m_type != CameraType::perspective) {
     } else if (prevViewZ > 0 && prevViewZ < 1E9f) {
         double minCameraDist = exp2(-m_maxZoom) * worldToCameraHeight;
-        double prevCamDist = exp2(-m_elevationManager->m_depthBaseZoom) * worldToCameraHeight;
+        double prevCamDist = exp2(-m_elevationManager->m_depthBaseZoom[0]) * worldToCameraHeight;
         double viewZ = prevViewZ + m_pos.z - prevCamDist;
         // decrease base zoom if too close to terrain (but never increase)
         if (viewZ < minCameraDist) {
@@ -431,6 +418,15 @@ void View::updateMatrices() {
     // m_baseZoom now has final value
     m_height = exp2(-m_baseZoom) * worldHeight;
     m_width = m_height * m_aspect;
+
+    // Ensure valid pitch angle.
+    float maxPitchRadians = glm::radians(getMaxPitch());
+    if (m_type != CameraType::perspective) {
+        // Prevent projection plane from intersecting ground plane.
+        float intersectingPitchRadians = atan2(m_pos.z, m_height * .5f);
+        maxPitchRadians = glm::min(maxPitchRadians, intersectingPitchRadians);
+    }
+    m_pitch = glm::clamp(m_pitch, 0.f, maxPitchRadians);
 
     // using non-zero elevation for camera reference creates all kinds of problems
     glm::vec3 up = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 1.f, 0.f), m_pitch), m_yaw);
@@ -509,7 +505,7 @@ void View::updateMatrices() {
     m_invNormalMatrix = glm::inverse(m_normalMatrix);
 
     m_dirtyMatrices = false;
-
+    m_changed = true;
 }
 
 glm::vec2 View::lngLatToScreenPosition(double lng, double lat, bool& outsideViewport, bool clipToViewport) {

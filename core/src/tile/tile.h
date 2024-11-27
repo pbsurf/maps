@@ -77,7 +77,7 @@ public:
     const auto& rasters() const { return m_rasters; }
 
     /* Update the Tile considering the current view */
-    void update(float _dt, const View& _view);
+    void update(const View& _view, float _dt);
 
     void resetState();
 

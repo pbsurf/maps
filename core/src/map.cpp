@@ -259,7 +259,6 @@ MapState Map::update(float _dt) {
         state |= MapState::scene_loading;
 
     } else {
-        impl->view.update();
 
         // Sync ClientTileSource changes with TileManager
         bool firstUpdate = !wasReady;

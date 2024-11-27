@@ -110,7 +110,7 @@ TEST_CASE( "Test anchor fallback behavior", "[Labels][AnchorFallback]" ) {
     view.update();
 
     Tile tile({0,0,0});
-    tile.update(0, view);
+    tile.update(view, 0);
 
     struct TestTransform {
         ScreenTransform transform;

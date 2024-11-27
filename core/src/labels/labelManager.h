@@ -35,17 +35,12 @@ public:
 
     void drawDebug(RenderState& rs, const View& _view);
 
+    // onlyRender: when the view and tiles have not changed one does not need to update the set of
+    //  active labels. We just need to render these the labels in this case
     void updateLabelSet(const ViewState& _viewState, float _dt, const Scene& _scene,
                         const std::vector<std::shared_ptr<Tile>>& _tiles,
-                        const std::vector<std::unique_ptr<Marker>>& _markers);
-
-    /* onlyRender: when the view and tiles have not changed one does not need to update the set of
-     * active labels. We just need to render these the labels in this case
-     */
-    void updateLabels(const ViewState& _viewState, float _dt, const Scene& _scene,
-                      const std::vector<std::shared_ptr<Tile>>& _tiles,
-                      const std::vector<std::unique_ptr<Marker>>& _markers,
-                      bool _onlyRender = true);
+                        const std::vector<std::unique_ptr<Marker>>& _markers,
+                        bool _onlyRender);
 
     bool needUpdate() const { return m_needUpdate; }
 
@@ -66,6 +61,11 @@ protected:
     void handleOcclusions(const ViewState& _viewState, bool _hideExtraLabels = false);
 
     bool withinRepeatDistance(Label *_label);
+
+    void updateLabels(const ViewState& _viewState, float _dt, const Scene& _scene,
+                      const std::vector<std::shared_ptr<Tile>>& _tiles,
+                      const std::vector<std::unique_ptr<Marker>>& _markers,
+                      bool _onlyRender);
 
     void processLabelUpdate(const ViewState& _viewState, const LabelSet* _labelSet, Style* _style,
                             const Tile* _tile, const Marker* _marker, ElevationManager* _elevManager,
