@@ -502,7 +502,7 @@ void TileManager::updateTileSet(TileSet& _tileSet, const ViewState& _view) {
                     m_tiles.push_back(entry.tile);
                 } else if (entry.isInProgress()) {
                     if (curTileId.z >= maxZoom || curTileId.z <= minZoom) {
-                        LOGD("Canceling proxy tile %s (out of zoom range)", curTileId.toString().c_str());
+                        //LOGD("Canceling proxy tile %s (out of zoom range)", curTileId.toString().c_str());
                         // Cancel tile loading but keep tile entry for referencing
                         // this tiles proxy tiles.
                         _tileSet.source->cancelLoadingTile(*entry.task);

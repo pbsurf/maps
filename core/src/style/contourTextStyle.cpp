@@ -122,13 +122,16 @@ bool ContourTextStyleBuilder::addFeature(const Feature& _feat, const DrawRule& _
 
     // this obviously needs to match values in contour line shader ... we could consider defining steps w/ a
     //  YAML array which can become a shader uniform and also can be read from Scene in Style::build()
-    float elevStep = metricUnits ? (m_tileId.z >= 14 ? 100 : m_tileId.z >= 12 ? 200 : 500)
-                                 : (m_tileId.z >= 14 ? 500 : m_tileId.z >= 12 ? 1000 : 2000)/3.28084f;
+    float elevStep = metricUnits ? (m_tileId.s >= 14 ? 100 : m_tileId.s >= 12 ? 200 : 500)
+                                 : (m_tileId.s >= 14 ? 500 : m_tileId.s >= 12 ? 1000 : 2000)/3.28084f;
 
     // Keep start position of new quads
     size_t quadsStart = m_quads.size(), numLabels = m_labels.size();
 
-    int ngrid = gridSize + (m_tileId.s - m_tileId.z);  // more points for overzoomed tiles
+    // at lower zooms, we want to exponentially increase grid points if overzoomed, but at higher zooms
+    //  where there are fewer features, we can relax grid density
+    int gridmult = std::max(0, std::min(int(m_tileId.s), 14) - m_tileId.z);
+    int ngrid = (gridSize << gridmult) + (m_tileId.s - m_tileId.z - gridmult);
     glm::vec2 pos;
     for (int col = 0; col < ngrid; col++) {
         pos.y = (col + 0.5f)/ngrid;

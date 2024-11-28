@@ -296,10 +296,8 @@ bool LabelManager::priorityComparator(const LabelEntry& _a, const LabelEntry& _b
     auto l1 = _a.label;
     auto l2 = _b.label;
 
-    // make sure ordering of related labels is preserved regardless of occluded state or camera distance
-    bool related = l1->relative() == l2 || l2->relative() == l1;
-    if (related && _a.priority != _b.priority) {
-        return _a.priority < _b.priority;
+    if (l1->isChild() != l2->isChild()) {
+        return l2->isChild();  // non-child over child
     }
 
     // Note: This causes non-deterministic placement, i.e. depending on

@@ -128,7 +128,7 @@ public:
 
     friend class Scene;
 
-    GLuint m_terrainDepthTexture = 0;
+    //GLuint m_terrainDepthTexture = 0;
 
 protected:
     void setFrameTime(float _time) { m_frameTime = _time; }

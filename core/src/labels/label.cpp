@@ -39,7 +39,7 @@ void Label::setRelative(Label& _relative, bool _definePriority, bool _defineColl
     m_relative = &_relative;
 
     if (_definePriority) {
-        m_options.priority = std::nextafter(std::floor(_relative.options().priority) + 1, -FLT_MAX);  //+ 0.5f;
+        m_options.priority = _relative.options().priority;  //+ 0.5f;
     }
 
     if (_defineCollide) {
