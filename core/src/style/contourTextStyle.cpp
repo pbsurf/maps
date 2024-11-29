@@ -115,6 +115,7 @@ bool ContourTextStyleBuilder::addFeature(const Feature& _feat, const DrawRule& _
     Properties props = {{{"name", "_"}, {"units", metricUnits ? "_m": "_ft"}}};  //
     TextStyle::Parameters params = applyRule(_rule, props, false);  //_feat.props
     if (!params.font) { return false; }
+    auto repeatGroupHash = params.labelOptions.repeatGroup;
     // 'angle: auto' -> labelOptions.angle = NAN to force text to always be oriented uphill
     _rule.get(StyleParamKey::angle, params.labelOptions.angle);
     params.wordWrap = false;
@@ -144,9 +145,12 @@ bool ContourTextStyleBuilder::addFeature(const Feature& _feat, const DrawRule& _
 
             LabelAttributes attrib;
             params.text = std::to_string(int(metricUnits ? level : std::round(level*3.28084f))) + suffix;
-            if (!prepareLabel(params, Label::Type::line, attrib)) { return false; }
+            // make sure different levels are in different repeat groups (which is the behavior in the normal
+            //  case where applyRule() is called for every label)
+            params.labelOptions.repeatGroup = repeatGroupHash;
+            hash_combine(params.labelOptions.repeatGroup, params.text);
 
-            //addLabel(Label::Type::line, {{ line.front(), line.back() }}, params, attrib, _rule);
+            if (!prepareLabel(params, Label::Type::line, attrib)) { return false; }
 
             //size_t prevlabels = m_labels.size();
             addCurvedTextLabels(line, params, attrib, _rule);
