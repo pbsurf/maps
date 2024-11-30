@@ -247,13 +247,13 @@ protected:
 
     State m_state = State::initial;
 
-    // object to manage JS context used for (optional) tile URL fns - must be destroyed after TileSources
-    DataSourceContext m_sourceContext;
-
     /// ---------------------------------------------------------------///
     /// Loaded Scene Data
     /// The root node of the YAML scene configuration
     YAML::Node m_config;
+
+    // object to manage JS context used for (optional) tile URL fns - must be destroyed after TileSources
+    DataSourceContext m_sourceContext;
 
     SceneCamera m_camera;
 
