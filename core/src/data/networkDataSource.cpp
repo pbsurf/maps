@@ -123,8 +123,8 @@ bool NetworkDataSource::loadTileData(std::shared_ptr<TileTask> task, TileTaskCb 
     LOGTO(">>> Url request for %s %s", task->source()->name().c_str(), task->tileId().toString().c_str());
     UrlCallback onRequestFinish = [=](UrlResponse&& response) mutable {
         auto source = task->source();
-        if (!source && !task->offlineId) {
-            LOGW("URL Callback for deleted TileSource '%s'", url.string().c_str());
+        if (!source) {
+            LOGW("URL callback for deleted TileSource '%s'", url.string().c_str());
             return;
         }
         //LOGT("<<< %s -- canceled:%d", task->tileId().toString().c_str(), task->isCanceled());

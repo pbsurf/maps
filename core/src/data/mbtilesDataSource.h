@@ -25,16 +25,15 @@ public:
     void clear() override {}
 
     int64_t getOfflineSize();
-    sqlite3* dbHandle();
 
 private:
     bool getTileData(const TileID& _tileId, std::vector<char>& _data, int64_t& _tileAge, int offlineId);
-    void storeTileData(const TileID& _tileId, const std::vector<char>& _data, int offlineId);
+    bool storeTileData(const TileID& _tileId, const std::vector<char>& _data, int offlineId = 0);
     bool loadNextSource(std::shared_ptr<TileTask> _task, TileTaskCb _cb);
 
     void openMBTiles();
-    bool testSchema(SQLiteDB& db);  //SQLite::Database& db);
-    void initSchema(SQLiteDB& db, std::string _name, std::string _mimeType);  //SQLite::Database& db
+    bool testSchema(SQLiteDB& db);
+    void initSchema(SQLiteDB& db, std::string _name, std::string _mimeType);
 
     std::string m_name;
 

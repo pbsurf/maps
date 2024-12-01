@@ -23,6 +23,7 @@ public:
   ~ElevationManager();
   double getElevation(ProjectedMeters pos, bool& ok);
   float getDepth(glm::vec2 screenpos);
+  float getDepthBaseZoom() { return m_depthData[0].zoom; }
   bool hasTile(TileID tileId);
   void setMinZoom(int z) { m_minZoom = z; }
 
@@ -38,8 +39,8 @@ public:
 
   std::unique_ptr<Style> m_style;
   std::unique_ptr<FrameBuffer> m_frameBuffer;
-  std::vector<float> m_depthData[2];
-  float m_depthBaseZoom[2] = {0, 0};
+  struct DepthData { std::vector<float> depth; int w = 0, h = 0; float zoom = 0; };
+  DepthData m_depthData[2];
   int m_minZoom = 0;
 
   static std::unique_ptr<RenderState> m_renderState;

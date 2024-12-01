@@ -125,8 +125,8 @@ MBTilesDataSource::MBTilesDataSource(Platform& _platform, std::string _name, std
     openMBTiles();
 }
 
-MBTilesDataSource::~MBTilesDataSource() {
-}
+// need explicit destructor since MBTilesQueries is incomplete in header
+MBTilesDataSource::~MBTilesDataSource() {}
 
 bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb _cb) {
 
@@ -149,8 +149,14 @@ bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb
               LOGV("%s - canceled tile: %s", m_name.c_str(), _task->tileId().toString().c_str());
               return;
             }
+            // lock the TileSource to ensure that any DataSource accessed by _cb is and remains alive
+            auto source = _task->source();
+            if (!source) {
+                LOGW("MBTilesDataSource callback for deleted TileSource!");
+                return;
+            }
             TileID tileId = _task->tileId();
-            LOGTO(">>> DB query for %s %s", _task->source()->name().c_str(), tileId.toString().c_str());
+            LOGTO(">>> DB query for %s %s", source->name().c_str(), tileId.toString().c_str());
 
             auto& task = static_cast<BinaryTileTask&>(*_task);
             auto tileData = std::make_unique<std::vector<char>>();
@@ -158,7 +164,7 @@ bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb
             //  let's not set rawTileData to empty vector, to match NetworkDataSource behavior
             int64_t tileAge = 0;
             getTileData(tileId, *tileData, tileAge, task.offlineId);
-            LOGTO("<<< DB query for %s %s%s", _task->source()->name().c_str(), tileId.toString().c_str(),
+            LOGTO("<<< DB query for %s %s%s", source->name().c_str(), tileId.toString().c_str(),
                   tileData->empty() ? " (not found)" : "");
 
             // if tile is expired, request from network, falling back to stale tile on failure
@@ -215,18 +221,25 @@ bool MBTilesDataSource::loadNextSource(std::shared_ptr<TileTask> _task, TileTask
 
     // Intercept TileTaskCb to store result from next source.
     TileTaskCb cb{[this, _cb](std::shared_ptr<TileTask> _task) {
-
+        // it is expected that the DataSource `next` has called _task->source() to lock the TileSource
+        //  if this callback is run on a different thread
         if (_task->hasData()) {
 
             if (m_cacheMode) {
-                m_worker->enqueue([this, _task](){
-
-                        auto& task = static_cast<BinaryTileTask&>(*_task);
-
-                        LOGD("%s - store tile: %s, %d", m_name.c_str(), _task->tileId().toString().c_str(), task.hasData());
-
-                        storeTileData(_task->tileId(), *task.rawTileData, task.offlineId);
-                    });
+                if(_task->offlineId) {
+                    // for offline map download, we must force retry if storing tile fails (due to locked DB)
+                    auto& task = static_cast<BinaryTileTask&>(*_task);
+                    if (!storeTileData(task.tileId(), *task.rawTileData, task.offlineId)) {
+                        task.rawTileData->clear();
+                    }
+                } else {
+                    m_worker->enqueue([this, _task](){
+                            auto& task = static_cast<BinaryTileTask&>(*_task);
+                            LOGD("%s - store tile: %s, %d",
+                                 m_name.c_str(), _task->tileId().toString().c_str(), task.hasData());
+                            storeTileData(_task->tileId(), *task.rawTileData);
+                        });
+                }
             }
 
             _cb.func(_task);
@@ -235,6 +248,14 @@ bool MBTilesDataSource::loadNextSource(std::shared_ptr<TileTask> _task, TileTask
             LOGD("try fallback tile: %s, %d", _task->tileId().toString().c_str());
 
             m_worker->enqueue([this, _task, _cb](){
+
+                if (_task->isCanceled()) { return; }
+
+                auto source = _task->source();
+                if (!source) {
+                    LOGW("MBTilesDataSource callback (offline mode) for deleted TileSource!");
+                    return;
+                }
 
                 auto& task = static_cast<BinaryTileTask&>(*_task);
                 task.rawTileData = std::make_shared<std::vector<char>>();
@@ -411,8 +432,9 @@ bool MBTilesDataSource::getTileData(const TileID& _tileId,
     // offlineId > 0 indicates request to set offline_id; not necessary to read data
     if (offlineId > 0) {
         return m_queries->getOffline.bind(z, _tileId.x, y).exec([&](int, const char* tileid){
-            m_queries->putOffline.bind(tileid, std::abs(offlineId)).exec();
-            _data.push_back('\0');  // make TileTask::hasData() true
+            if (m_queries->putOffline.bind(tileid, std::abs(offlineId)).exec()) {
+                _data.push_back('\0');  // make TileTask::hasData() true if offline id written successfully
+            }
         });
     }
 
@@ -438,7 +460,9 @@ bool MBTilesDataSource::getTileData(const TileID& _tileId,
             memcpy(_data.data(), blob, length);
         }
         if (offlineId) {
-            m_queries->putOffline.bind(tileid, std::abs(offlineId)).exec();
+            if (!m_queries->putOffline.bind(tileid, std::abs(offlineId)).exec()) {
+                _data.clear();  // force retry if writing offline id fails
+            }
         }
         if (m_cacheMode) {
             m_queries->putLastAccess.bind(tileid).exec();
@@ -446,7 +470,7 @@ bool MBTilesDataSource::getTileData(const TileID& _tileId,
     });
 }
 
-void MBTilesDataSource::storeTileData(const TileID& _tileId, const std::vector<char>& _data, int offlineId) {
+bool MBTilesDataSource::storeTileData(const TileID& _tileId, const std::vector<char>& _data, int offlineId) {
     int z = _tileId.z;
     int y = (1 << z) - 1 - _tileId.y;
 
@@ -461,26 +485,35 @@ void MBTilesDataSource::storeTileData(const TileID& _tileId, const std::vector<c
     MD5 md5;
     std::string md5id = md5(data, size);
 
-    m_queries->putMap.bind(z, _tileId.x, y, md5id).exec();
-    sqlite3_bind_text(m_queries->putImage.stmt, 1, md5id.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_blob(m_queries->putImage.stmt, 2, data, size, SQLITE_STATIC);
-    m_queries->putImage.exec();
+    do {
+        if (!m_db->exec("BEGIN;")) { break; }
+        if (!m_queries->putMap.bind(z, _tileId.x, y, md5id).exec()) { break; }
+        sqlite3_bind_text(m_queries->putImage.stmt, 1, md5id.c_str(), -1, SQLITE_STATIC);
+        sqlite3_bind_blob(m_queries->putImage.stmt, 2, data, size, SQLITE_STATIC);
+        if (!m_queries->putImage.exec()) { break; }
 
-    m_platform.notifyStorage(size, 0);  //offlineId ? size : 0);
-    if (offlineId) {
-        m_queries->putOffline.bind(md5id, std::abs(offlineId)).exec();
-    } else {
-        m_queries->putLastAccess.bind(md5id).exec();
-    }
+        if (offlineId) {
+            if (!m_queries->putOffline.bind(md5id, std::abs(offlineId)).exec()) { break; }
+        } else {
+            if (!m_queries->putLastAccess.bind(md5id).exec()) { break; }
+        }
+
+        if (!m_db->exec("COMMIT;")) { break; }
+        m_platform.notifyStorage(size, 0);
+        return true;
+    } while (0);
+
+    LOGE("%s - SQL error storing tile %s: %s", m_name.c_str(), _tileId.toString().c_str(), m_db->errMsg());
+    m_db->exec("ROLLBACK;");
+    return false;
 }
 
 int64_t MBTilesDataSource::getOfflineSize() {
     int64_t size = 0;
-    if(m_queries)
-      m_queries->getOfflineSize.exec([&](int64_t s){ size = s; });
+    if(m_queries) {
+        m_queries->getOfflineSize.exec([&](int64_t s){ size = s; });
+    }
     return size;
 }
-
-sqlite3* MBTilesDataSource::dbHandle() { return m_db->db; }
 
 }

@@ -403,7 +403,7 @@ void View::updateMatrices() {
     if (m_type != CameraType::perspective) {
     } else if (prevViewZ > 0 && prevViewZ < 1E9f) {
         double minCameraDist = exp2(-m_maxZoom) * worldToCameraHeight;
-        double prevCamDist = exp2(-m_elevationManager->m_depthBaseZoom[0]) * worldToCameraHeight;
+        double prevCamDist = exp2(-m_elevationManager->getDepthBaseZoom()) * worldToCameraHeight;
         double viewZ = prevViewZ + m_pos.z - prevCamDist;
         // decrease base zoom if too close to terrain (but never increase)
         if (viewZ < minCameraDist) {

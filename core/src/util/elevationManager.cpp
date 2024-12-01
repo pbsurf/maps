@@ -160,17 +160,22 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
     int w = _view.getWidth()/bufferScale, h = _view.getHeight()/bufferScale;
     if (!m_frameBuffer || m_frameBuffer->getWidth() != w || m_frameBuffer->getHeight() != h) {
       m_frameBuffer = std::make_unique<FrameBuffer>(w, h, false, GL_R32UI);
-      m_depthData[0].resize(w * h, 0.0f);
       //_rs.m_terrainDepthTexture = m_frameBuffer->getTextureHandle();
     }
+
+    auto& d = m_depthData[0];
+    d.w = w;
+    d.h = h;
+    d.zoom = _view.getBaseZoom();
+    if (d.depth.size() != w * h)
+      d.depth.resize(w * h, 0.0f);
 
     _rs.cacheDefaultFramebuffer();
     m_frameBuffer->applyAsRenderTarget(_rs);
     m_style->draw(_rs, _view, _tiles, {});
 
-    GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, m_depthData[0].data());
+    GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, d.depth.data());
     _rs.framebuffer(_rs.defaultFrameBuffer());
-    m_depthBaseZoom[0] = _view.getBaseZoom();
 
     return;
   }
@@ -189,17 +194,20 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
   offscreenWorker->enqueue([&](){
     std::unique_lock<std::mutex> workerLock(drawMutex);
     std::swap(m_depthData[0], m_depthData[1]);
-    std::swap(m_depthBaseZoom[0], m_depthBaseZoom[1]);
 
     m_renderState->flushResourceDeletion();
     int w = _view.getWidth()/bufferScale, h = _view.getHeight()/bufferScale;
     if (!m_frameBuffer || m_frameBuffer->getWidth() != w || m_frameBuffer->getHeight() != h)
       m_frameBuffer = std::make_unique<FrameBuffer>(w, h, false, GL_R32UI);
-    if (m_depthData[1].size() != w * h)
-      m_depthData[1].resize(w * h, 0.0f);
     m_frameBuffer->applyAsRenderTarget(*m_renderState);  // this does the glClear()
 
-    m_depthBaseZoom[1] = _view.getBaseZoom();
+    auto& d = m_depthData[1];
+    d.w = w;
+    d.h = h;
+    d.zoom = _view.getBaseZoom();
+    if (d.depth.size() != w * h)
+      d.depth.resize(w * h, 0.0f);
+
     // originally, we were reusing mesh from another style, but this will use the uniform location for the
     //  other style (since SharedMesh saves Style*); also creates problems when deleting Scene if
     //  first raster tile was drawn by offscreen worker; also, VAOs can't be shared between contexts
@@ -209,7 +217,7 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
     workerLock.unlock();
     drawCond.notify_all();
 
-    GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, m_depthData[1].data());
+    GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, d.depth.data());
   });
 
   // wait for draw to finish to avoid changes to tiles, duplicate texture uploads, etc.
@@ -218,16 +226,12 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
 
 float ElevationManager::getDepth(glm::vec2 screenpos)
 {
-  if(!m_frameBuffer || m_depthData[0].empty()) { return 0; }
-  // for now, clamp to screen bounds to handle offscreen labels (extendedBounds in processLabelUpdate())
-  int w = m_frameBuffer->getWidth(), h = m_frameBuffer->getHeight();
+  auto& d = m_depthData[0];
+  if(d.depth.empty()) { return 0; }
   glm::vec2 pos = glm::round(screenpos/bufferScale);
-  if(pos.x < 0 || pos.y < 0 || pos.x >= w || pos.y >= h) { return 0; }
-  //glm::vec2 pos = glm::clamp(glm::round(screenpos/bufferScale), {0, 0}, {w-1, h-1});
-  //GL::readPixels(floorf(screenpos.x), floorf(screenpos.y), 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel);
-  // convert from 0..1 (glDepthRange) to -1..1 (NDC)
-  //return 2*m_depthData[int(pos.x) + int(h - pos.y - 1)*w] - 1;
-  return m_depthData[0][int(pos.x) + int(h - pos.y - 1)*w];
+  if(pos.x < 0 || pos.y < 0 || pos.x >= d.w || pos.y >= d.h) { return 0; }
+  //return 2*depth[int(pos.x) + int(h - pos.y - 1)*w] - 1;  // convert from 0..1 (glDepthRange) to -1..1 (NDC)
+  return m_depthData[0].depth[int(pos.x) + int(d.h - pos.y - 1)*d.w];
 }
 
 void ElevationManager::drawDepthDebug(RenderState& _rs, glm::vec2 _dim)
@@ -237,10 +241,10 @@ void ElevationManager::drawDepthDebug(RenderState& _rs, glm::vec2 _dim)
   texoptions.magFilter = TextureMagFilter::NEAREST;
   texoptions.minFilter = TextureMinFilter::NEAREST;
   Texture tex(texoptions);
-  int w = m_frameBuffer->getWidth(), h = m_frameBuffer->getHeight();
-  tex.setPixelData(w, h, 4, (GLubyte*)m_depthData[0].data(), m_depthData[0].size()*4);
+  auto& d = m_depthData[0];
+  tex.setPixelData(d.w, d.h, 4, (GLubyte*)m_depthData[0].depth.data(), d.depth.size()*4);
 
-  float worldTileSize = MapProjection::EARTH_CIRCUMFERENCE_METERS * std::exp2(-m_depthBaseZoom[0]);
+  float worldTileSize = MapProjection::EARTH_CIRCUMFERENCE_METERS * std::exp2(-d.zoom);
   float maxTileDistance = worldTileSize * (std::exp2(7.0f) - 1.0f);
   Primitives::drawTexture(_rs, tex, {0, 0}, _dim, 1/maxTileDistance);
 }

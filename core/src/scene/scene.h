@@ -115,7 +115,7 @@ public:
     JSFunctionIndex createFunction(const std::string& source);
     std::unique_lock<std::mutex> getJSLock() { return std::unique_lock<std::mutex>(m_jsMutex); }
     JSLockedContext getJSContext();
-    Platform& getPlatform() { return m_platform; }
+    Platform& getPlatform() const { return m_platform; }
 };
 
 // TODO: define in cmake file, not here!
