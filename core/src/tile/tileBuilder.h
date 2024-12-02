@@ -23,7 +23,7 @@ public:
 
     StyleBuilder* getStyleBuilder(const std::string& _name);
 
-    void build(Tile& tile, const TileData& _tileData);
+    void build(Tile& tile, const TileData& _tileData, const TileSource& _source);
 
     const Scene& scene() const { return m_scene; }
 

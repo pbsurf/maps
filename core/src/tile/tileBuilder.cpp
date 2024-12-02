@@ -102,13 +102,9 @@ void TileBuilder::applyStyling(const Feature& _feature, const SceneLayer& _layer
     }
 }
 
-void TileBuilder::build(Tile& tile, const TileData& _tileData) {
+void TileBuilder::build(Tile& tile, const TileData& _tileData, const TileSource& _source) {
 
     m_selectionFeatures.clear();
-
-    auto tileSrc = m_scene.tileManager()->getTileSource(tile.sourceID());
-    if (!tileSrc) { return; }  // scene is being destroyed (?)
-    std::string srcName = tileSrc->name();
 
     tile.initGeometry(int(m_scene.styles().size()));
 
@@ -125,7 +121,7 @@ void TileBuilder::build(Tile& tile, const TileData& _tileData) {
 
     for (const auto& datalayer : m_scene.layers()) {
 
-        if (datalayer.source() != srcName || !datalayer.enabled()) { continue; }
+        if (datalayer.source() != _source.name() || !datalayer.enabled()) { continue; }
 
         for (const auto& collection : _tileData.layers) {
 

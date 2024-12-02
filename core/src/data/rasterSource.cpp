@@ -23,7 +23,7 @@ public:
 
 
     std::shared_ptr<RasterSource> rasterSource() {
-        return reinterpret_cast<std::weak_ptr<RasterSource>*>(&m_source)->lock();
+        return std::static_pointer_cast<RasterSource>(m_source.lock());
     }
 
     bool hasData() const override {
@@ -52,7 +52,7 @@ public:
           auto ptex = raster ? raster->texture : std::shared_ptr<Texture>(texture.get(), [](auto* t){});
           m_tile = std::make_unique<Tile>(m_tileId, source->id(), source->generation());
           m_tile->rasters().emplace_back(m_tileId, ptex);
-          _tileBuilder.build(*m_tile, *(source->m_tileData));
+          _tileBuilder.build(*m_tile, *(source->m_tileData), *source);
           m_tile->rasters().pop_back();
         }
         m_ready = true;

@@ -39,7 +39,7 @@ void TileTask::process(TileBuilder& _tileBuilder) {
 
     if (tileData) {
         m_tile = std::make_unique<Tile>(m_tileId, source->id(), source->generation());
-        _tileBuilder.build(*m_tile, *tileData);
+        _tileBuilder.build(*m_tile, *tileData, *source);
         m_ready = true;
     } else {
         cancel();
