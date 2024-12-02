@@ -68,28 +68,35 @@ void Scene::cancelTasks() {
     auto state = m_state;
     m_state = State::canceled;
 
-    // cancel all URL requests so queued requests don't delay loading of next Scene
-    if (state != State::initial) {
-        m_platform.cancelUrlRequest(UrlRequestHandle(-1));
-    }
-
     if (state == State::loading) {
         /// Cancel loading Scene data
         if (m_importer) {
             LOGD("Cancel Importer tasks");
-            m_importer->cancelLoading(m_platform);
+            m_importer->cancelLoading();
         }
     }
 
     if (state == State::pending_resources) {
         /// NB: Called from main thread - notify async loader thread.
+        std::unique_lock<std::mutex> lock(m_taskMutex);
         m_taskCondition.notify_one();
     }
+
+    // tried canceling all URL requests at the Platform level, but this interferes w/ offline map download,
+    //  so we instead need to ensure each stage (Importer, Scene::load(), TileManager) cancels its URL
+    //  requests so they don't delay loading of next Scene
+    //std::unique_lock<std::mutex> sceneCancelLock(m_sceneLoadMutex);
+    //if (state != State::initial) { m_platform.cancelUrlRequest(UrlRequestHandle(-1)); }
 
     /// Cancels all TileTasks
     if (m_tileManager) {
         LOGD("Cancel TileManager tasks");
-        m_tileManager->cancelTileTasks();
+        m_tileManager->clearTileSets(true);
+    }
+
+    if (m_platform.activeUrlRequests() > 0) {
+        LOGW("%d pending downloads remaining after Scene cancellation", m_platform.activeUrlRequests());
+        //int req = 0; m_platform.cancelUrlRequest(req);  -- add this to help figure out offending task
     }
 }
 
@@ -116,6 +123,8 @@ bool Scene::load() {
 
     LOGTOInit();
     LOGTO(">>>>>> loadScene >>>>>>");
+
+    //std::unique_lock<std::mutex> sceneLoadLock(m_sceneLoadMutex);
 
     auto isCanceled = [&](Scene::State test){
         if (m_state == test) { return false; }
@@ -543,8 +552,9 @@ void Scene::runTextureTasks() {
                     sprites->updateSpriteNodes({texture->width(), texture->height()});
                 }
             }
-            task.done = true;
 
+            std::unique_lock<std::mutex> lock(m_taskMutex);
+            task.done = true;
             m_tasksActive--;
             m_taskCondition.notify_one();
         };
@@ -581,6 +591,7 @@ void Scene::runFontTasks() {
         LOG("Fetch font %s", task.ft.uri.c_str());
 
         auto cb = [this, &task](UrlResponse&& response) {
+             std::unique_lock<std::mutex> lock(m_taskMutex);
              LOG("Received font: %s", task.ft.uri.c_str());
              task.response = std::move(response);
              task.done = true;

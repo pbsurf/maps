@@ -47,8 +47,6 @@ public:
 
     void clearTileSet(int32_t _sourceId);
 
-    void cancelTileTasks();
-
     /* Returns the set of currently visible tiles */
     const auto& getVisibleTiles() const { return m_tiles; }
 
@@ -77,9 +75,9 @@ protected:
     struct TileEntry;
 
     struct TileSet {
-        TileSet(std::shared_ptr<TileSource> _source, bool _clientSource);
+        TileSet(std::shared_ptr<TileSource> _source);
         ~TileSet();
-        void cancelTasks();
+        //void cancelTasks();
 
         std::shared_ptr<TileSource> source;
 
@@ -87,7 +85,6 @@ protected:
         std::map<TileID, TileEntry> tiles;
 
         int64_t sourceGeneration = 0;
-        bool clientTileSource;
 
         TileSet(const TileSet&) = delete;
         TileSet(TileSet&&) = default;

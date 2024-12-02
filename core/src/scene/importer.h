@@ -7,6 +7,7 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <condition_variable>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -30,7 +31,7 @@ public:
     // Loads the main scene with deep merging dependent imported scenes.
     Node loadSceneData(Platform& platform, const Url& sceneUrl, const std::string& sceneYaml = "");
 
-    void cancelLoading(Platform& _platform);
+    void cancelLoading();
 
     static bool isZipArchiveUrl(const Url& url);
 
@@ -84,19 +85,15 @@ protected:
 
     std::vector<Url> m_sceneQueue = {};
 
+    std::atomic<bool> m_canceled{false};
+    std::mutex m_sceneMutex;
+    std::condition_variable m_sceneCond;
+
     // Container for any zip archives needed for the scene. For each entry, the
     // key is the original URL from which the zip archive was retrieved and the
     // value is a ZipArchive initialized with the compressed archive data.
-    std::unique_ptr<AsyncWorker> m_zipWorker;
     std::unordered_map<Url, std::shared_ptr<ZipArchive>> m_zipArchives;
-
-    // Keep track of UrlRequests for cancellation. NB we don't care to remove
-    // handles when requests finished: Calling cancel on a finished request has
-    // not much overhead and is going to be rarely used.
-    std::vector<UrlRequestHandle> m_urlRequests;
-    std::atomic<bool> m_canceled{false};
-    std::mutex m_sceneMutex;
-
+    std::unique_ptr<AsyncWorker> m_zipWorker;
 };
 
 }

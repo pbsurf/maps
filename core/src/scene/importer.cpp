@@ -9,7 +9,6 @@
 #include <algorithm>
 #include <atomic>
 #include <cassert>
-#include <condition_variable>
 
 using YAML::Node;
 using YAML::NodeType;
@@ -22,6 +21,8 @@ Importer::~Importer() {}
 Node Importer::loadSceneData(Platform& _platform, const Url& _sceneUrl, const std::string& _sceneYaml) {
 
     Url nextUrlToImport;
+    std::vector<UrlRequestHandle> urlRequests;
+    unsigned int activeDownloads = 0;  // protected by m_sceneMutex
 
     if (!_sceneYaml.empty()) {
         // Load scene from yaml string.
@@ -31,57 +32,52 @@ Node Importer::loadSceneData(Platform& _platform, const Url& _sceneUrl, const st
         m_sceneQueue.push_back(_sceneUrl);
     }
 
-    std::atomic_uint activeDownloads(0);
-    std::condition_variable condition;
-
+    // we no longer wait for every callback to run (so activeDownloads == 0) when canceled - we only expect
+    //  all callbacks to be called or removed by Platform before Importer is destroyed
     while (true) {
         {
             std::unique_lock<std::mutex> lock(m_sceneMutex);
+            m_sceneCond.wait(lock, [&](){
+              return !m_sceneQueue.empty() || activeDownloads == 0 || m_canceled;
+            });
 
-            if (m_sceneQueue.empty() || m_canceled) {
-                if (activeDownloads == 0) {
-                    break;
-                }
-                condition.wait(lock);
-            }
-
-            if (m_sceneQueue.empty() || m_canceled) {
-                continue;
-            }
+            if (m_sceneQueue.empty() || m_canceled) { break; }
 
             nextUrlToImport = m_sceneQueue.back();
             m_sceneQueue.pop_back();
 
             // Mark Url as going-to-be-imported to prevent duplicate work.
             m_sceneNodes.emplace(nextUrlToImport, SceneNode{});
+            activeDownloads++;
         }
 
+        // unlock m_sceneMutex before starting request because callback could be sync or async
         auto cb = [&, nextUrlToImport](UrlResponse&& response) {
-            std::unique_lock<std::mutex> lock(m_sceneMutex);
-            if (m_canceled) {}
-            else if (response.error) {
+            if (m_canceled) { return; }
+            std::unique_lock<std::mutex> _lock(m_sceneMutex);
+            if (response.error) {
                 LOGE("Unable to retrieve '%s': %s", nextUrlToImport.string().c_str(),
                      response.error);
             } else {
                 addSceneData(nextUrlToImport, std::move(response.content));
             }
             activeDownloads--;
-            condition.notify_one();
+            m_sceneCond.notify_one();
         };
-
-        activeDownloads++;
 
         if (nextUrlToImport.scheme() == "zip") {
             readFromZip(nextUrlToImport, cb);
         } else {
-            auto handle = _platform.startUrlRequest(nextUrlToImport, cb);
-
-            std::unique_lock<std::mutex> lock(m_sceneMutex);
-            m_urlRequests.push_back(handle);
+            urlRequests.push_back(_platform.startUrlRequest(nextUrlToImport, cb));
         }
     }
 
-    if (m_canceled) { return Node(); }
+    if (m_canceled) {
+        // clear all callbacks before captures go out of scope!
+        for (auto& req : urlRequests) { _platform.cancelUrlRequest(req); }
+        m_zipWorker.reset();
+        return Node();
+    }
 
     LOGD("Processing scene import Stack:");
     std::unordered_set<Url> imported;
@@ -109,18 +105,10 @@ Node Importer::loadSceneData(Platform& _platform, const Url& _sceneUrl, const st
     return root;
 }
 
-void Importer::cancelLoading(Platform& _platform) {
+void Importer::cancelLoading() {  //Platform& _platform) {
     std::unique_lock<std::mutex> lock(m_sceneMutex);
     m_canceled = true;
-    while (!m_urlRequests.empty()) {
-        auto handle = m_urlRequests.back();
-        m_urlRequests.pop_back();
-        // cancelUrlRequest() will call request callback, which needs m_sceneMutex to notify cond var in
-        //  loadSceneData so that loadSceneData can break loop and exit
-        lock.unlock();
-        _platform.cancelUrlRequest(handle);
-        lock.lock();
-    }
+    m_sceneCond.notify_all();
 }
 
 void Importer::addSceneData(const Url& sceneUrl, std::vector<char>&& sceneData) {
@@ -160,7 +148,7 @@ UrlRequestHandle Importer::readFromZip(const Url& url, UrlCallback callback) {
 
     if (!m_zipWorker) {
         m_zipWorker = std::make_unique<AsyncWorker>();
-        m_zipWorker->waitForCompletion();
+        //m_zipWorker->waitForCompletion();
     }
 
     m_zipWorker->enqueue([=](){

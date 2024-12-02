@@ -299,7 +299,6 @@ protected:
     std::unique_ptr<ElevationManager> m_elevationManager;
     std::unique_ptr<SkyManager> m_skyManager;
 
-    std::mutex m_sceneLoadMutex;
     std::mutex m_taskMutex;
     std::atomic_uint m_tasksActive{0};
     std::condition_variable m_taskCondition;

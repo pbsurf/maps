@@ -151,6 +151,7 @@ public:
 
     /* Avoid RTTI by adding a boolean check on the data source object */
     virtual bool isRaster() const { return false; }
+    virtual bool isClient() const { return false; }
 
     void setFormat(Format format) { m_format = format; }
 

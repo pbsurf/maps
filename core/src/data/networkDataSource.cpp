@@ -119,7 +119,6 @@ bool NetworkDataSource::loadTileData(std::shared_ptr<TileTask> task, TileTaskCb 
         m_urlSubdomainIndex = (m_urlSubdomainIndex + 1) % m_options.subdomains.size();
     }
 
-    //LOGTInit(">>> %s", task->tileId().toString().c_str());
     LOGTO(">>> Url request for %s %s", task->source()->name().c_str(), task->tileId().toString().c_str());
     UrlCallback onRequestFinish = [=](UrlResponse&& response) mutable {
         auto source = task->source();
@@ -127,19 +126,17 @@ bool NetworkDataSource::loadTileData(std::shared_ptr<TileTask> task, TileTaskCb 
             LOGW("URL callback for deleted TileSource '%s'", url.string().c_str());
             return;
         }
-        //LOGT("<<< %s -- canceled:%d", task->tileId().toString().c_str(), task->isCanceled());
-        LOGTO("<<< Url request for %s %s%s", task->source()->name().c_str(), task->tileId().toString().c_str(),
-              task->isCanceled() ? " (canceled)" : "");
+        LOGTO("<<< Url request for %s %s%s", task->source()->name().c_str(),
+              task->tileId().toString().c_str(), task->isCanceled() ? " (canceled)" : "");
 
-        if (task->isCanceled()) {
-            return;
-        }
+        auto& dlTask = static_cast<BinaryTileTask&>(*task);
+        dlTask.urlRequestHandle = 0;
+
+        if (task->isCanceled()) { return; }
 
         if (response.error) {
             LOGD("URL request '%s': %s", url.string().c_str(), response.error);
-
         } else if (!response.content.empty()) {
-            auto& dlTask = static_cast<BinaryTileTask&>(*task);
             dlTask.rawTileData = std::make_shared<std::vector<char>>(std::move(response.content));
         }
         callback.func(std::move(task));
@@ -148,16 +145,13 @@ bool NetworkDataSource::loadTileData(std::shared_ptr<TileTask> task, TileTaskCb 
     auto& dlTask = static_cast<BinaryTileTask&>(*task);
     dlTask.urlRequestHandle = m_context.getPlatform().startUrlRequest(url, m_options.httpOptions,
                                                                       std::move(onRequestFinish));
-    dlTask.urlRequestStarted = true;
-
     return true;
 }
 
 void NetworkDataSource::cancelLoadingTile(TileTask& task) {
     auto& dlTask = static_cast<BinaryTileTask&>(task);
-    if (dlTask.urlRequestStarted) {
-        dlTask.urlRequestStarted = false;
-
+    if (dlTask.urlRequestHandle) {
+        // we expect callback to clear urlRequestHandle
         m_context.getPlatform().cancelUrlRequest(dlTask.urlRequestHandle);
     }
 }

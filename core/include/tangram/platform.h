@@ -115,8 +115,6 @@ public:
 
     std::atomic_uint_fast64_t bytesDownloaded = {0};
     std::atomic_bool isOffline{false};
-    size_t urlRequestsThreshold = 0;
-    std::function<void(void)> onUrlRequestsThreshold;
     std::function<void(int64_t, int64_t)> onNotifyStorage;
 
     static char const* shutdown_message;

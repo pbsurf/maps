@@ -148,28 +148,21 @@ void Platform::cancelUrlRequest(const UrlRequestHandle _request) {
         if (it != m_urlCallbacks.end()) {
             id = it->second.id;
             cancelable = it->second.cancelable;
-
-            if (!cancelable) {
-                callback = std::move(it->second.callback);
-                m_urlCallbacks.erase(it);
-            }
+            //if (!cancelable) {
+            callback = std::move(it->second.callback);
+            m_urlCallbacks.erase(it);
         }
     }
 
     if (cancelable) {
         cancelUrlRequestImpl(id);
-
-    } else {
-        // Run callback directly when platform implementation cannot cancel it.
-        if (callback) {
-            UrlResponse response;
-            response.error = cancel_message;
-            callback(std::move(response));
-        }
     }
-
-    if (activeUrlRequests() == urlRequestsThreshold && onUrlRequestsThreshold)
-        onUrlRequestsThreshold();
+    // We now always remove and run callback immediately
+    if (callback) {
+        UrlResponse response;
+        response.error = cancel_message;
+        callback(std::move(response));
+    }
 }
 
 void Platform::onUrlResponse(const UrlRequestHandle _request, UrlResponse&& _response) {
@@ -189,9 +182,6 @@ void Platform::onUrlResponse(const UrlRequestHandle _request, UrlResponse&& _res
         }
     }
     if (callback) { callback(std::move(_response)); }
-
-    if (activeUrlRequests() == urlRequestsThreshold && onUrlRequestsThreshold)
-        onUrlRequestsThreshold();
 }
 
 void logStr(const std::string& msg) {

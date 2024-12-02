@@ -106,12 +106,8 @@ std::shared_ptr<TileData> TileSource::parse(const TileTask& _task) const {
 }
 
 void TileSource::cancelLoadingTile(TileTask& _task) {
-
-    if (m_sources && _task.shareCount <= 1) { m_sources->cancelLoadingTile(_task); }
-
-    for (auto& subTask : _task.subTasks()) {
-        subTask->source()->cancelLoadingTile(*subTask);
-    }
+    // handling of shareCount and subtasks now done in TileManager::TileEntry::clearTask()
+    if (m_sources) { m_sources->cancelLoadingTile(_task); }
 }
 
 void TileSource::addRasterSource(std::shared_ptr<TileSource> _rasterSource) {
