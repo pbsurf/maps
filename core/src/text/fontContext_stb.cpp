@@ -96,9 +96,7 @@ void FontContext::releaseFonts()
   m_atlasRefCount = {{0}};
 }
 
-// Synchronized on m_mutex in layoutText(), called on tile-worker threads
 void FontContext::flushTextTexture() {
-    //std::lock_guard<std::mutex> lock(m_textureMutex);
     if(m_textures.empty()) return;
     int dirty[4];
     if (!fonsValidateTexture(m_fons, dirty)) return;
@@ -127,8 +125,11 @@ void FontContext::releaseAtlas(std::bitset<max_textures> _refs) {
     }
 }
 
+// if using multiple mutexs, they must always be locked (and released) in the same order - we choose
+//  fontMutex then textureMutex
 void FontContext::updateTextures(RenderState& rs) {
-    std::lock_guard<std::mutex> lock(m_textureMutex);
+    std::lock_guard<std::mutex> fontlock(m_fontMutex);  // needed for flushTextTexture()
+    std::lock_guard<std::mutex> texlock(m_textureMutex);
 
     flushTextTexture();
     for (auto& gt : m_textures) { gt->bind(rs, 0); }
@@ -140,7 +141,7 @@ void FontContext::bindTexture(RenderState& rs, int _id, GLuint _unit) {
     m_textures[_id]->bind(rs, _unit);
 }
 
-// Synchronized on m_mutex in layoutText(), called on tile-worker threads
+// Synchronized on m_fontMutex in layoutText(), called on tile-worker threads
 int FontContext::addTexture() {
     std::lock_guard<std::mutex> lock(m_textureMutex);
     if (m_textures.size() == max_textures) {
