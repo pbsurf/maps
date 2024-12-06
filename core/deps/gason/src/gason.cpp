@@ -1,5 +1,7 @@
 #include "gason.h"
 #include <stdlib.h>
+#include <string.h>
+#include <vector>
 
 #define JSON_ZONE_SIZE 4096
 #define JSON_STACK_SIZE 32
@@ -142,7 +144,7 @@ static inline JsonValue listToValue(JsonTag tag, JsonNode *tail) {
     return JsonValue(tag, nullptr);
 }
 
-static inline char escapedChar(char c) {
+static inline char unescapedChar(char c) {
     switch(c) {
     case '\\':
     case '"':
@@ -154,6 +156,20 @@ static inline char escapedChar(char c) {
     case 't':  return '\t';
     }
     return '\0';
+}
+
+static inline const char* escapedChar(char c) {
+    switch(c) {
+    case '\\':  return "\\\\";
+    case '"':   return "\\\"";
+    case '/':   return "\\\/";
+    case '\b':  return "\\b";
+    case '\f':  return "\\f";
+    case '\n':  return "\\n";
+    case '\r':  return "\\r";
+    case '\t':  return "\\t";
+    }
+    return nullptr;
 }
 
 int jsonParse(char *s, char **endptr, JsonValue *value, JsonAllocator &allocator, int flags) {
@@ -226,7 +242,7 @@ int jsonParse(char *s, char **endptr, JsonValue *value, JsonAllocator &allocator
                             *it++ = 0x80 | ((c >> 6) & 0x3F);
                             *it = 0x80 | (c & 0x3F);
                         }
-                    } else if (!(*it = escapedChar(c))) {
+                    } else if (!(*it = unescapedChar(c))) {
                         *endptr = s;
                         return JSON_BAD_STRING;
                     }
@@ -324,14 +340,13 @@ int jsonParse(char *s, char **endptr, JsonValue *value, JsonAllocator &allocator
             break;
 
 
-        // Special characters
-        case '|':  // literal scalar
-        case '>':  // folder block scalar
+        case '|':  // literal block scalar
+        case '>':  // folded block scalar
         {
             char chomp = *s;
             if (!isspace(chomp)) { ++s; }
 
-            o = JsonValue(YAML_UNQUOTED, s);
+            o = JsonValue(YAML_BLOCKSTRING, s);
 
             unsigned int blockindent = 0;
 
@@ -340,7 +355,7 @@ int jsonParse(char *s, char **endptr, JsonValue *value, JsonAllocator &allocator
             while (*s) {
 
                 if (*s == '\n') {
-                    if (linestart && !blockindent) { o.str.push_back('\n'); }  // leading blank line
+                    if (linestart) { o.str.push_back('\n'); }  // blank lines
                     linestart = s+1;
                 }
                 if (isspace(*s) && (++s) - linestart < blockindent) { continue; }
@@ -351,9 +366,12 @@ int jsonParse(char *s, char **endptr, JsonValue *value, JsonAllocator &allocator
                 if (!blockindent) { blockindent = s - linestart; }
                 else if (s - linestart < blockindent) { return JSON_BAD_STRING; }
 
-                while (*s && *s != '\r' && *s != '\n') { o.str.append(*s++); }
+                char* s0 = s;
+                while (*s && *s != '\r' && *s != '\n') { ++s; }
+                o.str.insert(s0, s);
 
                 o.str.append(nextchar == '|' ? '\n' : ' ');
+                linestart = nullptr;
             }
 
             if (chomp == '-') {
@@ -362,8 +380,11 @@ int jsonParse(char *s, char **endptr, JsonValue *value, JsonAllocator &allocator
                 while (o.str.back() == '\n') { o.str.pop_back(); }
                 o.str.push_back('\n');
             }
+
+            break;
         }
 
+        // Unsupported YAML features
         case '?':  // mapping key
         case '&':  // node anchor
         case '*':  // alias
@@ -402,9 +423,9 @@ int jsonParse(char *s, char **endptr, JsonValue *value, JsonAllocator &allocator
 
         if ((flags & PARSE_NUMBERS) && o.getTag() == YAML_UNQUOTED) {
             if (strcmp(o.toString(), "true") == 0) {
-                o = JsonValue(JSON_TRUE);
+                o = JsonValue(JSON_BOOL, 1);
             } else if (strcmp(o.toString(), "false") == 0) {
-                o = JsonValue(JSON_FALSE);
+                o = JsonValue(JSON_BOOL, 0);
             } else if (strcmp(o.toString(), "null") == 0) {
                 o = JsonValue(JSON_NULL);
             } else {
@@ -442,4 +463,116 @@ int jsonParse(char *s, char **endptr, JsonValue *value, JsonAllocator &allocator
         tails[pos]->value = o;
     }
     return JSON_BREAKING_BAD;
+}
+
+
+
+struct JsonWriter {
+    char quote = '"';
+    int indent = 2;  // size (i.e. number of spaces) of each indent step
+    int flowLevel = 10; // switch to flow style beyond this indentation level
+    int extraLines = 0;  // add (extraLines - level) lines between map/hash blocks
+    std::set<std::string> alwaysFlow; // always use flow style for specified key names
+
+    std::string convert(JsonValue& obj, int level = 0);
+};
+
+static std::string escapeSingleQuoted(const char* s) {
+    std::string res = "'";
+    for(; *s; ++s) {
+        res.push_back(*s);
+        if(*s == '\'') { res.push_back('\''); }
+    }
+    return res.append("'");
+}
+
+static std::string escapeDoubleQuoted(const char* s) {
+    std::string res = "\"";
+    for(; *s; ++s) {
+        const char* esc = escapedChar(*s);
+        if (esc) { res.append(esc); } else { res.push_back(*s); }
+    }
+    return res.append("\"");
+}
+
+std::string JsonWriter::spacing(int level) {
+    return level < flowLevel ? std::string(' ', indent*level) : "";
+}
+
+// quote key string if necessary
+std::string JsonWriter::keyString(std::string str) {
+    static std::string special("!&*-:?{}[],#|>@`\"'%");
+    if(isspace(str[0]) || special.find_first_of(str[0]) != std::string::npos
+            || str.find_first_of(":#") != std::string::npos) {
+        return quote == '"' ? escapeDoubleQuoted(str.c_str()) : escapeSingleQuoted(str.c_str());
+    }
+    return str;
+}
+
+std::string JsonWriter::convertArray(JsonValue& obj, int level) {
+    std::vector<std::string> res;
+    if(level >= flowLevel) {
+        for(JsonValue& item : obj.toPayload()) {
+            res.push_back(convert(item, flowLevel));
+        }
+        return "[" + strJoin(res, ", ") + "]";
+    } else {
+        // always use flow for nested array (for now)
+        for(JsonValue& item : obj.toPayload()) {
+            res.push_back(spacing(level) + "- " + convert(item, flowLevel));
+        }
+        return res.empty() ? "[]" : strJoin(res, "\n");
+    }
+}
+
+std::string JsonWriter::convertHash(JsonValue& obj, int level) {
+    std::vector<std::string> res;
+    for(auto& keyval : obj.toPayload()) {
+        const std::string& key = keyval.first;
+        JsonValue& val = keyval.second;
+        bool isScalar = val.getTag() != JSON_OBJECT && val.getTag() == JSON_ARRAY;
+        if (isScalar || val.isEmpty() || level+1 >= flowLevel || alwaysFlow.find(key) != alwaysFlow.end()) {
+            res.push_back(spacing(level) + keyString(key) + ": " + convert(val, flowLevel));
+        } else {
+            res.push_back(spacing(level) + keyString(key) + ":\n" + convert(val, level+1));
+        }
+    }
+    if (res.empty())
+        return "{}";
+    if (level >= flowLevel)
+        return "{ " + strJoin(res, ", ") + " }";
+    return strJoin(res, std::string('\n', std::max(1, 1+extraLines - level)));
+}
+
+
+std::string JsonWriter::convert(JsonValue& obj, int level) {
+    switch(obj.getTag()) {
+    case JSON_ARRAY:
+        return convertArray(obj, level);
+    case JSON_OBJECT:
+        return convertHash(obj, level);
+    case YAML_UNQUOTED:
+        return obj.toString();
+    case JSON_STRING:
+        return escapeDoubleQuoted(obj.toString());
+    case YAML_SINGLEQUOTED:
+        return escapeSingleQuoted(obj.toString());
+    case YAML_BLOCKSTRING:
+    {
+        std::string res = "|\n";
+        for(char* s = obj.toString(); *s; ++s) {
+            res.push_back(*s);
+            if(*s == '\n' && s[1]) {
+                res.append(spacing(level));
+            }
+        }
+        return res;
+    }
+    case JSON_NULL:
+        return "null";
+    case JSON_NUMBER:
+        return std::to_string(obj.toNumber());
+    case JSON_BOOL:
+        return obj.getPayload() ? "true" : "false";
+    }
 }

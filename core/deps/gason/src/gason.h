@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <assert.h>
 
+#include <string>
+
 #define ENABLE_YAML 1
 
 #if ENABLE_YAML
@@ -20,8 +22,7 @@ enum JsonTag {
     JSON_STRING,
     JSON_ARRAY,
     JSON_OBJECT,
-    JSON_TRUE,
-    JSON_FALSE,
+    JSON_BOOL,
 #if ENABLE_YAML
     YAML_COMMENT,
     YAML_SINGLEQUOTED,
@@ -36,6 +37,7 @@ struct JsonValue {
       uint64_t ival_ = 0;
       double fval_;
     };
+    std::string val;
     uint8_t tag_ = JSON_NULL;
     // we'll need to add additional fields for YAML (flow style flag)
 
@@ -52,8 +54,8 @@ struct JsonValue {
         return (JsonNode *)getPayload();
     }
 
-    operator bool() { return getTag() != JSON_NULL; }
-    bool operator!() { return getTag() == JSON_NULL; }
+    operator bool() { return getTag() != UNDEFINED; }
+    bool operator!() { return getTag() == UNDEFINED; }
 
     JsonValue& operator=(double x) { tag_ = JSON_NUMBER; fval_ = x; }
     JsonValue& operator=(const char* s) { tag_ = JSON_STRING; ival_ = (uint64_t)s; }
@@ -81,6 +83,16 @@ struct JsonValue {
         JsonNode* array = getTag() == JSON_ARRAY ? toNode() : nullptr;
         while (array && idx--) { array = array->next; }
         return array ? array->value : NULL_NODE;
+        // if idx == size, return pending node!
+    }
+
+    void push_back(JsonValue&& val) {
+        if (!getTag() == JSON_ARRAY) { return; }
+        JsonNode* item = new JsonNode{std::move(val), nullptr, nullptr};
+        JsonNode* array = toNode();
+        if (!array) { setPayload(item); return; }
+        while (array->next) { array = array->next; }
+        array->next = item;
     }
 
     size_t size() {
@@ -131,13 +143,21 @@ template<> inline bool JsonValue::as(const bool& _default) {
 }
 
 
-static JsonNode NULL_NODE = {JsonValue(), nullptr, nullptr};
+//static JsonNode NULL_NODE = {JsonValue(), nullptr, nullptr};
 
 struct JsonNode {
     JsonValue value;
-    JsonNode *next;
-    char *key;
+    JsonNode *next = nullptr;
+    std::string key;  //char *key;
+
+    ~JsonNode() {
+        while(next) {
+            delete std::exchange(next, next->next);
+        }
+    }
 };
+
+
 
 struct JsonIterator {
     JsonNode *p;
