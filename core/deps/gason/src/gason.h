@@ -17,7 +17,8 @@ namespace JSON {
 }
 
 enum JsonTag {
-    JSON_NULL = 0,
+    UNDEFINED = 0,  // key not found (but can be added by assignment)
+    JSON_NULL,
     JSON_NUMBER,
     JSON_STRING,
     JSON_ARRAY,
@@ -27,120 +28,102 @@ enum JsonTag {
     YAML_COMMENT,
     YAML_SINGLEQUOTED,
     YAML_UNQUOTED,
+    YAML_BLOCKSTRING,
+    INVALID = 0xFF  // returned by [](char*) if not object, or [](int) if not array
 #endif
 };
 
 struct JsonNode;
 
-struct JsonValue {
+class JsonValue {
+    friend class Node;
+    friend class SettingNode;
+
     union {
-      uint64_t ival_ = 0;
+      JsonNode* pval_ = nullptr;
+      uint64_t ival_;
       double fval_;
     };
-    std::string val;
+    std::string strVal;
     uint8_t tag_ = JSON_NULL;
     // we'll need to add additional fields for YAML (flow style flag)
 
+public:
     JsonValue(double x) : fval_(x), tag_(JSON_NUMBER) {}
-    JsonValue(JsonTag tag = JSON_NULL, void *payload = nullptr) : ival_((uintptr_t)payload), tag_(tag) {}
+    JsonValue(std::string&& s, JsonTag tag = JSON_STRING) : strVal(s), tag_(tag) {}
+    JsonValue(JsonTag tag = JSON_NULL, JsonNode* payload = nullptr) : pval_(payload), tag_(tag) {}
+    //if(payload) assert(tag == JSON_ARRAY || tag == JSON_OBJECT);
 
-    bool isDouble() const { return tag_ == JSON_NUMBER; }
+    JsonValue(const JsonValue&) = delete;
+    JsonValue(JsonValue&& b) { *this = std::move(b); }
+    JsonValue& operator=(JsonValue&& b) { std::swap(pval_, b.pval_); std::swap(tag_, b.tag_); std::swap(strVal, b.strVal);}
+    ~JsonValue() { if((getTag() == JSON_ARRAY || getTag() == JSON_OBJECT) && pval_) delete pval_; }
+
     JsonTag getTag() const { return (JsonTag)tag_; }
-    uint64_t getPayload() const { assert(!isDouble()); return ival_; }
-    double toNumber() const { assert(isDouble()); return fval_; }
-    char* toString() const { assert(getTag() == JSON_STRING); return (char *)getPayload();  }
-    JsonNode *toNode() const {
-        assert(getTag() == JSON_ARRAY || getTag() == JSON_OBJECT);
-        return (JsonNode *)getPayload();
-    }
+    const std::string& getString() const { return strVal; }
+    const char* getCStr() const { return strVal.c_str(); }
+    bool isNumber() const { return tag_ == JSON_NUMBER; }
+    double getNumber() const { assert(isNumber()); return fval_; }
 
-    operator bool() { return getTag() != UNDEFINED; }
-    bool operator!() { return getTag() == UNDEFINED; }
-
-    JsonValue& operator=(double x) { tag_ = JSON_NUMBER; fval_ = x; }
-    JsonValue& operator=(const char* s) { tag_ = JSON_STRING; ival_ = (uint64_t)s; }
-
-    template <typename T> T as(const T& _default);  // = {});
-
-    //JsonIterator begin() { return JsonIterator(toNode()); }
-    //JsonIterator end() { return JsonIterator(nullptr); }
-
-    JsonValue& operator[](const char* key) {
-        JsonNode* obj = getTag() == JSON_OBJECT ? toNode() : nullptr;
-        while(obj && strcmp(obj->key, key) != 0) {
-
-          if (!obj->next)
-            obj->next = JsonNode(JsonValue(), nullptr, );
-
-
-          obj = obj->next;
-        }
-        return obj ? obj->value : NULL_NODE;
-    }
-    JsonValue& operator[](const std::string& key) { return operator[](key.c_str()); }
-
-    JsonValue& operator[](size_t idx) {
-        JsonNode* array = getTag() == JSON_ARRAY ? toNode() : nullptr;
-        while (array && idx--) { array = array->next; }
-        return array ? array->value : NULL_NODE;
-        // if idx == size, return pending node!
-    }
-
-    void push_back(JsonValue&& val) {
-        if (!getTag() == JSON_ARRAY) { return; }
-        JsonNode* item = new JsonNode{std::move(val), nullptr, nullptr};
-        JsonNode* array = toNode();
-        if (!array) { setPayload(item); return; }
-        while (array->next) { array = array->next; }
-        array->next = item;
-    }
-
-    size_t size() {
-        size_t n = 0;
-        for (JsonNode* obj = toNode(); obj; obj = obj->next) { ++n; }
-        return n;
+    bool getBoolean() const { assert(getTag() == JSON_BOOL); return bool(ival_); }
+    JsonNode* getNode() const {
+        return (getTag() == JSON_ARRAY || getTag() == JSON_OBJECT) ? pval_ : nullptr;
     }
 
 };
 
+class SettingNode;
 
-template<> inline int JsonValue::as(const int& _default) {
-    return int(as<double>(double(_default)));
-}
+class Node {
+public:
+  JsonValue* value;
 
-template<> inline float JsonValue::as(const float& _default) {
-    return float(as<double>(double(_default)));
-}
+  //operator JsonValue&() { return *node; }
 
-template<> inline double JsonValue::as(const double& _default) {
-    if(isDouble()) { return toNumber(); }
-    if(!isString()) { return _default; }
-    char* endptr;
-    char* s = toString();
-    double val = s[0] == '0' ? strtoul(s, &endptr, 0) : string2double(s, &endptr);
-    return *endptr ? _default : val;  //endptr - s == strlen(s) ? val : _default;
-}
+  Node(JsonValue* v) : value(v) {}
+  const std::string& Scalar() { return value->getString(); }
+
+  operator bool() { return getTag() != UNDEFINED; }
+  bool operator!() { return !operator bool(); }
+
+  Node& operator=(double x) { operator=(JsonValue(x)); }
+  Node& operator=(const char* s) { operator=(JsonValue(s)); }
+  Node& operator=(const std::string& s) { operator=(s.c_str()); }
+
+  Node& operator=(JsonValue&& val) {
+    if (value != INVALID_VALUE) { *value = std::move(val); }
+    return *this;
+  }
+
+  template <typename T> T as(const T& _default);  // = {});
+  template<> int as(const int& _default);
+  template<> float as(const float& _default);
+  template<> double as(const double& _default);
+  template<> std::string as(const std::string& _default);
+  template<> bool as(const bool& _default);
+
+  Node operator[](const char* key);
+  Node operator[](const std::string& key) { return operator[](key.c_str()); }
+  Node operator[](size_t idx);
+  void push_back(JsonValue&& val);
+  size_t size();
+
+  SettingNode set() { return SettingNode(value); }
 
 
-template<> inline std::string JsonValue::as(const std::string& _default) {
-    if(isDouble()) { return std::to_string(toNumber()); }
-    return isString() ? toString() : _default;
-}
+};
 
-template<> inline bool JsonValue::as(const bool& _default) {
-    // YAML 1.2 only allows true/false ... but if caller is asking for bool be flexible
-    static const char* boolstrs[] = {"true","false","True","False","TRUE","FALSE",
-        "y","n","Y","N","yes","no","Yes","No","YES","NO","on","off","On","Off","ON","OFF"};
+class SettingNode : public Node {
+  using Node::Node;
 
-    if(isDouble()) { return toNumber() != 0; }
-    char* s = toString();
-    int idx = 0;
-    for (const char* boolstr : boolstrs) {
-        if (strcmp(s, boolstr) == 0) { return !(idx%2); }
-        ++idx;
-    }
-    return  _default;
-}
+  SettingNode operator[](const char* key);
+  SettingNode operator[](const std::string& key) { return operator[](key.c_str()); }
+  SettingNode operator[](size_t idx);
+};
+
+class DocumentNode : public Node {
+  ~DocumentNode() { delete value; value = nullptr; }
+};
 
 
 //static JsonNode NULL_NODE = {JsonValue(), nullptr, nullptr};
@@ -150,11 +133,8 @@ struct JsonNode {
     JsonNode *next = nullptr;
     std::string key;  //char *key;
 
-    ~JsonNode() {
-        while(next) {
-            delete std::exchange(next, next->next);
-        }
-    }
+    ~JsonNode();
+    Node node() { return Node(&value); }
 };
 
 
@@ -176,12 +156,11 @@ struct JsonIterator {
     }
 };
 
-inline JsonIterator begin(JsonValue o) {
-    return JsonIterator{o.toNode()};
-}
-inline JsonIterator end(JsonValue) {
-    return JsonIterator{nullptr};
-}
+inline JsonIterator begin(const JsonValue& o) { return JsonIterator{o.getNode()}; }
+inline JsonIterator end(const JsonValue&) { return JsonIterator{nullptr}; }
+
+inline JsonIterator begin(Node o) { return JsonIterator{o.value->getNode()}; }
+inline JsonIterator end(Node) { return JsonIterator{nullptr}; }
 
 #define JSON_ERRNO_MAP(XX)                           \
     XX(OK, "ok")                                     \

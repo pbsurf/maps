@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <vector>
+#include <set>
+#include <utility>
 
 #define JSON_ZONE_SIZE 4096
 #define JSON_STACK_SIZE 32
@@ -50,6 +52,129 @@ void JsonAllocator::deallocate() {
     }
 }
 
+// Node
+
+static JsonValue UNDEFINED_VALUE(UNDEFINED);
+static JsonValue INVALID_VALUE(INVALID);
+
+JsonNode::~JsonNode() {
+    while(next) {
+        delete std::exchange(next, next->next);
+    }
+}
+
+SettingNode SettingNode::operator[](const char* key) {
+    Node n = Node::operator[](key);
+    if (n.value == &UNDEFINED_VALUE) {
+        if(value->getTag() == UNDEFINED) {
+            value->tag_ = JSON_OBJECT;
+        }
+        auto* val = new JsonNode{UNDEFINED, nullptr, key};
+        if(!value->getNode()) {
+            value->pval_ = val;
+        } else {
+            JsonNode* obj = value->getNode();
+            while(obj->next) { obj = obj->next; }
+            obj->next = val;
+        }
+        return SettingNode(&val->value);
+    }
+    return SettingNode(n.value);
+}
+
+Node Node::operator[](const char* key) {
+    if (value->getTag() == UNDEFINED) { return Node(&UNDEFINED_VALUE); }
+    if (value->getTag() != JSON_OBJECT) { return Node(&INVALID_VALUE); }
+    JsonNode* obj = value->pval_;
+    while(obj && obj->key != key) {
+      obj = obj->next;
+    }
+    return obj ? obj->node() : Node(&UNDEFINED_VALUE);
+}
+
+SettingNode SettingNode::operator[](size_t idx) {
+    Node n = Node::operator[](idx);
+    if (n.value == &UNDEFINED_VALUE) {
+        if(value->getTag() == UNDEFINED) {
+            value->tag_ = JSON_ARRAY;
+        }
+        auto* val = new JsonNode{UNDEFINED, nullptr, {}};
+        if(!value->getNode()) {
+            value->pval_ = val;
+        } else {
+            JsonNode* obj = value->getNode();
+            while(obj->next) { obj = obj->next; }
+            obj->next = val;
+        }
+        return SettingNode(&val->value);
+    }
+    return SettingNode(n.value);
+}
+
+Node Node::operator[](size_t idx) {
+    if (value->getTag() == UNDEFINED) { return Node(&UNDEFINED_VALUE); }
+    if (value->getTag() != JSON_ARRAY) { return Node(&INVALID_VALUE); }
+    JsonNode* array = value->getNode();
+    while (array && idx--) { array = array->next; }
+    return array ? array->node() : Node(&UNDEFINED_VALUE);
+}
+
+void Node::push_back(JsonValue&& val) {
+    if (value->getTag() == UNDEFINED) { value->tag_ = JSON_ARRAY; }
+    else if (value->getTag() != JSON_ARRAY) { return; }
+    JsonNode* item = new JsonNode{std::move(val), nullptr, nullptr};
+    JsonNode* array = value->getNode();
+    if (!array) { value->pval_ = item; }
+    while (array->next) { array = array->next; }
+    array->next = item;
+}
+
+size_t Node::size() {
+    size_t n = 0;
+    for (JsonNode* obj = value->getNode(); obj; obj = obj->next) { ++n; }
+    return n;
+}
+
+template<> int Node::as(const int& _default) {
+    return int(as<double>(double(_default)));
+}
+
+template<> float Node::as(const float& _default) {
+    return float(as<double>(double(_default)));
+}
+
+template<> double Node::as(const double& _default) {
+    if(value->isNumber()) { return value->getNumber(); }
+    if(!isString()) { return _default; }
+    char* endptr;
+    auto s = value->getString();
+    double val = s[0] == '0' ? strtoul(s.c_str(), &endptr, 0) : string2double(s.c_str(), &endptr);
+    return *endptr ? _default : val;  //endptr - s == strlen(s) ? val : _default;
+}
+
+template<> std::string Node::as(const std::string& _default) {
+    if(value->isNumber()) { return std::to_string(value->getNumber()); }
+    return value->getString()isString() ? toString() : _default;
+}
+
+template<> bool Node::as(const bool& _default) {
+    // YAML 1.2 only allows true/false ... but if caller is asking for bool be flexible
+    static const char* boolstrs[] = {"true","false","True","False","TRUE","FALSE",
+        "y","n","Y","N","yes","no","Yes","No","YES","NO","on","off","On","Off","ON","OFF"};
+
+    if(value->isNumber()) { return value->getNumber() != 0; }
+    auto s = value->getString();
+    int idx = 0;
+    for (const char* boolstr : boolstrs) {
+        if (s == boolstr) { return idx%2 == 0; }
+        ++idx;
+    }
+    return  _default;
+}
+
+
+// Parser
+
 static inline bool isspace(char c) {
     return c == ' ' || (c >= '\t' && c <= '\r');
 }
@@ -81,7 +206,7 @@ static inline int char2int(char c) {
     return (c & ~' ') - 'A' + 10;
 }
 
-static double string2double(char *s, char **endptr) {
+static double string2double(const char *s, char **endptr) {
     char ch = *s;
     if (ch == '-')
         ++s;
@@ -123,7 +248,7 @@ static double string2double(char *s, char **endptr) {
         result *= power;
     }
 
-    *endptr = s;
+    *endptr = (char*)s;
     return ch == '-' ? -result : result;
 }
 
@@ -175,7 +300,7 @@ static inline const char* escapedChar(char c) {
 int jsonParse(char *s, char **endptr, JsonValue *value, JsonAllocator &allocator, int flags) {
     JsonNode* tails[JSON_STACK_SIZE];
     JsonTag tags[JSON_STACK_SIZE];
-    char* keys[JSON_STACK_SIZE];
+    const char* keys[JSON_STACK_SIZE];
     int indents[JSON_STACK_SIZE];
 
     JsonValue o;
@@ -217,7 +342,7 @@ int jsonParse(char *s, char **endptr, JsonValue *value, JsonAllocator &allocator
 
         switch (nextchar) {
         case '"':
-            o = JsonValue(JSON_STRING, s);
+            o = JsonValue(s, JSON_STRING);
             for (char *it = s; *s; ++it, ++s) {
                 int c = *it = *s;
                 if (c == '\\') {
@@ -312,14 +437,14 @@ int jsonParse(char *s, char **endptr, JsonValue *value, JsonAllocator &allocator
 
         case '#':  // comment
             if (flags & PARSE_COMMENTS) {
-                o = JsonValue(YAML_COMMENT, s);
+                o = JsonValue(s, YAML_COMMENT);
             }
             while (*s != '\r' && *s != '\n') { ++s; }
             *s = 0;  // terminate string
             break;
 
         case '\'':
-            o = JsonValue(YAML_SINGLEQUOTED, s);
+            o = JsonValue(s, YAML_SINGLEQUOTED);
             for (char *it = s; *s; ++it, ++s) {
                 int c = *it = *s;
                 if ((unsigned int)c < ' ' || c == '\x7F') {
@@ -346,7 +471,8 @@ int jsonParse(char *s, char **endptr, JsonValue *value, JsonAllocator &allocator
             char chomp = *s;
             if (!isspace(chomp)) { ++s; }
 
-            o = JsonValue(YAML_BLOCKSTRING, s);
+            o = JsonValue(YAML_BLOCKSTRING);
+            std::string& str = o.getString();
 
             unsigned int blockindent = 0;
 
@@ -355,7 +481,7 @@ int jsonParse(char *s, char **endptr, JsonValue *value, JsonAllocator &allocator
             while (*s) {
 
                 if (*s == '\n') {
-                    if (linestart) { o.str.push_back('\n'); }  // blank lines
+                    if (linestart) { str.push_back('\n'); }  // blank lines
                     linestart = s+1;
                 }
                 if (isspace(*s) && (++s) - linestart < blockindent) { continue; }
@@ -368,17 +494,17 @@ int jsonParse(char *s, char **endptr, JsonValue *value, JsonAllocator &allocator
 
                 char* s0 = s;
                 while (*s && *s != '\r' && *s != '\n') { ++s; }
-                o.str.insert(s0, s);
+                str.insert(s0, s);
 
-                o.str.append(nextchar == '|' ? '\n' : ' ');
+                str.append(nextchar == '|' ? '\n' : ' ');
                 linestart = nullptr;
             }
 
             if (chomp == '-') {
-                o.str.pop_back();
+                str.pop_back();
             } else if (chomp != '+') {
-                while (o.str.back() == '\n') { o.str.pop_back(); }
-                o.str.push_back('\n');
+                while (str.back() == '\n') { str.pop_back(); }
+                str.push_back('\n');
             }
 
             break;
@@ -399,7 +525,7 @@ int jsonParse(char *s, char **endptr, JsonValue *value, JsonAllocator &allocator
               continue;
             }
         default:  // unquoted string
-            o = JsonValue(YAML_UNQUOTED, s);
+            o = JsonValue(s, YAML_UNQUOTED);
             if (!isflow && keys[pos]) {
                 while(*s && *s != '\r' && *s != '\n') { ++s; }
             } else {
@@ -422,16 +548,16 @@ int jsonParse(char *s, char **endptr, JsonValue *value, JsonAllocator &allocator
 
 
         if ((flags & PARSE_NUMBERS) && o.getTag() == YAML_UNQUOTED) {
-            if (strcmp(o.toString(), "true") == 0) {
+            if (o.getString() == "true") {
                 o = JsonValue(JSON_BOOL, 1);
-            } else if (strcmp(o.toString(), "false") == 0) {
+            } else if (o.getString() == "false") {
                 o = JsonValue(JSON_BOOL, 0);
-            } else if (strcmp(o.toString(), "null") == 0) {
+            } else if (o.getString() == "null") {
                 o = JsonValue(JSON_NULL);
             } else {
                 // try to parse as number
                 char* endnum;
-                o = JsonValue(string2double(o.toString(), &endnum));
+                o = JsonValue(string2double(o.getCStr(), &endnum));
                 if(*endnum != '\0') { return JSON_BAD_NUMBER; }
             }
         }
@@ -439,7 +565,7 @@ int jsonParse(char *s, char **endptr, JsonValue *value, JsonAllocator &allocator
 
         if (pos == -1) {
             *endptr = s;
-            *value = o;
+            *value = std::move(o);
             return JSON_OK;
         }
 
@@ -447,25 +573,27 @@ int jsonParse(char *s, char **endptr, JsonValue *value, JsonAllocator &allocator
             if (!keys[pos]) {
                 if (o.getTag() != JSON_STRING)
                     return JSON_UNQUOTED_KEY;
-                keys[pos] = o.toString();
+                keys[pos] = o.getString().c_str();
                 continue;
             }
-            if ((node = (JsonNode *) allocator.allocate(sizeof(JsonNode))) == nullptr)
-                return JSON_ALLOCATION_FAILURE;
+            //if ((node = (JsonNode *) allocator.allocate(sizeof(JsonNode))) == nullptr)
+            //    return JSON_ALLOCATION_FAILURE;
+            node = new JsonNode{std::move(o), nullptr, keys[pos]};
             tails[pos] = insertAfter(tails[pos], node);
-            tails[pos]->key = keys[pos];
+            //tails[pos]->key = keys[pos];
             keys[pos] = nullptr;
         } else {
-            if ((node = (JsonNode *) allocator.allocate(sizeof(JsonNode) - sizeof(char *))) == nullptr)
-                return JSON_ALLOCATION_FAILURE;
+            //if ((node = (JsonNode *) allocator.allocate(sizeof(JsonNode) - sizeof(char *))) == nullptr)
+            //    return JSON_ALLOCATION_FAILURE;
+            node = new JsonNode{std::move(o), nullptr, {}};
             tails[pos] = insertAfter(tails[pos], node);
         }
-        tails[pos]->value = o;
+        //tails[pos]->value = std::move(o);
     }
     return JSON_BREAKING_BAD;
 }
 
-
+// Writer
 
 struct JsonWriter {
     char quote = '"';
@@ -474,12 +602,17 @@ struct JsonWriter {
     int extraLines = 0;  // add (extraLines - level) lines between map/hash blocks
     std::set<std::string> alwaysFlow; // always use flow style for specified key names
 
-    std::string convert(JsonValue& obj, int level = 0);
+    std::string spacing(int level);
+    std::string keyString(std::string str);
+    std::string convertArray(const JsonValue& obj, int level);
+    std::string convertHash(const JsonValue& obj, int level);
+
+    std::string convert(const JsonValue& obj, int level = 0);
 };
 
 static std::string escapeSingleQuoted(const char* s) {
     std::string res = "'";
-    for(; *s; ++s) {
+    for (; *s; ++s) {
         res.push_back(*s);
         if(*s == '\'') { res.push_back('\''); }
     }
@@ -488,11 +621,23 @@ static std::string escapeSingleQuoted(const char* s) {
 
 static std::string escapeDoubleQuoted(const char* s) {
     std::string res = "\"";
-    for(; *s; ++s) {
+    for (; *s; ++s) {
         const char* esc = escapedChar(*s);
         if (esc) { res.append(esc); } else { res.push_back(*s); }
     }
     return res.append("\"");
+}
+
+static std::string strJoin(const std::vector<std::string>& strs, const std::string& sep) {
+    size_t n = sep.size()*(strs.size()-1);
+    for(auto& s : strs) { n += s.size(); }
+    std::string res;
+    res.reserve(n);
+    for(size_t ii = 0; ii < strs.size(); ++ii) {
+      if(ii > 0) { res.append(sep); }
+      res.append(strs[ii]);
+    }
+    return res;
 }
 
 std::string JsonWriter::spacing(int level) {
@@ -509,27 +654,27 @@ std::string JsonWriter::keyString(std::string str) {
     return str;
 }
 
-std::string JsonWriter::convertArray(JsonValue& obj, int level) {
+std::string JsonWriter::convertArray(const JsonValue& obj, int level) {
     std::vector<std::string> res;
     if(level >= flowLevel) {
-        for(JsonValue& item : obj.toPayload()) {
-            res.push_back(convert(item, flowLevel));
+        for(auto item : obj) {
+            res.push_back(convert(item->value, flowLevel));
         }
         return "[" + strJoin(res, ", ") + "]";
     } else {
         // always use flow for nested array (for now)
-        for(JsonValue& item : obj.toPayload()) {
-            res.push_back(spacing(level) + "- " + convert(item, flowLevel));
+      for(auto item : obj) {
+            res.push_back(spacing(level) + "- " + convert(item->value, flowLevel));
         }
         return res.empty() ? "[]" : strJoin(res, "\n");
     }
 }
 
-std::string JsonWriter::convertHash(JsonValue& obj, int level) {
+std::string JsonWriter::convertHash(const JsonValue& obj, int level) {
     std::vector<std::string> res;
-    for(auto& keyval : obj.toPayload()) {
-        const std::string& key = keyval.first;
-        JsonValue& val = keyval.second;
+    for(auto item : obj) {
+        const std::string& key = item->key;
+        JsonValue& val = item->value;
         bool isScalar = val.getTag() != JSON_OBJECT && val.getTag() == JSON_ARRAY;
         if (isScalar || val.isEmpty() || level+1 >= flowLevel || alwaysFlow.find(key) != alwaysFlow.end()) {
             res.push_back(spacing(level) + keyString(key) + ": " + convert(val, flowLevel));
@@ -545,22 +690,22 @@ std::string JsonWriter::convertHash(JsonValue& obj, int level) {
 }
 
 
-std::string JsonWriter::convert(JsonValue& obj, int level) {
+std::string JsonWriter::convert(const JsonValue& obj, int level) {
     switch(obj.getTag()) {
     case JSON_ARRAY:
         return convertArray(obj, level);
     case JSON_OBJECT:
         return convertHash(obj, level);
     case YAML_UNQUOTED:
-        return obj.toString();
+        return obj.getString();
     case JSON_STRING:
-        return escapeDoubleQuoted(obj.toString());
+        return escapeDoubleQuoted(obj.getCStr());
     case YAML_SINGLEQUOTED:
-        return escapeSingleQuoted(obj.toString());
+        return escapeSingleQuoted(obj.getCStr());
     case YAML_BLOCKSTRING:
     {
         std::string res = "|\n";
-        for(char* s = obj.toString(); *s; ++s) {
+        for(const char* s = obj.getCStr(); *s; ++s) {
             res.push_back(*s);
             if(*s == '\n' && s[1]) {
                 res.append(spacing(level));
@@ -571,7 +716,7 @@ std::string JsonWriter::convert(JsonValue& obj, int level) {
     case JSON_NULL:
         return "null";
     case JSON_NUMBER:
-        return std::to_string(obj.toNumber());
+        return std::to_string(obj.getNumber());
     case JSON_BOOL:
         return obj.getPayload() ? "true" : "false";
     }
