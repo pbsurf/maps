@@ -14,6 +14,81 @@
 
 namespace YAML {
 
+// helper fns
+
+static inline bool isspace(char c) {
+    return c == ' ' || (c >= '\t' && c <= '\r');
+}
+
+static inline bool isdelim(char c) {
+    return c == ',' || c == ':' || c == ']' || c == '}' || isspace(c) || c == '#' || !c;
+}
+
+// technically, we should check for space after ',' and ':' if not in flow mode
+static inline bool isendscalar(char c) {
+    return c == ',' || c == ':' || c == ']' || c == '}' || c == '\r' || c == '\n' || c == '#'|| !c;
+}
+
+static inline bool isdigit(char c) {
+    return c >= '0' && c <= '9';
+}
+
+static inline bool isxdigit(char c) {
+    return (c >= '0' && c <= '9') || ((c & ~' ') >= 'A' && (c & ~' ') <= 'F');
+}
+
+static inline int char2int(char c) {
+    if (c <= '9')
+        return c - '0';
+    return (c & ~' ') - 'A' + 10;
+}
+
+static double string2double(const char *s, char **endptr) {
+    char ch = *s;
+    if (ch == '-')
+        ++s;
+
+    double result = 0;
+    while (isdigit(*s))
+        result = (result * 10) + (*s++ - '0');
+
+    if (*s == '.') {
+        ++s;
+
+        double fraction = 1;
+        while (isdigit(*s)) {
+            fraction *= 0.1;
+            result += (*s++ - '0') * fraction;
+        }
+    }
+
+    if (*s == 'e' || *s == 'E') {
+        ++s;
+
+        double base = 10;
+        if (*s == '+')
+            ++s;
+        else if (*s == '-') {
+            ++s;
+            base = 0.1;
+        }
+
+        unsigned int exponent = 0;
+        while (isdigit(*s))
+            exponent = (exponent * 10) + (*s++ - '0');
+
+        double power = 1;
+        for (; exponent; exponent >>= 1, base *= base)
+            if (exponent & 1)
+                power *= base;
+
+        result *= power;
+    }
+
+    *endptr = (char*)s;
+    return ch == '-' ? -result : result;
+}
+
 // Node
 
 static JsonValue UNDEFINED_VALUE(Tag::UNDEFINED);
@@ -28,6 +103,7 @@ JsonValue& JsonValue::operator=(JsonValue&& b) {
     std::swap(pval_, b.pval_);
     std::swap(flags_, b.flags_);
     std::swap(strVal, b.strVal);
+    return *this;
 }
 
 JsonValue JsonValue::clone() const {
@@ -43,6 +119,7 @@ JsonValue JsonValue::clone() const {
         if(!tail) { res.pval_ = obj; } else { tail->next = obj; }
         tail = obj;
     }
+    return res;
 }
 
 JsonNode::~JsonNode() {
@@ -140,16 +217,17 @@ template<> float Node::as(const float& _default) {
 
 template<> double Node::as(const double& _default) {
     if(value->isNumber()) { return value->getNumber(); }
-    if(!isString()) { return _default; }
+    if(value->getTag() != Tag::STRING) { return _default; }
     char* endptr;
     auto s = value->getString();
     double val = s[0] == '0' ? strtoul(s.c_str(), &endptr, 0) : string2double(s.c_str(), &endptr);
+    // endptr should point to '\0' terminator char after successful conversion
     return *endptr ? _default : val;  //endptr - s == strlen(s) ? val : _default;
 }
 
 template<> std::string Node::as(const std::string& _default) {
     if(value->isNumber()) { return std::to_string(value->getNumber()); }
-    return value->getString()isString() ? toString() : _default;
+    return value->getTag() == Tag::STRING ? value->getString() : _default;
 }
 
 template<> bool Node::as(const bool& _default) {
@@ -169,79 +247,6 @@ template<> bool Node::as(const bool& _default) {
 
 
 // Parser
-
-static inline bool isspace(char c) {
-    return c == ' ' || (c >= '\t' && c <= '\r');
-}
-
-static inline bool isdelim(char c) {
-    return c == ',' || c == ':' || c == ']' || c == '}' || isspace(c) || c == '#' || !c;
-}
-
-// technically, we should check for space after ',' and ':' if not in flow mode
-static inline bool isendscalar(char c) {
-    return c == ',' || c == ':' || c == ']' || c == '}' || c == '\r' || c == '\n' || c == '#'|| !c;
-}
-
-static inline bool isdigit(char c) {
-    return c >= '0' && c <= '9';
-}
-
-static inline bool isxdigit(char c) {
-    return (c >= '0' && c <= '9') || ((c & ~' ') >= 'A' && (c & ~' ') <= 'F');
-}
-
-static inline int char2int(char c) {
-    if (c <= '9')
-        return c - '0';
-    return (c & ~' ') - 'A' + 10;
-}
-
-static double string2double(const char *s, char **endptr) {
-    char ch = *s;
-    if (ch == '-')
-        ++s;
-
-    double result = 0;
-    while (isdigit(*s))
-        result = (result * 10) + (*s++ - '0');
-
-    if (*s == '.') {
-        ++s;
-
-        double fraction = 1;
-        while (isdigit(*s)) {
-            fraction *= 0.1;
-            result += (*s++ - '0') * fraction;
-        }
-    }
-
-    if (*s == 'e' || *s == 'E') {
-        ++s;
-
-        double base = 10;
-        if (*s == '+')
-            ++s;
-        else if (*s == '-') {
-            ++s;
-            base = 0.1;
-        }
-
-        unsigned int exponent = 0;
-        while (isdigit(*s))
-            exponent = (exponent * 10) + (*s++ - '0');
-
-        double power = 1;
-        for (; exponent; exponent >>= 1, base *= base)
-            if (exponent & 1)
-                power *= base;
-
-        result *= power;
-    }
-
-    *endptr = (char*)s;
-    return ch == '-' ? -result : result;
-}
 
 static inline JsonNode *insertAfter(JsonNode *tail, JsonNode *node) {
     if (!tail)
@@ -278,7 +283,7 @@ static inline const char* escapedChar(char c) {
     switch(c) {
         case '\\':  return "\\\\";
         case '"':   return "\\\"";
-        case '/':   return "\\\/";
+        case '/':   return "\\/";
         case '\b':  return "\\b";
         case '\f':  return "\\f";
         case '\n':  return "\\n";
@@ -295,17 +300,17 @@ const char *jsonStrError(int err) {
     return errorMsg[std::min(size_t(err), size_t(JSON_ERROR_COUNT))];
 }
 
-Document parse(const std::string& s, int flags, int* resultout) { parse(s.c_str(), flags, resultout); }
+Document parse(const std::string& s, int flags, int* resultout) { return parse(s.c_str(), flags, resultout); }
 
 Document parse(const char* s, int flags, int* resultout) {
     Document doc;
-    char* endptr;
-    int res = parseTo((char*)s, &endptr, doc.value, flags);
+    const char* endptr;
+    int res = parseTo(s, &endptr, doc.value, flags);
     if (resultout) { *resultout = res; }
     return doc;
 }
 
-int parseTo(char *s, char **endptr, JsonValue *valueout, int flags) {
+int parseTo(const char *s, const char **endptr, JsonValue *valueout, int flags) {
     constexpr size_t JSON_STACK_SIZE = 32;
     JsonNode* tails[JSON_STACK_SIZE];
     Tag tags[JSON_STACK_SIZE];
@@ -318,10 +323,10 @@ int parseTo(char *s, char **endptr, JsonValue *valueout, int flags) {
     int flowlevel = 0;
     bool separator = true;
     char nextchar;
-    JsonNode *node;
+    JsonNode* node;
     std::string temp;
-    char* s0;
-    char* linestart = s;
+    const char* s0;
+    const char* linestart = s;
     *endptr = s;
 
     while (*s) {
@@ -336,7 +341,7 @@ int parseTo(char *s, char **endptr, JsonValue *valueout, int flags) {
 
         if (!flowlevel && (pos < 0 || indent > indents[pos])) {
             nextchar = (*s == '-' && isspace(s[1])) ? '[' : '{';
-        } else if (!flowlevel && (pos < 0 || indent < indents[pos])) {
+        } else if (!flowlevel && (pos >= 0 && indent < indents[pos])) {
             nextchar = tags[pos] == Tag::ARRAY ? ']' : '}';
         } else {
             *endptr = s0 = s;
@@ -345,40 +350,43 @@ int parseTo(char *s, char **endptr, JsonValue *valueout, int flags) {
 
         switch (nextchar) {
         case '"':
-            for (char *it = s; *s; ++it, ++s) {
-                int c = *it = *s;
+            for(; *s; ++s) {  //(char *it = s++ it,
+                char c = *s;  //*it =
                 if (c == '\\') {
+                    temp.append(s0, s);
                     c = *++s;
                     if (c == 'u') {
-                        c = 0;
+                        int u = 0;
                         for (int i = 0; i < 4; ++i) {
                             if (isxdigit(*++s)) {
-                                c = c * 16 + char2int(*s);
+                                u = u * 16 + char2int(*s);
                             } else {
                                 *endptr = s;
                                 return JSON_BAD_STRING;
                             }
                         }
-                        if (c < 0x80) {
-                            *it = c;
-                        } else if (c < 0x800) {
-                            *it++ = 0xC0 | (c >> 6);
-                            *it = 0x80 | (c & 0x3F);
+                        if (u < 0x80) {
+                            temp.push_back(u);  //*it = c;
+                        } else if (u < 0x800) {
+                            temp.push_back(0xC0 | (u >> 6));
+                            temp.push_back(0x80 | (u & 0x3F));
                         } else {
-                            *it++ = 0xE0 | (c >> 12);
-                            *it++ = 0x80 | ((c >> 6) & 0x3F);
-                            *it = 0x80 | (c & 0x3F);
+                            temp.push_back(0xE0 | (u >> 12));
+                            temp.push_back(0x80 | ((u >> 6) & 0x3F));
+                            temp.push_back(0x80 | (u & 0x3F));
                         }
-                    } else if (!(*it = unescapedChar(c))) {
+                    } else if ((c = unescapedChar(c))) {
+                        temp.push_back(c);  //*it = c;
+                    } else {
                         *endptr = s;
                         return JSON_BAD_STRING;
                     }
+                    s0 = ++s;
                 } else if ((unsigned int)c < ' ' || c == '\x7F') {
                     *endptr = s;
                     return JSON_BAD_STRING;
                 } else if (c == '"') {
-                    o = JsonValue(std::string(s0, it), Tag::YAML_DBLQUOTED);  //*it = 0;
-                    ++s;
+                    temp.append(s0, s++);
                     break;
                 }
             }
@@ -386,6 +394,8 @@ int parseTo(char *s, char **endptr, JsonValue *valueout, int flags) {
                 *endptr = s;
                 return JSON_BAD_STRING;
             }
+            o = JsonValue(temp, Tag::YAML_DBLQUOTED);  //*it = 0;
+            temp.clear();
             break;
         case '[':
         case '{':
@@ -432,23 +442,24 @@ int parseTo(char *s, char **endptr, JsonValue *valueout, int flags) {
             }
             break;
         case '\'':  // single quoted string
-            for (char *it = s; *s; ++it, ++s) {
-                int c = *it = *s;
-                if ((unsigned int)c < ' ' || c == '\x7F') {
+            for (; *s; ++s) {  //char *it = s  ++it,
+                char c = *s;  //int c = *it = *s;
+                if (c < ' ' || c == '\x7F') {
                     *endptr = s;
                     return JSON_BAD_STRING;
                 } else if (c == '\'') {
                     // only escape sequence allowed in single quoted strings is '' -> '
-                    if (*++s != '\'') {
-                        o = JsonValue(std::string(s0, it), Tag::YAML_SINGLEQUOTED); //*it = 0;
-                        break;
-                    }
+                    temp.append(s0, s);
+                    if (*++s != '\'') { break; }
+                    s0 = s;
                 }
             }
             if (!isdelim(*s)) {
                 *endptr = s;
                 return JSON_BAD_STRING;
             }
+            o = JsonValue(temp, Tag::YAML_SINGLEQUOTED); //*it = 0;
+            temp.clear();
             break;
         case '|':  // literal block scalar
         case '>':  // folded block scalar
@@ -471,7 +482,7 @@ int parseTo(char *s, char **endptr, JsonValue *valueout, int flags) {
                 if (!blockindent) { blockindent = s - linestart; }
                 else if (s - linestart < blockindent) { return JSON_BAD_STRING; }
 
-                char* s0 = s;
+                s0 = s;
                 while (*s && *s != '\r' && *s != '\n') { ++s; }
                 temp.append(s0, s);
 

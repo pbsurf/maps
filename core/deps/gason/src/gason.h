@@ -111,17 +111,12 @@ public:
   operator bool() { return bool(*value); }
   bool operator!() { return !operator bool(); }
 
-  Node& operator=(double x) { operator=(JsonValue(x)); }
-  Node& operator=(const char* s) { operator=(JsonValue(s)); }
-  Node& operator=(const std::string& s) { operator=(s.c_str()); }
+  Node& operator=(double x) { return operator=(JsonValue(x)); }
+  Node& operator=(const char* s) { return operator=(JsonValue(s)); }
+  Node& operator=(const std::string& s) { return operator=(s.c_str()); }
   Node& operator=(JsonValue&& val);
 
   template <typename T> T as(const T& _default = {});
-  template<> int as(const int& _default);
-  template<> float as(const float& _default);
-  template<> double as(const double& _default);
-  template<> std::string as(const std::string& _default);
-  template<> bool as(const bool& _default);
 
   Node operator[](const char* key);
   Node operator[](const std::string& key) { return operator[](key.c_str()); }
@@ -133,6 +128,12 @@ public:
 
   Builder build();
 };
+
+template<> int Node::as(const int& _default);
+template<> float Node::as(const float& _default);
+template<> double Node::as(const double& _default);
+template<> std::string Node::as(const std::string& _default);
+template<> bool Node::as(const bool& _default);
 
 class Builder : public Node {
 public:
@@ -152,7 +153,7 @@ public:
 
   Document(const Document&) = delete;
   Document(Document&& b) : Node(nullptr) { *this = std::move(b); }
-  Document& operator=(Document&& b) { std::swap(value, b.value); }
+  Document& operator=(Document&& b) { std::swap(value, b.value); return *this; }
 };
 
 struct JsonNode {
@@ -213,7 +214,7 @@ enum ParseFlags {
   PARSE_JSON = 0x2,  // require JSON (exit with error if invalid JSON)
 };
 
-int parseTo(char *str, char **endptr, JsonValue *value, int flags = 0);
+int parseTo(const char *str, const char **endptr, JsonValue *value, int flags = 0);
 
 Document parse(const char* s, int flags = 0, int* resultout = nullptr);
 Document parse(const std::string& s, int flags = 0, int* resultout = nullptr);
