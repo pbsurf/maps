@@ -161,7 +161,6 @@ struct JsonNode {
     JsonNode *next = nullptr;
     std::string key;  //char *key;
 
-    ~JsonNode();
     Node node() { return Node(&value); }
 };
 
@@ -214,10 +213,16 @@ enum ParseFlags {
   PARSE_JSON = 0x2,  // require JSON (exit with error if invalid JSON)
 };
 
-int parseTo(const char *str, const char **endptr, JsonValue *value, int flags = 0);
+struct ParseResult {
+    int error;
+    int linenum;
+    const char* endptr;
+};
 
-Document parse(const char* s, int flags = 0, int* resultout = nullptr);
-Document parse(const std::string& s, int flags = 0, int* resultout = nullptr);
+ParseResult parseTo(const char *str, JsonValue *value, int flags = 0);
+
+Document parse(const char* s, int flags = 0, ParseResult* resultout = nullptr);
+Document parse(const std::string& s, int flags = 0, ParseResult* resultout = nullptr);
 
 // Writer
 

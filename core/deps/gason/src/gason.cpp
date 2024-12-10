@@ -1,6 +1,7 @@
 #include "gason.h"
 #include <stdlib.h>
 #include <string.h>
+#include <climits>
 #include <vector>
 #include <set>
 #include <utility>
@@ -95,8 +96,9 @@ static JsonValue UNDEFINED_VALUE(Tag::UNDEFINED);
 static JsonValue INVALID_VALUE(Tag::INVALID);
 
 JsonValue::~JsonValue() {
-    if ((getTag() == Tag::ARRAY || getTag() == Tag::OBJECT) && pval_) { delete pval_; }
-    pval_ = nullptr;
+    if (getTag() == Tag::ARRAY || getTag() == Tag::OBJECT) {
+        while(pval_) { delete std::exchange(pval_, pval_->next);  }
+    }
 }
 
 JsonValue& JsonValue::operator=(JsonValue&& b) {
@@ -120,10 +122,6 @@ JsonValue JsonValue::clone() const {
         tail = obj;
     }
     return res;
-}
-
-JsonNode::~JsonNode() {
-    while(next) { delete std::exchange(next, next->next);  }
 }
 
 Builder Node::build() { return Builder(value); }
@@ -180,7 +178,9 @@ Node Node::operator[](int idx) {
     if (value->getTag() == Tag::UNDEFINED) { return Node(&UNDEFINED_VALUE); }
     if (value->getTag() != Tag::ARRAY) { return Node(&INVALID_VALUE); }
     JsonNode* array = value->getNode();
-    while (array && idx--) { array = array->next; }
+    do {
+        while (array && array->value.getTag() == Tag::YAML_COMMENT) { array = array->next; }
+    } while (idx-- && array && (array = array->next));
     return array ? array->node() : Node(&UNDEFINED_VALUE);
 }
 
@@ -293,24 +293,35 @@ static inline const char* escapedChar(char c) {
     return nullptr;
 }
 
-const char *jsonStrError(int err) {
+const char* jsonStrError(int err) {
     static const char* errorMsg[] = {"ok", "bad number", "bad string", "bad identifier", "stack overflow",
-        "stack underflow", "mismatch bracket", "unexpected character", "unquoted key", "breaking bad",
+        "stack underflow", "mismatched bracket", "unexpected character", "unquoted key", "breaking bad",
         "allocation failure", "invalid error code"};
     return errorMsg[std::min(size_t(err), size_t(JSON_ERROR_COUNT))];
 }
 
-Document parse(const std::string& s, int flags, int* resultout) { return parse(s.c_str(), flags, resultout); }
+Document parse(const std::string& s, int flags, ParseResult* resultout) {
+    return parse(s.c_str(), flags, resultout);
+}
 
-Document parse(const char* s, int flags, int* resultout) {
+#ifndef GAML_LOG
+#define GAML_LOG(msg, ...) do { fprintf(stderr, msg, ## __VA_ARGS__); } while(0)
+#endif
+
+Document parse(const char* s, int flags, ParseResult* resultout) {
     Document doc;
-    const char* endptr;
-    int res = parseTo(s, &endptr, doc.value, flags);
+    ParseResult res = parseTo(s, doc.value, flags);
     if (resultout) { *resultout = res; }
+    if (res.error != JSON_OK) {
+        const char* newl = res.endptr;
+        while(*newl && *newl != '\n') { ++newl; }
+        GAML_LOG("YAML parse error (line %d): %s at %s\n",
+                 res.linenum, jsonStrError(res.error), std::string(res.endptr, newl).c_str());
+    }
     return doc;
 }
 
-int parseTo(const char *s, const char **endptr, JsonValue *valueout, int flags) {
+ParseResult parseTo(const char *s, JsonValue *valueout, int flags) {
     constexpr size_t JSON_STACK_SIZE = 32;
     JsonNode* tails[JSON_STACK_SIZE];
     Tag tags[JSON_STACK_SIZE];
@@ -321,37 +332,54 @@ int parseTo(const char *s, const char **endptr, JsonValue *valueout, int flags) 
     int pos = -1;
     int indent = 0;
     int flowlevel = 0;
+    int linenum = 1;
     bool separator = true;
+    bool blockarrayobj = false;
     char nextchar;
     JsonNode* node;
     std::string temp;
-    const char* s0;
+    const char* s0 = s;
     const char* linestart = s;
-    *endptr = s;
+    const char* endptr = s;
 
-    while (*s) {
+    while (1) {
         while (isspace(*s)) {
-            if (!flowlevel && *s == '\n') { linestart = s+1; }
+            if (*s == '\n') {
+                if (!flowlevel) { linestart = s+1; }
+                ++linenum;
+            }
             ++s;
         }
-        if (!*s) { break; }
+        if (!*s) {
+            if (flowlevel) { return {JSON_MISMATCH_BRACKET, linenum, s}; }
+            indent = -1;
+        } else if (linestart) {
+            indent = s - linestart;
+        }
 
-        if (linestart) { indent = s - linestart; }
         if (*s == '{' || *s == '[') { ++flowlevel; }
 
-        if (!flowlevel && (pos < 0 || indent > indents[pos])) {
+        if (blockarrayobj) {
+            ++s;  // skip ':'
+            indent += 2;
+            nextchar = '{';
+        } else if (flowlevel || *s == '#') {
+            endptr = s0 = s;
+            nextchar = *s++;
+        } else if (pos < 0 || indent > indents[pos]) {
             nextchar = (*s == '-' && isspace(s[1])) ? '[' : '{';
-        } else if (!flowlevel && (pos >= 0 && indent < indents[pos])) {
+        } else if (pos >= 0 && indent < indents[pos]) {
             nextchar = tags[pos] == Tag::ARRAY ? ']' : '}';
         } else {
-            *endptr = s0 = s;
+            endptr = s0 = s;
             nextchar = *s++;
         }
 
         switch (nextchar) {
         case '"':
-            for(; *s; ++s) {  //(char *it = s++ it,
-                char c = *s;  //*it =
+            ++s0;  // skip "
+            for(; *s; ++s) {
+                char c = *s;
                 if (c == '\\') {
                     temp.append(s0, s);
                     c = *++s;
@@ -361,8 +389,7 @@ int parseTo(const char *s, const char **endptr, JsonValue *valueout, int flags) 
                             if (isxdigit(*++s)) {
                                 u = u * 16 + char2int(*s);
                             } else {
-                                *endptr = s;
-                                return JSON_BAD_STRING;
+                                return {JSON_BAD_STRING, linenum, s};
                             }
                         }
                         if (u < 0x80) {
@@ -378,43 +405,39 @@ int parseTo(const char *s, const char **endptr, JsonValue *valueout, int flags) 
                     } else if ((c = unescapedChar(c))) {
                         temp.push_back(c);  //*it = c;
                     } else {
-                        *endptr = s;
-                        return JSON_BAD_STRING;
+                        return {JSON_BAD_STRING, linenum, s};
                     }
                     s0 = ++s;
-                } else if ((unsigned int)c < ' ' || c == '\x7F') {
-                    *endptr = s;
-                    return JSON_BAD_STRING;
                 } else if (c == '"') {
                     temp.append(s0, s++);
                     break;
                 }
             }
             if (!isdelim(*s)) {
-                *endptr = s;
-                return JSON_BAD_STRING;
+                return {JSON_BAD_STRING, linenum, s};
             }
-            o = JsonValue(temp, Tag::YAML_DBLQUOTED);  //*it = 0;
+            o = JsonValue(temp, Tag::YAML_DBLQUOTED);
             temp.clear();
             break;
         case '[':
         case '{':
             if (++pos == JSON_STACK_SIZE)
-                return JSON_STACK_OVERFLOW;
+                return {JSON_STACK_OVERFLOW, linenum, endptr};
             tails[pos] = nullptr;
             tags[pos] = (nextchar == '{' ? Tag::OBJECT : Tag::ARRAY);
-            keys[pos] = JsonValue();  //nullptr;
+            keys[pos] = blockarrayobj ? std::move(o) : JsonValue();  //nullptr;
             indents[pos] = indent;
             separator = true;
+            blockarrayobj = false;
             continue;
         case ']':
         case '}':
             if (pos == -1)
-                return JSON_STACK_UNDERFLOW;
+                return {JSON_STACK_UNDERFLOW, linenum, endptr};
             if (tags[pos] != (nextchar == '}' ? Tag::OBJECT : Tag::ARRAY))
-                return JSON_MISMATCH_BRACKET;
+                return {JSON_MISMATCH_BRACKET, linenum, endptr};
             if (nextchar == '}' && keys[pos])  // != nullptr)
-                return JSON_UNEXPECTED_CHARACTER;
+                return {JSON_UNEXPECTED_CHARACTER, linenum, endptr};
             if (flowlevel > 0) {
                 tags[pos] = tags[pos] | Tag::YAML_FLOW;
                 --flowlevel;
@@ -424,30 +447,30 @@ int parseTo(const char *s, const char **endptr, JsonValue *valueout, int flags) 
             break;
         case ':':
             if (separator || !keys[pos])  // == nullptr)
-                return JSON_UNEXPECTED_CHARACTER;
+                return {JSON_UNEXPECTED_CHARACTER, linenum, endptr};
             separator = true;
             continue;
         case ',':
             if (separator || keys[pos])  // != nullptr)
-                return JSON_UNEXPECTED_CHARACTER;
+                return {JSON_UNEXPECTED_CHARACTER, linenum, endptr};
             separator = true;
             continue;
         case '\0':
-            continue;
+            if (pos != -1) { return {JSON_MISMATCH_BRACKET, linenum, endptr}; }
+            break;
         // YAML only below
         case '#':  // comment
             while (*s != '\r' && *s != '\n') { ++s; }
             if (flags & PARSE_COMMENTS) {
-                o = JsonValue(std::string(s0, s), Tag::YAML_COMMENT);  //*s = 0;
+                o = JsonValue(std::string(s0+1, s), Tag::YAML_COMMENT);  //*s = 0;
+                break;
             }
-            break;
+            continue;
         case '\'':  // single quoted string
-            for (; *s; ++s) {  //char *it = s  ++it,
-                char c = *s;  //int c = *it = *s;
-                if (c < ' ' || c == '\x7F') {
-                    *endptr = s;
-                    return JSON_BAD_STRING;
-                } else if (c == '\'') {
+            ++s0;  // skip '
+            for (; *s; ++s) {
+                char c = *s;
+                if (c == '\'') {
                     // only escape sequence allowed in single quoted strings is '' -> '
                     temp.append(s0, s);
                     if (*++s != '\'') { break; }
@@ -455,8 +478,7 @@ int parseTo(const char *s, const char **endptr, JsonValue *valueout, int flags) 
                 }
             }
             if (!isdelim(*s)) {
-                *endptr = s;
-                return JSON_BAD_STRING;
+                return {JSON_BAD_STRING, linenum, s};
             }
             o = JsonValue(temp, Tag::YAML_SINGLEQUOTED); //*it = 0;
             temp.clear();
@@ -467,20 +489,22 @@ int parseTo(const char *s, const char **endptr, JsonValue *valueout, int flags) 
             char chomp = *s;
             if (!isspace(chomp)) { ++s; }
 
-            unsigned int blockindent = 0;
+            int blockindent = INT_MAX;
             linestart = nullptr;
             while (*s) {
                 if (*s == '\n') {
                     if (linestart) { temp.push_back('\n'); }  // blank lines
-                    linestart = s+1;
+                    linestart = ++s;
+                    ++linenum;
+                    continue;
                 }
                 if (isspace(*s) && (++s) - linestart < blockindent) { continue; }
 
-                if (!linestart) { return JSON_BAD_STRING; }
+                if (!linestart) { return {JSON_BAD_STRING, linenum, s}; }
                 if (s - linestart <= indent) { break; }
 
-                if (!blockindent) { blockindent = s - linestart; }
-                else if (s - linestart < blockindent) { return JSON_BAD_STRING; }
+                if (blockindent == INT_MAX) { blockindent = s - linestart; }
+                else if (s - linestart < blockindent) { return {JSON_BAD_STRING, linenum, s}; }
 
                 s0 = s;
                 while (*s && *s != '\r' && *s != '\n') { ++s; }
@@ -499,6 +523,7 @@ int parseTo(const char *s, const char **endptr, JsonValue *valueout, int flags) 
 
             o = JsonValue(temp, Tag::YAML_BLOCKSTRING);
             temp.clear();  // note that we do not move temp
+            endptr = s;
             break;
         }
         // Unsupported YAML features
@@ -508,25 +533,28 @@ int parseTo(const char *s, const char **endptr, JsonValue *valueout, int flags) 
         case '!':  // tag handle
         case '@':  // reserved
         case '`':  // reserved
-            return JSON_UNEXPECTED_CHARACTER;
+            return {JSON_UNEXPECTED_CHARACTER, linenum, endptr};
         case '-':  // '-' could be array element, document separator, unquoted string, or number
             if (linestart && isspace(*s)) {
                 ++s;
+                linestart = nullptr;
                 continue;
             }
             // '---' separates multiple documents in a single stream
             if (linestart && indent == 0 && *s == '-' && s[1] == '-') {
-                *endptr = s+2;
-                return JSON_OK;
+                if(pos != -1) { return {JSON_UNEXPECTED_CHARACTER, linenum, endptr}; }
+                s += 2;
+                break;
             }
             [[fallthrough]];
         default:  // unquoted string
             if (!flowlevel && keys[pos]) {
-                while(*s && *s != '\r' && *s != '\n') { ++s; }
+                while(*s && *s != '\r' && *s != '\n' && *s != '#') { ++s; }
             } else {
                 while(!isendscalar(*s)) { ++s; }
             }
-            o = JsonValue(std::string(s0, s++), Tag::YAML_UNQUOTED);
+            while (isspace(*(s-1))) { --s; }  // trim trailing spaces
+            o = JsonValue(std::string(s0, s), Tag::YAML_UNQUOTED);
             break;
         }
 
@@ -537,7 +565,7 @@ int parseTo(const char *s, const char **endptr, JsonValue *valueout, int flags) 
         if ((flags & PARSE_JSON) && o.getTag() == Tag::STRING) {
             Tag t = o.getFlags() & Tag::YAML_STRINGMASK;
             if (t == Tag::YAML_SINGLEQUOTED || t == Tag::YAML_BLOCKSTRING || t == Tag::YAML_COMMENT) {
-                return JSON_UNEXPECTED_CHARACTER;
+                return {JSON_UNEXPECTED_CHARACTER, linenum, endptr};
             }
             if (t == Tag::YAML_UNQUOTED) {
                 if (o.getString() == "true") {
@@ -550,22 +578,21 @@ int parseTo(const char *s, const char **endptr, JsonValue *valueout, int flags) 
                     // try to parse as number
                     char* endnum;
                     o = JsonValue(string2double(o.getCStr(), &endnum));
-                    if(*endnum != '\0') { return JSON_BAD_NUMBER; }
+                    if(*endnum != '\0') { return {JSON_BAD_NUMBER, linenum, endptr}; }
                 }
             }
         }
 
 
         if (pos == -1) {
-            *endptr = s;
             *valueout = std::move(o);
-            return JSON_OK;
+            return {JSON_OK, linenum, s};
         }
 
         if (tags[pos] == Tag::OBJECT) {
             if (!keys[pos]) {
                 if (o.getTag() != Tag::STRING)
-                    return JSON_UNQUOTED_KEY;
+                    return {JSON_UNQUOTED_KEY, linenum, endptr};
                 keys[pos] = std::move(o);  //o.getString().c_str();
                 continue;
             }
@@ -573,11 +600,15 @@ int parseTo(const char *s, const char **endptr, JsonValue *valueout, int flags) 
             tails[pos] = insertAfter(tails[pos], node);
             keys[pos] = JsonValue();  //nullptr;
         } else {
+            // handle case of object in array
+            if (!flowlevel && *s == ':' && isspace(s[1])) {
+                blockarrayobj = true;
+                continue;
+            }
             node = new JsonNode{std::move(o), nullptr, {}};
             tails[pos] = insertAfter(tails[pos], node);
         }
     }
-    return JSON_BREAKING_BAD;
 }
 
 // Writer
@@ -609,7 +640,7 @@ static std::string escapeUnQuoted(const std::string& s, bool block, char quote) 
 }
 
 static std::string blockString(const std::string& str, const std::string& indent) {
-    std::string res = "|\n";
+    std::string res = "|\n" + indent;
     for(const char* s = str.data(); *s; ++s) {
         res.push_back(*s);
         if(*s == '\n' && s[1]) {
@@ -632,7 +663,7 @@ static std::string strJoin(const std::vector<std::string>& strs, const std::stri
 }
 
 std::string Writer::spacing(int level) {
-    return indent && level < flowLevel ? std::string(' ', indent*level) : "";
+    return indent > 0 && level > 0 && level < flowLevel ? std::string(indent*level, ' ') : "";
 }
 
 // quote key string if necessary
@@ -647,18 +678,19 @@ std::string Writer::keyString(std::string str) {
 
 std::string Writer::convertArray(const JsonValue& obj, int level) {
     std::vector<std::string> res;
-    if(!indent || level >= flowLevel || (obj.getFlags() & Tag::YAML_FLOW) == Tag::YAML_FLOW) {
+    if(indent < 2 || level >= flowLevel || (obj.getFlags() & Tag::YAML_FLOW) == Tag::YAML_FLOW) {
         for(auto item : obj) {
             res.push_back(convert(item->value, flowLevel));
         }
         return "[" + strJoin(res, ", ") + "]";
-    } else {
-        // always use flow for nested array (for now)
-      for(auto item : obj) {
-            res.push_back(spacing(level) + "- " + convert(item->value, flowLevel));
-        }
-        return res.empty() ? "[]" : strJoin(res, "\n");
     }
+    for(auto item : obj) {
+        std::string str = convert(item->value, level+1);
+        const char* s = str.c_str();
+        while(isspace(*s)) { ++s; }
+        res.push_back(spacing(level) + "-" + std::string(indent-1, ' ') + s);
+    }
+    return res.empty() ? "[]" : strJoin(res, "\n");
 }
 
 std::string Writer::convertHash(const JsonValue& obj, int level) {
@@ -667,20 +699,20 @@ std::string Writer::convertHash(const JsonValue& obj, int level) {
     for(auto item : obj) {
         const std::string& key = item->key;
         JsonValue& val = item->value;
-        bool isScalar = val.getTag() != Tag::OBJECT && val.getTag() == Tag::ARRAY;
         if (val.getTag() == Tag::YAML_COMMENT) {
             res.push_back(convert(val, level+1));
-        } else if (!indent || level+1 >= flowLevel || isScalar || !val.getNode()) {
-            res.push_back(spacing(level) + keyString(key) + ": " + convert(val, flowLevel));
         } else {
-            res.push_back(spacing(level) + keyString(key) + ":\n" + convert(val, level+1));
+            bool sameLine = !indent || level+1 >= flowLevel ||
+                    !val.getNode() || (val.getFlags() & Tag::YAML_FLOW) == Tag::YAML_FLOW;
+            const char* sep = sameLine ? ": " : ":\n";
+            res.push_back(spacing(level) + keyString(key) + sep + convert(val, level+1));
         }
     }
     if (res.empty())
         return "{}";
     if (level >= flowLevel)
         return "{ " + strJoin(res, ", ") + " }";
-    return strJoin(res, std::string('\n', std::max(1, 1+extraLines - level)));
+    return strJoin(res, std::string(std::max(1, 1+extraLines - level), '\n'));
 }
 
 std::string Writer::convert(const JsonValue& obj, int level) {
@@ -692,14 +724,15 @@ std::string Writer::convert(const JsonValue& obj, int level) {
     case Tag::STRING:
         if(!indent) { return escapeDoubleQuoted(obj.getCStr()); }  // JSON
         switch(obj.getFlags() & Tag::YAML_STRINGMASK) {
-        case Tag::YAML_UNQUOTED:
-            return escapeUnQuoted(obj.getString(), level < flowLevel, quote);
-        case Tag::YAML_DBLQUOTED:
-            return escapeDoubleQuoted(obj.getString());
         case Tag::YAML_SINGLEQUOTED:
             return escapeSingleQuoted(obj.getString());
+        case Tag::YAML_UNQUOTED:
+            return escapeUnQuoted(obj.getString(), level < flowLevel, quote);
         case Tag::YAML_BLOCKSTRING:
             return blockString(obj.getString(), spacing(level));
+        case Tag::YAML_DBLQUOTED:
+        default:
+            return escapeDoubleQuoted(obj.getString());
         }
     case Tag::JSON_NULL:
         return "null";
@@ -753,26 +786,26 @@ layer2:
 
 int main(int argc, char **argv) {
 
-  /*
-    if (argc < 2) {
-        fprintf(stderr, "No input file specified!");
-        return -1;
-    }
+    //if (argc < 2) {
+    //    fprintf(stderr, "No input file specified!");
+    //    return -1;
+    //}
 
-    std::ifstream instrm(argv[1]);
+    //std::string infile(argv[1]);
+    std::ifstream instrm("stylus-osm.yaml"); //argv[1]);
     std::stringstream buffer;
     buffer << instrm.rdbuf();
 
-    std::string infile(argv[1]);
     //size_t ext = in.find_last_of('.');
     //std::ofstream outstr(infile.substr(0, ext) + );
 
     YAML::Document doc = YAML::parse(buffer.str());
-    */
 
-    YAML::Document doc = basicTests();
+    //YAML::Document doc = basicTests();
 
     YAML::Writer writer;
+    writer.indent = 4;
+    writer.extraLines = 1;
     //if (infile.substr(infile.size() - 5) == ".json") { writer.indent = 0; }
     std::string out = writer.convert(*doc.value);
     puts(out.c_str());
