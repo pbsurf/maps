@@ -191,22 +191,22 @@ inline Iterator end(Node) { return Iterator{nullptr}; }
 
 // Parser
 
-enum ParseError {
-    JSON_OK = 0,
-    JSON_BAD_NUMBER,
-    JSON_BAD_STRING,
-    JSON_BAD_IDENTIFIER,
-    JSON_STACK_OVERFLOW,
-    JSON_STACK_UNDERFLOW,
-    JSON_MISMATCH_BRACKET,
-    JSON_UNEXPECTED_CHARACTER,
-    JSON_UNQUOTED_KEY,
-    JSON_BREAKING_BAD,
-    JSON_ALLOCATION_FAILURE,
-    JSON_ERROR_COUNT
+enum class Error {
+    OK = 0,
+    BAD_NUMBER,
+    BAD_STRING,
+    BAD_IDENTIFIER,
+    STACK_OVERFLOW,
+    STACK_UNDERFLOW,
+    MISMATCH_BRACKET,
+    UNEXPECTED_CHARACTER,
+    UNQUOTED_KEY,
+    BREAKING_BAD,
+    ALLOCATION_FAILURE,
+    COUNT
 };
 
-const char *jsonStrError(int err);
+const char* jsonStrError(Error err);
 
 enum ParseFlags {
   PARSE_COMMENTS = 0x1,  // include comments
@@ -214,7 +214,7 @@ enum ParseFlags {
 };
 
 struct ParseResult {
-    int error;
+    Error error;
     int linenum;
     const char* endptr;
 };
