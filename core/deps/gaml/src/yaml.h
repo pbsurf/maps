@@ -40,9 +40,9 @@ class JsonValue {
     friend class Builder;
 
     union {
-      JsonNode* pval_ = nullptr;
-      //uint64_t ival_;
-      double fval_;
+        JsonNode* pval_ = nullptr;
+        //uint64_t ival_;
+        double fval_;
     };
     std::string strVal;
     Tag flags_;  // = Tag::UNDEFINED;
@@ -94,66 +94,90 @@ public:
         return (getTag() == Tag::ARRAY || getTag() == Tag::OBJECT) ? pval_ : nullptr;
     }
 
-    operator bool() { return getTag() != Tag::UNDEFINED && getTag() != Tag::INVALID; }
-    bool operator!() { return !operator bool(); }
+    operator bool() const { return getTag() != Tag::UNDEFINED && getTag() != Tag::INVALID; }
+    bool operator!() const { return !operator bool(); }
 };
 
+using Value = JsonValue;
+
 class Builder;
+struct NodeIterator;
+
+enum class NodeType { Undefined, Null, Scalar, Sequence, Map };
 
 class Node {
 public:
-  JsonValue* value;
+    JsonValue* value;
 
-  Node(JsonValue* v) : value(v) {}
-  const std::string& Scalar() { return value->getString(); }
-  //operator JsonValue&() { return *node; }
+    Node();
+    Node(JsonValue* v) : value(v) {}
 
-  operator bool() { return bool(*value); }
-  bool operator!() { return !operator bool(); }
+    // match yaml-cpp Node for easy replacement
+    const std::string& Scalar() const { return value->getString(); }
+    bool IsScalar() const { return value->getTag() == Tag::STRING || value->getTag() == Tag::NUMBER; }
+    bool IsSequence() const { return value->getTag() == Tag::ARRAY; }
+    bool IsMap() const { return value->getTag() == Tag::OBJECT; }
+    bool IsDefined() const { return bool(*value); }
+    bool IsNull() const { return bool(*value); }
+    bool IsQuoted() const { return value->getTag() == Tag::STRING &&
+        (value->getFlags() & YAML::Tag::YAML_STRINGMASK) != YAML::Tag::YAML_UNQUOTED; }
+    NodeType Type() const;
+    void reset(const Node& other) { value = other.value; }
 
-  Node& operator=(double x) { return operator=(JsonValue(x)); }
-  Node& operator=(const char* s) { return operator=(JsonValue(s)); }
-  Node& operator=(const std::string& s) { return operator=(s.c_str()); }
-  Node& operator=(JsonValue&& val);
+    NodeIterator begin() const;
+    NodeIterator end() const;
 
-  template <typename T> T as(const T& _default = {});
+    //operator JsonValue&() { return *node; }
 
-  Node operator[](const char* key);
-  Node operator[](const std::string& key) { return operator[](key.c_str()); }
-  Node operator[](int idx);  // using size_t creates ambiguity w/ nullptr for other overloads
-  void push_back(JsonValue&& val);
-  size_t size();
+    operator bool() const { return bool(*value); }
+    bool operator!() const { return !operator bool(); }
 
-  JsonValue clone() { return value->clone(); }
+    Node& operator=(double x) { return operator=(JsonValue(x)); }
+    Node& operator=(const char* s) { return operator=(JsonValue(s)); }
+    Node& operator=(const std::string& s) { return operator=(s.c_str()); }
+    Node& operator=(JsonValue&& val);
 
-  Builder build();
+    template <typename T> T as(const T& _default = {}, bool* ok = nullptr) const;
+
+    Node operator[](const char* key) const;
+    Node operator[](const std::string& key) const { return operator[](key.c_str()); }
+    Node operator[](int idx) const;  // using size_t creates ambiguity w/ nullptr for other overloads
+    void push_back(JsonValue&& val);
+    bool remove(const char* key);
+    bool remove(const std::string& key) { return remove(key.c_str()); }
+    bool remove(int idx);
+    size_t size() const;
+
+    JsonValue clone() const { return value->clone(); }
+
+    Builder build();
 };
 
-template<> int Node::as(const int& _default);
-template<> float Node::as(const float& _default);
-template<> double Node::as(const double& _default);
-template<> std::string Node::as(const std::string& _default);
-template<> bool Node::as(const bool& _default);
+template<> int Node::as(const int& _default, bool* ok) const;
+template<> float Node::as(const float& _default, bool* ok) const;
+template<> double Node::as(const double& _default, bool* ok) const;
+template<> std::string Node::as(const std::string& _default, bool* ok) const;
+template<> bool Node::as(const bool& _default, bool* ok) const;
 
 class Builder : public Node {
 public:
-  using Node::Node;
-  using Node::operator=;
+    using Node::Node;
+    using Node::operator=;
 
-  Builder operator[](const char* key);
-  Builder operator[](const std::string& key) { return operator[](key.c_str()); }
-  Builder operator[](int idx);
+    Builder operator[](const char* key);
+    Builder operator[](const std::string& key) { return operator[](key.c_str()); }
+    Builder operator[](int idx);
 };
 
 class Document : public Node {
 public:
-  Document() : Node(new JsonValue(Tag::UNDEFINED)) {}
-  Document(JsonValue* v) : Node(v) {}
-  ~Document() { delete value; value = nullptr; }
+    Document() : Node(new JsonValue(Tag::UNDEFINED)) {}
+    Document(JsonValue* v) : Node(v) {}
+    ~Document() { delete value; value = nullptr; }
 
-  Document(const Document&) = delete;
-  Document(Document&& b) : Node(nullptr) { *this = std::move(b); }
-  Document& operator=(Document&& b) { std::swap(value, b.value); return *this; }
+    Document(const Document&) = delete;
+    Document(Document&& b) : Node(nullptr) { *this = std::move(b); }
+    Document& operator=(Document&& b) { std::swap(value, b.value); return *this; }
 };
 
 struct JsonNode {
@@ -162,32 +186,38 @@ struct JsonNode {
     std::string key;  //char *key;
 
     Node node() { return Node(&value); }
+    Node keynode() { return Node(&key); }
 };
 
 // Iterator
 
 struct Iterator {
-    JsonNode *p;
+    JsonNode* p;
 
-    void operator++() {
-        p = p->next;
-    }
-    bool operator!=(const Iterator &x) const {
-        return p != x.p;
-    }
-    JsonNode *operator*() const {
-        return p;
-    }
-    JsonNode *operator->() const {
-        return p;
-    }
+    void operator++() { p = p->next;  }
+    bool operator!=(const Iterator &x) const { return p != x.p; }
+    JsonNode* operator*() const { return p; }
+    JsonNode* operator->() const { return p; }
 };
 
 inline Iterator begin(const JsonValue& o) { return Iterator{o.getNode()}; }
 inline Iterator end(const JsonValue&) { return Iterator{nullptr}; }
 
-inline Iterator begin(Node o) { return Iterator{o.value->getNode()}; }
-inline Iterator end(Node) { return Iterator{nullptr}; }
+// this is what yaml-cpp iterator does (!)
+class NodeOrPair : public Node, public std::pair<Node, Node> {
+public:
+    NodeOrPair(JsonValue* v);
+    NodeOrPair(JsonValue* k, JsonValue* v);
+};
+
+struct NodeIterator {
+    JsonNode* p;
+
+    void operator++() { p = p->next;  }
+    bool operator!=(const NodeIterator &x) const { return p != x.p; }
+    NodeOrPair operator*() const;
+    NodeOrPair operator->() const;
+};
 
 // Parser
 
@@ -209,8 +239,8 @@ enum class Error {
 const char* jsonStrError(Error err);
 
 enum ParseFlags {
-  PARSE_COMMENTS = 0x1,  // include comments
-  PARSE_JSON = 0x2,  // require JSON (exit with error if invalid JSON)
+    PARSE_COMMENTS = 0x1,  // include comments
+    PARSE_JSON = 0x2,  // require JSON (exit with error if invalid JSON)
 };
 
 struct ParseResult {
@@ -223,6 +253,11 @@ ParseResult parseTo(const char *str, JsonValue *value, int flags = 0);
 
 Document parse(const char* s, int flags = 0, ParseResult* resultout = nullptr);
 Document parse(const std::string& s, int flags = 0, ParseResult* resultout = nullptr);
+
+// yaml-cpp compatibility
+Document Load(const char* s) { return parse(s); }
+Document Load(const std::string& s) { return parse(s); }
+Document LoadFile(const std::string& filename);
 
 // Writer
 
@@ -240,5 +275,7 @@ struct Writer {
 
     std::string convert(const JsonValue& obj, int level = 0);
 };
+
+std::string Dump(const Node& node);
 
 }  // namespace YAML

@@ -8,7 +8,7 @@
 
 #include <algorithm>
 #include "csscolorparser.hpp"
-#include "yaml-cpp/yaml.h"
+#include "gaml/src/yaml.h"
 
 namespace Tangram {
 

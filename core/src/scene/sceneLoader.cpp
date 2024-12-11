@@ -43,7 +43,7 @@
 
 using YAML::Node;
 using YAML::NodeType;
-using YAML::BadConversion;
+//using YAML::BadConversion;
 
 #define LOGNode(fmt, node, ...) LOGW(fmt ":\n'%s'\n", ## __VA_ARGS__, Dump(node).c_str())
 
@@ -58,25 +58,19 @@ static const std::string GLOBAL_PREFIX = "global.";
 SceneError SceneLoader::applyUpdates(Node& _config, const std::vector<SceneUpdate>& _updates) {
 
     for (const auto& update : _updates) {
-        Node value;
-
-        try {
-            value = YAML::Load(update.value);
-        } catch (const YAML::ParserException& e) {
-            LOGE("Parsing scene update string failed. '%s'", e.what());
+        YAML::Document value = YAML::Load(update.value);
+        if (!value) {
+            LOGE("Unable to parse scene update YAML for %s : %s", update.path.c_str(), update.value.c_str());
             return {update, Error::scene_update_value_yaml_syntax_error};
         }
 
-        if (value) {
-            Node node;
-            bool pathIsValid = YamlPath(update.path).get(_config, node);
-            if (pathIsValid) {
-                node = value;
-            } else {
-                LOGE("Update: %s - %s", update.path.c_str(), update.value.c_str());
-                return {update, Error::scene_update_path_not_found};
-            }
+        Node node;
+        bool pathIsValid = YamlPath(update.path).get(_config, node);
+        if (!pathIsValid) {
+            LOGE("Update: %s - %s", update.path.c_str(), update.value.c_str());
+            return {update, Error::scene_update_path_not_found};
         }
+        node = value;
     }
     return {};
 }
@@ -177,20 +171,9 @@ void SceneLoader::applyScene(const Node& _node, Color& backgroundColor,
 void SceneLoader::applyCameras(const Node& _config, SceneCamera& _sceneCamera) {
 
     if (const Node& camera = _config["camera"]) {
-        try {
-            loadCamera(camera, _sceneCamera);
-        }
-        catch (const YAML::RepresentationException& e) {
-            LOGNode("Parsing camera: '%s'", camera, e.what());
-        }
-
+        loadCamera(camera, _sceneCamera);
     } else if (const Node& cameras = _config["cameras"]) {
-        try {
-            loadCameras(cameras, _sceneCamera);
-        }
-        catch (const YAML::RepresentationException& e) {
-            LOGNode("Parsing cameras: '%s'", cameras, e.what());
-        }
+        loadCameras(cameras, _sceneCamera);
     }
 }
 
@@ -293,13 +276,8 @@ Scene::Lights SceneLoader::applyLights(const Node& _node) {
 
     if (_node && _node.IsMap()) {
         for (const auto& light : _node) {
-            try {
-                if (auto sceneLight = loadLight(light)) {
-                    lights.push_back(std::move(sceneLight));
-                }
-            }
-            catch (const YAML::RepresentationException& e) {
-                LOGNode("Parsing light: '%s'", light, e.what());
+            if (auto sceneLight = loadLight(light)) {
+                lights.push_back(std::move(sceneLight));
             }
         }
     } else if (_node) {
@@ -389,6 +367,8 @@ std::unique_ptr<Light> SceneLoader::loadLight(const std::pair<Node, Node>& _node
             sLight->setCutoffExponent(YamlUtil::getFloatOrDefault(exponent, 0.f));
         }
         sceneLight = std::move(sLight);
+    } else {
+        LOGW("Light %s has invalid type '%s'", name.c_str(), type.c_str());
     }
     if (const Node& origin = light["origin"]) {
         const std::string& originStr = origin.Scalar();
@@ -449,10 +429,7 @@ void SceneLoader::applyTextures(const Node& _node, SceneTextures& _textures) {
     }
 
     for (const auto& texture : _node) {
-        try { loadTexture(texture, _textures); }
-        catch (const YAML::RepresentationException& e) {
-            LOGNode("Parsing texture: '%s'", texture, e.what());
-        }
+        loadTexture(texture, _textures);
     }
 }
 
@@ -492,10 +469,10 @@ void SceneLoader::loadTexture(const std::pair<Node, Node>& _node, SceneTextures&
 
     if (const Node& sprites = textureConfig["sprites"]) {
         auto atlas = std::make_unique<SpriteAtlas>();
-        for (auto it = sprites.begin(); it != sprites.end(); ++it) {
+        for (const auto& entry : sprites) {  //auto it = sprites.begin(); it != sprites.end(); ++it) {
 
-            const Node sprite = it->second;
-            const std::string& spriteName = it->first.Scalar();
+            const Node& sprite = entry.second;
+            const std::string& spriteName = entry.first.Scalar();
 
             if (sprite) {
                 glm::vec4 desc;
@@ -549,21 +526,16 @@ void SceneLoader::applyFonts(const Node& _node, SceneFonts& _fonts) {
     }
 
     for (const auto& font : _node) {
-        try {
-            const std::string& family = font.first.Scalar();
+        const std::string& family = font.first.Scalar();
 
-            if (font.second.IsMap()) {
-                loadFontDescription(font.second, family, _fonts);
-            } else if (font.second.IsSequence()) {
-                for (const auto& node : font.second) {
-                    loadFontDescription(node, family, _fonts);
-                }
-            } else {
-                // LOG
+        if (font.second.IsMap()) {
+            loadFontDescription(font.second, family, _fonts);
+        } else if (font.second.IsSequence()) {
+            for (const auto& node : font.second) {
+                loadFontDescription(node, family, _fonts);
             }
-        }
-        catch (const YAML::RepresentationException& e) {
-            LOGNode("Parsing font: '%s'", font, e.what());
+        } else {
+            LOGNode("Invalid fonts node", font);
         }
     }
 }
@@ -610,13 +582,8 @@ Scene::TileSources SceneLoader::applySources(const Node& _config, const SceneOpt
     }
     for (const auto& source : sources) {
         std::string srcName = source.first.Scalar();
-        try {
-            if (auto tileSource = loadSource(source.second, srcName, _options, _context)) {
-                tileSources.push_back(std::move(tileSource));
-            }
-        }
-        catch (const YAML::RepresentationException& e) {
-            LOGNode("Invalid source: '%s'", source, e.what());
+        if (auto tileSource = loadSource(source.second, srcName, _options, _context)) {
+            tileSources.push_back(std::move(tileSource));
         }
     }
 
@@ -663,11 +630,11 @@ Scene::TileSources SceneLoader::applySources(const Node& _config, const SceneOpt
             if (!layer.IsMap()) { continue; }
             bool enabled = true;
 
-            if (const Node& n = layer["enabled"]) {
-                YAML::convert<bool>::decode(n, enabled);
+            if (const Node& enode = layer["enabled"]) {
+                enabled = enode.as<bool>(enabled);  //YAML::convert<bool>::decode(n, enabled);
             }
-            else if (const Node n = layer["visible"]) {
-                YAML::convert<bool>::decode(n, enabled);
+            else if (const Node& vnode = layer["visible"]) {
+                enabled = vnode.as<bool>(enabled);  //YAML::convert<bool>::decode(n, enabled);
             }
 
             if (!enabled) { continue; }
@@ -908,41 +875,31 @@ Scene::Styles SceneLoader::applyStyles(const Node& _node, SceneTextures& _textur
     }
 
     StyleMixer mixer;
-    try {
-        mixer.mixStyleNodes(_node);
-    } catch (const YAML::RepresentationException& e) {
-        LOGNode("Mixing styles: '%s'", _node, e.what());
-    }
+    mixer.mixStyleNodes(_node);
 
     for (const auto& entry : _node) {
-        try {
-            auto name = entry.first.Scalar();
-            auto styleConfig =  entry.second;
+        auto name = entry.first.Scalar();
+        auto styleConfig =  entry.second;
 
+        auto style = loadStyle(name, styleConfig);
+        if (!style) { continue; }
 
-            auto style = loadStyle(name, styleConfig);
-            if (!style) { continue; }
+        loadStyleProps(styleConfig, *style.get(), _textures);
 
-            loadStyleProps(styleConfig, *style.get(), _textures);
+        const Node& drawNode = styleConfig["draw"];
+        if (drawNode) {
+            auto params = parseStyleParams(drawNode, _stops, _functions);
 
-            const Node& drawNode = styleConfig["draw"];
-            if (drawNode) {
-                auto params = parseStyleParams(drawNode, _stops, _functions);
-
-                // Note: ruleID and name is immaterial here, as these are only used
-                // for rule merging, but style's default styling rules are applied
-                // post rule merging for any style parameter which was not assigned
-                // during merging step.
-                int ruleID = addDrawRuleName(_ruleNames, name);
-                style->setDefaultDrawRule(std::make_unique<DrawRuleData>(name, ruleID,
-                                                                         std::move(params)));
-            }
-
-            styles.push_back(std::move(style));
+            // Note: ruleID and name is immaterial here, as these are only used
+            // for rule merging, but style's default styling rules are applied
+            // post rule merging for any style parameter which was not assigned
+            // during merging step.
+            int ruleID = addDrawRuleName(_ruleNames, name);
+            style->setDefaultDrawRule(std::make_unique<DrawRuleData>(name, ruleID,
+                                                                     std::move(params)));
         }
-        catch (const YAML::RepresentationException& e) {
-            LOGNode("Parsing style: '%s'", entry, e.what());
-        }
+
+        styles.push_back(std::move(style));
     }
     return styles;
 }
@@ -1543,42 +1500,37 @@ std::vector<DataLayer> SceneLoader::applyLayers(const Node& _node,  SceneFunctio
 
     std::vector<DataLayer> dataLayers;
     for (const auto& layer : _node) {
-        try {
-            const std::string& name = layer.first.Scalar();
-            std::string source;
-            std::vector<std::string> collections;
+        const std::string& name = layer.first.Scalar();
+        std::string source;
+        std::vector<std::string> collections;
 
-            auto sublayer = loadSublayer(layer.second, name, _functions, _stops, _ruleNames);
+        auto sublayer = loadSublayer(layer.second, name, _functions, _stops, _ruleNames);
 
-            if (const Node& data = layer.second["data"]) {
+        if (const Node& data = layer.second["data"]) {
 
-                const Node& data_source = data["source"];
-                if (data_source && data_source.IsScalar()) {
-                    source = data_source.Scalar();
-                }
+            const Node& data_source = data["source"];
+            if (data_source && data_source.IsScalar()) {
+                source = data_source.Scalar();
+            }
 
-                if (const Node& data_layer = data["layer"]) {
-                    if (data_layer.IsScalar()) {
-                        collections.push_back(data_layer.Scalar());
+            if (const Node& data_layer = data["layer"]) {
+                if (data_layer.IsScalar()) {
+                    collections.push_back(data_layer.Scalar());
 
-                    } else if (data_layer.IsSequence()) {
-                        collections.reserve(data_layer.size());
-                        for (const auto& entry : data_layer) {
-                            if (entry.IsScalar()) {
-                                collections.push_back(entry.Scalar());
-                            }
+                } else if (data_layer.IsSequence()) {
+                    collections.reserve(data_layer.size());
+                    for (const auto& entry : data_layer) {
+                        if (entry.IsScalar()) {
+                            collections.push_back(entry.Scalar());
                         }
                     }
                 }
             }
-            if (collections.empty()) {
-                collections.push_back(name);
-            }
-            dataLayers.emplace_back(std::move(sublayer), source, collections);
         }
-        catch (const YAML::RepresentationException& e) {
-            LOGNode("Parsing layer: '%s'", layer, e.what());
+        if (collections.empty()) {
+            collections.push_back(name);
         }
+        dataLayers.emplace_back(std::move(sublayer), source, collections);
     }
     return dataLayers;
 }
@@ -1599,7 +1551,7 @@ SceneLayer SceneLoader::loadSublayer(const Node& _layer, const std::string& _lay
             // Ignored for sublayers
         } else if (key == "draw") {
             // Member is a mapping of draw rules
-            for (auto& ruleNode : member.second) {
+            for (const auto& ruleNode : member.second) {
                 auto params = parseStyleParams(ruleNode.second, _stops, _functions);
 
                 auto const& ruleName = ruleNode.first.Scalar();
@@ -1740,10 +1692,7 @@ Filter SceneLoader::generateNoneFilter(SceneFunctions& _functions, const Node& _
 Filter SceneLoader::generatePredicate(const Node& _node, std::string _key) {
     switch (_node.Type()) {
     case NodeType::Scalar: {
-        if (_node.Tag() == "tag:yaml.org,2002:str") {
-            // Node was explicitly tagged with '!!str' or the canonical tag
-            // 'tag:yaml.org,2002:str' yaml-cpp normalizes the tag value to the
-            // canonical form
+        if (_node.IsQuoted()) {  //  _node.Tag() == "tag:yaml.org,2002:str") {
             return Filter::MatchEquality(_key, { Value(_node.Scalar()) });
         }
         double number;

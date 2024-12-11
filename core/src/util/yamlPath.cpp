@@ -71,7 +71,7 @@ bool YamlPath::get(YAML::Node root, YAML::Node& out) {
         } else if (delimiter == MAP_DELIM) {
             auto key = codedPath.substr(beginToken, endToken - beginToken);
             if (createPath && !root[key])
-                root[key] = YAML::Node(YAML::NodeType::Null);
+                root[key] = YAML::Node();  //YAML::NodeType::Null);
             if (root.IsMap()) {
                 root.reset(root[key]);
             } else {

@@ -18,7 +18,7 @@ namespace Tangram {
 Importer::Importer() {}
 Importer::~Importer() {}
 
-Node Importer::loadSceneData(Platform& _platform, const Url& _sceneUrl, const std::string& _sceneYaml) {
+YAML::Document Importer::loadSceneData(Platform& _platform, const Url& _sceneUrl, const std::string& _sceneYaml) {
 
     Url nextUrlToImport;
     std::vector<UrlRequestHandle> urlRequests;
@@ -76,12 +76,12 @@ Node Importer::loadSceneData(Platform& _platform, const Url& _sceneUrl, const st
         // clear all callbacks before captures go out of scope!
         for (auto& req : urlRequests) { _platform.cancelUrlRequest(req); }
         m_zipWorker.reset();
-        return Node();
+        return YAML::Document();
     }
 
     LOGD("Processing scene import Stack:");
     std::unordered_set<Url> imported;
-    Node root;
+    YAML::Document root;
     importScenesRecursive(root, _sceneUrl, imported);
 
     // After merging all scenes, resolve texture nodes as named textures or URLs.
@@ -183,12 +183,7 @@ void Importer::addSceneYaml(const Url& sceneUrl, const char* sceneYaml, size_t l
 
     auto& sceneNode = m_sceneNodes[sceneUrl];
 
-    try {
-        sceneNode.yaml = YamlUtil::loadNoCopy(sceneYaml, length);
-    } catch (const YAML::ParserException& e) {
-        LOGE("Parsing scene config '%s'", e.what());
-        return;
-    }
+    sceneNode.yaml = YamlUtil::loadNoCopy(sceneYaml, length);
 
     if (!sceneNode.yaml.IsDefined() || !sceneNode.yaml.IsMap()) {
         LOGE("Scene is not a valid YAML map: %s", sceneUrl.string().c_str());
@@ -309,8 +304,8 @@ static bool nodeIsPotentialTextureUrl(const Node& node) {
     // Check that the node is not a number or a boolean.
     bool booleanValue = false;
     double numberValue = 0.;
-    if (YAML::convert<bool>::decode(node, booleanValue)) { return false; }
-    if (YAML::convert<double>::decode(node, numberValue)) { return false; }
+    if (YamlUtil::getBool(node, booleanValue)) { return false; }  //YAML::convert<bool>::decode
+    if (YamlUtil::getDouble(node, numberValue)) { return false; }  //YAML::convert<double>::decode
 
     return true;
 }
@@ -417,7 +412,7 @@ void Importer::resolveSceneUrls(Node& root, const Url& baseUrl) {
                         urlNode = base.resolve(Url(urlNode.Scalar())).string();
                     }
                 } else if (font.second.IsSequence()) {
-                    for (auto& fontNode : font.second) {
+                    for (const auto& fontNode : font.second) {
                         auto urlNode = fontNode["url"];
                         if (nodeIsPotentialUrl(urlNode)) {
                             urlNode = base.resolve(Url(urlNode.Scalar())).string();

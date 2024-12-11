@@ -22,9 +22,10 @@
 #include <vector>
 #include <tuple>
 #include <unordered_map>
+#include <list>
 
 #include "glm/vec2.hpp"
-#include "yaml-cpp/yaml.h"
+#include "gaml/src/yaml.h"
 
 namespace Tangram {
 
@@ -250,7 +251,7 @@ protected:
     /// ---------------------------------------------------------------///
     /// Loaded Scene Data
     /// The root node of the YAML scene configuration
-    YAML::Node m_config;
+    YAML::Document m_config;
 
     // object to manage JS context used for (optional) tile URL fns - must be destroyed after TileSources
     DataSourceContext m_sourceContext;

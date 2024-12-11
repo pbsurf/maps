@@ -2,7 +2,7 @@
 
 #include "platform.h"
 
-#include "yaml-cpp/yaml.h"
+#include "gaml/src/yaml.h"
 
 #include <atomic>
 #include <memory>
@@ -29,7 +29,7 @@ public:
     ~Importer();
 
     // Loads the main scene with deep merging dependent imported scenes.
-    Node loadSceneData(Platform& platform, const Url& sceneUrl, const std::string& sceneYaml = "");
+    YAML::Document loadSceneData(Platform& platform, const Url& sceneUrl, const std::string& sceneYaml = "");
 
     void cancelLoading();
 

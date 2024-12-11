@@ -97,7 +97,9 @@ double getDoubleOrDefault(const YAML::Node& node, double defaultValue, bool allo
 }
 
 bool getBool(const YAML::Node& node, bool& result) {
-    return YAML::convert<bool>::decode(node, result);
+    bool ok = false;
+    result = node.as<bool>(result, &ok);  //YAML::convert<bool>::decode(node, result);
+    return ok;
 }
 
 bool getBoolOrDefault(const YAML::Node& node, bool defaultValue) {

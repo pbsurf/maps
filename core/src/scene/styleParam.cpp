@@ -12,9 +12,7 @@
 #include "util/yamlUtil.h"
 
 #include "csscolorparser.hpp"
-#include "yaml-cpp/node/node.h"
-#include "yaml-cpp/node/convert.h"
-#include "yaml-cpp/node/emit.h"
+#include "gaml/src/yaml.h"
 #include <algorithm>
 #include <cstring>
 #include <map>
@@ -347,7 +345,7 @@ StyleParam::Value StyleParam::parseNode(StyleParamKey key, const YAML::Node& nod
             return NAN;
         }
         float number;
-        if (YAML::convert<float>::decode(node, number)) {
+        if (YamlUtil::getFloat(node, number)) {  //::convert<float>::decode(node, number)) {
             return number;
         }
         LOGW("Invalid angle value: %s", Dump(node).c_str());
@@ -402,8 +400,8 @@ StyleParam::Value StyleParam::parseNode(StyleParamKey key, const YAML::Node& nod
 }
 
 StyleParam::Value StyleParam::parseString(StyleParamKey key, const std::string& value) {
-    YAML::Node node(value);
-    return parseNode(key, node);
+    YAML::JsonValue v(value);  //YAML::Node node(value);
+    return parseNode(key, YAML::Node(&v));
 }
 
 std::string StyleParam::toString() const {

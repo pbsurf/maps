@@ -4,7 +4,7 @@
 #pragma once
 
 #include "js/JavaScriptFwd.h"
-#include "yaml-cpp/yaml.h"
+#include "gaml/src/yaml.h"
 #include "glm/vec4.hpp"
 
 namespace Tangram {

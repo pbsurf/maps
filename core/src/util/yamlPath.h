@@ -3,7 +3,8 @@
 
 #pragma once
 
-#include "yaml-cpp/yaml.h"
+#include <vector>
+#include "gaml/src/yaml.h"
 
 namespace Tangram {
 

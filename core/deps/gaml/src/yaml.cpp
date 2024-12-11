@@ -1,10 +1,12 @@
-#include "gason.h"
+#include "yaml.h"
 #include <stdlib.h>
 #include <string.h>
 #include <climits>
 #include <vector>
 #include <set>
 #include <utility>
+#include <fstream>
+#include <sstream>
 
 // Why this was written:
 // 1. NIH syndrome
@@ -145,7 +147,7 @@ Builder Builder::operator[](const char* key) {
     return Builder(n.value);
 }
 
-Node Node::operator[](const char* key) {
+Node Node::operator[](const char* key) const {
     if (value->getTag() == Tag::UNDEFINED) { return Node(&UNDEFINED_VALUE); }
     if (value->getTag() != Tag::OBJECT) { return Node(&INVALID_VALUE); }
     JsonNode* obj = value->pval_;
@@ -174,7 +176,7 @@ Builder Builder::operator[](int idx) {
     return Builder(n.value);
 }
 
-Node Node::operator[](int idx) {
+Node Node::operator[](int idx) const {
     if (value->getTag() == Tag::UNDEFINED) { return Node(&UNDEFINED_VALUE); }
     if (value->getTag() != Tag::ARRAY) { return Node(&INVALID_VALUE); }
     JsonNode* array = value->getNode();
@@ -194,7 +196,34 @@ void Node::push_back(JsonValue&& val) {
     array->next = item;
 }
 
-size_t Node::size() {
+bool Node::remove(const char* key) {
+    if (value->getTag() != Tag::OBJECT) { return false; }
+
+    JsonNode** obj = &value->pval_;
+    while(*obj && (*obj)->key != key) {
+        obj = &(*obj)->next;
+    }
+    if (*obj) {
+        delete std::exchange(*obj, (*obj)->next);
+    }
+    return bool(*obj);
+}
+
+bool Node::remove(int idx) {
+    if (value->getTag() != Tag::ARRAY) { return false; }
+    JsonNode** prev = &value->pval_;
+
+    TODO;
+
+    JsonNode* array = value->pval_;
+    do {
+        while (array && array->value.getTag() == Tag::YAML_COMMENT) { array = array->next; }
+    } while (idx-- && array && (array = array->next));
+    return array ? array->node() : Node(&UNDEFINED_VALUE);
+}
+
+
+size_t Node::size() const {
     size_t n = 0;
     for (JsonNode* obj = value->getNode(); obj; obj = obj->next) { ++n; }
     return n;
@@ -207,44 +236,76 @@ Node& Node::operator=(JsonValue&& val) {
   return *this;
 }
 
-template<> int Node::as(const int& _default) {
-    return int(as<double>(double(_default)));
+template<> int Node::as(const int& _default, bool* ok) const {
+    return int(as<double>(double(_default), ok));
 }
 
-template<> float Node::as(const float& _default) {
-    return float(as<double>(double(_default)));
+template<> float Node::as(const float& _default, bool* ok) const {
+    return float(as<double>(double(_default), ok));
 }
 
-template<> double Node::as(const double& _default) {
-    if(value->isNumber()) { return value->getNumber(); }
-    if(value->getTag() != Tag::STRING) { return _default; }
-    char* endptr;
-    auto s = value->getString();
-    double val = s[0] == '0' ? strtoul(s.c_str(), &endptr, 0) : string2double(s.c_str(), &endptr);
-    // endptr should point to '\0' terminator char after successful conversion
-    return *endptr ? _default : val;  //endptr - s == strlen(s) ? val : _default;
+template<> double Node::as(const double& _default, bool* ok) const {
+    if (ok) { *ok = true; }
+    if (value->isNumber()) { return value->getNumber(); }
+    if (value->getTag() == Tag::STRING) {
+        char* endptr;
+        auto s = value->getString();
+        double val = s[0] == '0' ? strtoul(s.c_str(), &endptr, 0) : string2double(s.c_str(), &endptr);
+        // endptr should point to '\0' terminator char after successful conversion
+        if (!s.empty() && *endptr == '\0') { return val; }
+    }
+    if (ok) { *ok = false; }
+    return _default;
 }
 
-template<> std::string Node::as(const std::string& _default) {
-    if(value->isNumber()) { return std::to_string(value->getNumber()); }
-    return value->getTag() == Tag::STRING ? value->getString() : _default;
+template<> std::string Node::as(const std::string& _default, bool* ok) const {
+    if (ok) { *ok = true; }
+    if (value->isNumber()) { return std::to_string(value->getNumber()); }
+    if (value->getTag() == Tag::STRING) { return value->getString(); }
+    if (ok) { *ok = false; }
+    return _default;
 }
 
-template<> bool Node::as(const bool& _default) {
-    // YAML 1.2 only allows true/false ... but if caller is asking for bool be flexible
-    static const char* boolstrs[] = {"true","false","True","False","TRUE","FALSE",
-        "y","n","Y","N","yes","no","Yes","No","YES","NO","on","off","On","Off","ON","OFF"};
+template<> bool Node::as(const bool& _default, bool* ok) const {
+    // YAML 1.2 only allows true/false
+    static const char* boolstrs[] = {"true","false","True","False","TRUE","FALSE"}; //,
+    //"y","n","Y","N","yes","no","Yes","No","YES","NO","on","off","On","Off","ON","OFF"};
 
-    if(value->isNumber()) { return value->getNumber() != 0; }
+    if (ok) { *ok = true; }
+    if (value->isNumber()) { return value->getNumber() != 0; }
     auto s = value->getString();
     int idx = 0;
     for (const char* boolstr : boolstrs) {
         if (s == boolstr) { return idx%2 == 0; }
         ++idx;
     }
+    if (ok) { *ok = false; }
     return  _default;
 }
 
+// only for yaml-cpp compatibility
+
+Node::Node() : value(&UNDEFINED_VALUE) {}
+
+NodeType Node::Type() const {
+  switch(value->getTag()) {
+  case Tag::STRING:
+  case Tag::NUMBER: return NodeType::Scalar;
+  case Tag::ARRAY: return NodeType::Sequence;
+  case Tag::OBJECT: return NodeType::Map;
+  default: return NodeType::Undefined;  // Null?
+  }
+}
+
+NodeOrPair::NodeOrPair(JsonValue* v) : Node(v), std::pair<Node, Node>{&INVALID_VALUE, &INVALID_VALUE} {}
+NodeOrPair::NodeOrPair(JsonValue* k, JsonValue* v) : Node(&INVALID_VALUE), std::pair<Node, Node>{k, v} {}
+
+NodeOrPair NodeIterator::operator*() const {
+    return p->key.empty() ? NodeOrPair(&p->value) : NodeOrPair(&p->key, &p->value);
+}
+
+NodeIterator Node::begin() const { return NodeIterator{value->getNode()}; }
+NodeIterator Node::end() const { return NodeIterator{nullptr}; }
 
 // Parser
 
@@ -302,6 +363,15 @@ const char* jsonStrError(Error err) {
 
 Document parse(const std::string& s, int flags, ParseResult* resultout) {
     return parse(s.c_str(), flags, resultout);
+}
+
+Document LoadFile(const std::string& filename) {
+    std::stringstream buffer;
+    {
+        std::ifstream instrm(filename);  //"stylus-osm.yaml"); //argv[1]);
+        buffer << instrm.rdbuf();
+    }
+    return Load(buffer.str());
 }
 
 #ifndef GAML_LOG
@@ -588,7 +658,6 @@ ParseResult parseTo(const char *s, JsonValue *valueout, int flags) {
             }
         }
 
-
         if (pos == -1) {
             *valueout = std::move(o);
             return {Error::OK, linenum, s};
@@ -756,12 +825,16 @@ std::string Writer::convert(const JsonValue& obj, int level) {
     }
 }
 
+std::string Dump(const Node& node) {
+  YAML::Writer writer;
+  writer.indent = 4;
+  //writer.extraLines = 1;
+  return writer.convert(*node.value);
+}
+
 }  // namespace YAML
 
 #if 1 //def GAML_MAIN
-
-#include <fstream>
-#include <sstream>
 
 YAML::Document basicTests()
 {
@@ -795,6 +868,9 @@ layer2:
 
   assert(doc["a"]["b"].Scalar() == "this is a.b");
   assert(doc["b"].as<double>() == 5.6);
+
+  doc.remove("b");
+  assert(doc["b"].as<double>(0) == 0);
 
   YAML::Writer writer;
   writer.indent = 4;

@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-#include "yaml-cpp/yaml.h"
+#include "gaml/src/yaml.h"
 
 namespace Tangram {
 
