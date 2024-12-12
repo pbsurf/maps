@@ -1692,19 +1692,17 @@ Filter SceneLoader::generateNoneFilter(SceneFunctions& _functions, const Node& _
 Filter SceneLoader::generatePredicate(const Node& _node, std::string _key) {
     switch (_node.Type()) {
     case NodeType::Scalar: {
-        if (_node.IsQuoted()) {  //  _node.Tag() == "tag:yaml.org,2002:str") {
-            return Filter::MatchEquality(_key, { Value(_node.Scalar()) });
+        if (!_node.IsQuoted()) {  //  _node.Tag() == "tag:yaml.org,2002:str") {
+            double number;
+            if (YamlUtil::getDouble(_node, number, false)) {
+                return Filter::MatchEquality(_key, { Value(number) });
+            }
+            bool existence;
+            if (YamlUtil::getBool(_node, existence)) {
+                return Filter::MatchExistence(_key, existence);
+            }
         }
-        double number;
-        if (YamlUtil::getDouble(_node, number, false)) {
-            return Filter::MatchEquality(_key, { Value(number) });
-        }
-        bool existence;
-        if (YamlUtil::getBool(_node, existence)) {
-            return Filter::MatchExistence(_key, existence);
-        }
-        const std::string& value = _node.Scalar();
-        return Filter::MatchEquality(_key, { Value(std::move(value)) });
+        return Filter::MatchEquality(_key, { Value(_node.Scalar()) });
     }
     case NodeType::Sequence: {
         std::vector<Value> values;

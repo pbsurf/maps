@@ -92,10 +92,43 @@ static double string2double(const char *s, char **endptr) {
     return ch == '-' ? -result : result;
 }
 
+static inline JsonNode* insertAfter(JsonNode* tail, JsonNode* node) {
+    if (!tail)
+        return node->next = node;
+    node->next = tail->next;
+    tail->next = node;
+    return node;
+}
+
+static inline JsonValue listToValue(Tag tag, JsonNode* tail) {
+    if (tail) {
+        auto head = tail->next;
+        tail->next = nullptr;
+        return JsonValue(tag, head);
+    }
+    return JsonValue(tag, nullptr);
+}
+
 // Node
 
 static JsonValue UNDEFINED_VALUE(Tag::UNDEFINED);
 static JsonValue INVALID_VALUE(Tag::INVALID);
+
+JsonValue::JsonValue(std::initializer_list<JsonTuple> items) {
+  JsonNode* tail = nullptr;
+  for(auto& item : items) {
+      insertAfter(tail, new JsonNode{item.val.clone(), nullptr, item.key});
+  }
+  *this = listToValue(Tag::OBJECT, tail);
+}
+
+JsonValue Array(std::initializer_list<JsonValue> items) {
+    JsonNode* tail = nullptr;
+    for (auto& item : items) {
+        insertAfter(tail, new JsonNode{item.clone(), nullptr, nullptr});
+    }
+    return listToValue(Tag::ARRAY, tail);
+}
 
 JsonValue::~JsonValue() {
     if (getTag() == Tag::ARRAY || getTag() == Tag::OBJECT) {
@@ -111,25 +144,21 @@ JsonValue& JsonValue::operator=(JsonValue&& b) {
 }
 
 JsonValue JsonValue::clone() const {
-    JsonValue res(flags_);
-    res.strVal = strVal;
     if (!getNode()) {
+        JsonValue res(flags_);
+        res.strVal = strVal;
         res.fval_ = fval_;
         return res;
     }
     JsonNode* tail = nullptr;
-    for(auto item : *this) {
-        JsonNode* obj = new JsonNode{item->value.clone(), nullptr, item->key};
-        if(!tail) { res.pval_ = obj; } else { tail->next = obj; }
-        tail = obj;
+    for (auto item : *this) {
+        insertAfter(tail, new JsonNode{item->value.clone(), nullptr, item->key});
     }
-    return res;
+    return listToValue(flags_, tail);
 }
 
-Builder Node::build() { return Builder(value); }
-
-Builder Builder::operator[](const char* key) {
-    Node n = Node::operator[](key);
+Node Node::add(const char* key, bool replace) {
+    Node n = operator[](key);
     if (n.value == &UNDEFINED_VALUE) {
         if(value->getTag() == Tag::UNDEFINED) {
             value->flags_ = Tag::OBJECT;
@@ -142,9 +171,11 @@ Builder Builder::operator[](const char* key) {
             while(obj->next) { obj = obj->next; }
             obj->next = val;
         }
-        return Builder(&val->value);
+        return Node(&val->value);
+    } else if (replace) {
+        n = JsonValue(Tag::UNDEFINED);
     }
-    return Builder(n.value);
+    return Node(n.value);
 }
 
 Node Node::operator[](const char* key) const {
@@ -157,8 +188,8 @@ Node Node::operator[](const char* key) const {
     return obj ? obj->node() : Node(&UNDEFINED_VALUE);
 }
 
-Builder Builder::operator[](int idx) {
-    Node n = Node::operator[](idx);
+/*Node Node::add(int idx, bool replace) {
+    Node n = operator[](idx);
     if (n.value == &UNDEFINED_VALUE) {
         if(value->getTag() == Tag::UNDEFINED) {
             value->flags_ = Tag::ARRAY;
@@ -171,10 +202,10 @@ Builder Builder::operator[](int idx) {
             while(obj->next) { obj = obj->next; }
             obj->next = val;
         }
-        return Builder(&val->value);
+        return Node(&val->value);
     }
-    return Builder(n.value);
-}
+    return Node(n.value);
+}*/
 
 Node Node::operator[](int idx) const {
     if (value->getTag() == Tag::UNDEFINED) { return Node(&UNDEFINED_VALUE); }
@@ -210,18 +241,29 @@ bool Node::remove(const char* key) {
 }
 
 bool Node::remove(int idx) {
-    if (value->getTag() != Tag::ARRAY) { return false; }
-    JsonNode** prev = &value->pval_;
+    if (value->getTag() != Tag::ARRAY || !value->pval_) { return false; }
 
-    TODO;
-
-    JsonNode* array = value->pval_;
-    do {
-        while (array && array->value.getTag() == Tag::YAML_COMMENT) { array = array->next; }
-    } while (idx-- && array && (array = array->next));
-    return array ? array->node() : Node(&UNDEFINED_VALUE);
+    if (idx == 0) {
+        delete std::exchange(value->pval_, value->pval_->next);
+        return true;
+    }
+    JsonNode* obj = value->pval_;
+    while (obj && --idx) { obj = obj->next; }  // note pre-decrement to get node before [idx]
+    if (obj && obj->next) {
+        delete std::exchange(obj->next, obj->next->next);
+        return true;
+    }
+    return false;
 }
 
+void Node::merge(JsonValue&& src)
+{
+    if (src.getTag() != Tag::OBJECT || !src.getNode()) { return; }
+    if (value->getTag() != Tag::UNDEFINED && value->getTag() != Tag::OBJECT) { return; }
+    for (auto item : src) {
+        add(item->key) = std::move(item->value);
+    }
+}
 
 size_t Node::size() const {
     size_t n = 0;
@@ -297,6 +339,10 @@ NodeType Node::Type() const {
   }
 }
 
+void Node::setNoWrite(bool nowrite) {
+    value->flags_ = nowrite ? (value->flags_ | Tag::NO_WRITE) : (value->flags_ & ~Tag::NO_WRITE);
+}
+
 NodeOrPair::NodeOrPair(JsonValue* v) : Node(v), std::pair<Node, Node>{&INVALID_VALUE, &INVALID_VALUE} {}
 NodeOrPair::NodeOrPair(JsonValue* k, JsonValue* v) : Node(&INVALID_VALUE), std::pair<Node, Node>{k, v} {}
 
@@ -308,23 +354,6 @@ NodeIterator Node::begin() const { return NodeIterator{value->getNode()}; }
 NodeIterator Node::end() const { return NodeIterator{nullptr}; }
 
 // Parser
-
-static inline JsonNode* insertAfter(JsonNode* tail, JsonNode* node) {
-    if (!tail)
-        return node->next = node;
-    node->next = tail->next;
-    tail->next = node;
-    return node;
-}
-
-static inline JsonValue listToValue(Tag tag, JsonNode* tail) {
-    if (tail) {
-        auto head = tail->next;
-        tail->next = nullptr;
-        return JsonValue(head, tag);
-    }
-    return JsonValue(nullptr, tag);
-}
 
 static inline char unescapedChar(char c) {
     switch(c) {
@@ -755,11 +784,13 @@ std::string Writer::convertArray(const JsonValue& obj, int level) {
     std::vector<std::string> res;
     if(indent < 2 || level >= flowLevel || (obj.getFlags() & Tag::YAML_FLOW) == Tag::YAML_FLOW) {
         for(auto item : obj) {
+            if (!!(item->value.getFlags() & Tag::NO_WRITE)) { continue; }
             res.push_back(convert(item->value, flowLevel));
         }
         return res.empty() ? "[]" : "[" + strJoin(res, ", ") + "]";
     }
     for(auto item : obj) {
+        if (!!(item->value.getFlags() & Tag::NO_WRITE)) { continue; }
         std::string str = convert(item->value, level+1);
         const char* s = str.c_str();
         while(isspace(*s)) { ++s; }
@@ -777,6 +808,7 @@ std::string Writer::convertHash(const JsonValue& obj, int level) {
         if (val.getTag() == Tag::YAML_COMMENT) {
             res.push_back(convert(val, level+1));
         } else {
+            if (!!(item->value.getFlags() & Tag::NO_WRITE)) { continue; }
             bool sameLine = !indent || level+1 >= flowLevel ||
                     !val.getNode() || (val.getFlags() & Tag::YAML_FLOW) == Tag::YAML_FLOW;
             const char* sep = sameLine ? ": " : ":\n";
@@ -853,18 +885,40 @@ layer2:
 })";
 
   YAML::Document doc = YAML::parse(yaml);
-  auto builder = doc.build();
-  builder["a"]["b"] = "this is a.b";
-  builder["a"]["c"][0] = "this is a.c[0]";
-  builder["a"]["c"][1] = "this is a.c[1]";
-  builder["b"] = 5.6;
-  builder["cloned"] = doc.clone();
-  //builder["c"] = {{"x", "this is c.x"}, {"y", "this is c.y"}};
+
+  YAML::JsonValue p = {
+    {"a", { {"b", "this is a.b"} }},
+    {"b", 5.6},
+    {"c", "this is c"}
+  };
+
+
+  /*YAML::JsonPairs other = {
+    { "level1_1", 4 },
+    { "level1_2", 1    },
+    { "level2", {
+        { "level2_1", "test"     },
+        { "level2_2", 5 },
+      },
+    },
+  };*/
+
+  //doc = YAML::JsonValue({{"a", "this is a"}, {"b", 4.5}});
+  doc = YAML::JsonValue({{"a", { {"b", "this is a.b"} }}, {"b", 5.6}});
+  doc.add("a").add("b") = "this is a.b";
+  doc["a"].add("c") = YAML::Array({"this is a.c[0]", "this is a.c[1]", "this is a.c[2]"});
+
+  doc["a"].add("d") = YAML::Array({ { {"a", 5}, {"b", "xxx"} }, "this is a.c[0]"});
+
+  //doc["a"]["c"].push_back("this is a.c[1]");
+  doc["b"] = 5.6;
+  doc.add("cloned") = doc.clone();
+  doc.add("c") = YAML::JsonValue({{"x", "this is c.x"}, {"y", "this is c.y"}, {"z", 4.5}});
   //builder["d"] = {"a", "b", "c", "d"};
   //builder["e"] = {1, 2, 3, 4};
 
   YAML::Document jdoc = YAML::parse(json);
-  builder["jdoc"] = std::move(*jdoc.value);
+  doc.add("jdoc") = std::move(*jdoc.value);
 
   assert(doc["a"]["b"].Scalar() == "this is a.b");
   assert(doc["b"].as<double>() == 5.6);
