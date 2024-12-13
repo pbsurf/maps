@@ -9,6 +9,7 @@
 namespace YAML {
 
 enum class Tag {
+    NONE = 0,
     // bits 0 - 7
     UNDEFINED = 0,  // key not found (but can be added by assignment)
     NUMBER = 1,
@@ -21,9 +22,9 @@ enum class Tag {
     INVALID = 0xFF,  // returned by [](char*) if not object, or [](int) if not array
     TYPE_MASK = 0xFF,
     // bits 8 - 9
-    YAML_DBLQUOTED = 0,
+    YAML_UNQUOTED = 0,  // default to unquoted; Writer will check if quoting is necessary
     YAML_SINGLEQUOTED = 1 << 8,
-    YAML_UNQUOTED = 2 << 8,
+    YAML_DBLQUOTED = 2 << 8,
     YAML_BLOCKSTRING = 3 << 8,
     YAML_STRINGMASK = 3 << 8,
     // bit 10
@@ -38,8 +39,6 @@ inline constexpr Tag operator~(Tag a) { return Tag(~int(a)); }
 inline constexpr bool operator!(Tag a) { return int(a) == 0; }
 
 struct JsonNode;
-struct JsonPair;
-struct JsonPairs;
 struct JsonTuple;
 
 class JsonValue {
@@ -62,8 +61,6 @@ public:
     JsonValue(const std::string& s, Tag flags = Tag::STRING) : JsonValue(std::string(s), flags) {}
     JsonValue(Tag flags = Tag::UNDEFINED, JsonNode* payload = nullptr) : pval_(payload), flags_(flags) {}
 
-    //JsonValue(JsonPairs items);
-    //JsonValue(std::vector<JsonPair> items);
     JsonValue(std::initializer_list<JsonTuple> items);
 
     ~JsonValue();
@@ -89,6 +86,11 @@ public:
 
     operator bool() const { return getTag() != Tag::UNDEFINED && getTag() != Tag::INVALID; }
     bool operator!() const { return !operator bool(); }
+
+    bool operator==(const char* s) { return getTag() == Tag::STRING && strVal == s; }
+    bool operator==(const std::string& s) { return operator==(s.c_str()); }
+    bool operator!=(const char* s) { return !operator==(s); }
+    bool operator!=(const std::string& s) { return !operator==(s); }
 };
 
 using Value = JsonValue;
@@ -96,12 +98,13 @@ using Value = JsonValue;
 JsonValue Array(std::initializer_list<JsonValue> items);
 
 struct JsonTuple {
-  std::string key;
-  JsonValue val;
+    std::string key;
+    JsonValue val;
 
-  JsonTuple(const std::string& k, JsonValue&& v) : key(k), val(std::move(v)) {}
-  JsonTuple(const std::string& k, const char* v): key(k), val(v) {}
-  JsonTuple(const std::string& k, double v) : key(k), val(v) {}
+    JsonTuple(const std::string& k, JsonValue&& v) : key(k), val(std::move(v)) {}
+    JsonTuple(const std::string& k, const char* v): key(k), val(v) {}
+    JsonTuple(const std::string& k, double v) : key(k), val(v) {}
+    //JsonTuple() : val(Tag::OBJECT) {}
 };
 
 struct NodeIterator;
@@ -181,10 +184,10 @@ public:
 struct JsonNode {
     JsonValue value;
     JsonNode *next = nullptr;
-    std::string key;  //char *key;
+    JsonValue key;  //std::string key;  //char *key;
 
     Node node() { return Node(&value); }
-    //Node keynode() { return Node(&key); }
+    Node keynode() { return Node(&key); }
 };
 
 // Iterator
@@ -200,6 +203,8 @@ struct Iterator {
 
 inline Iterator begin(const JsonValue& o) { return Iterator{o.getNode()}; }
 inline Iterator end(const JsonValue&) { return Iterator{nullptr}; }
+
+// Node Iterator
 
 template<class T>
 struct ptr_wrapper {
@@ -254,13 +259,13 @@ struct ParseResult {
     const char* endptr;
 };
 
-ParseResult parseTo(const char *str, JsonValue *value, int flags = 0);
+ParseResult parseTo(const char *str, size_t len, JsonValue *value, int flags = 0);
 
-Document parse(const char* s, int flags = 0, ParseResult* resultout = nullptr);
+Document parse(const char* s, size_t len = 0, int flags = 0, ParseResult* resultout = nullptr);
 Document parse(const std::string& s, int flags = 0, ParseResult* resultout = nullptr);
 
 // yaml-cpp compatibility
-Document Load(const char* s) { return parse(s); }
+Document Load(const char* s, size_t len = 0) { return parse(s, len); }
 Document Load(const std::string& s) { return parse(s); }
 Document LoadFile(const std::string& filename);
 
