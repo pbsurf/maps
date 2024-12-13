@@ -77,7 +77,7 @@ protected:
     // The parsed scenes are stored in a map with their URLs to be merged once
     // all imports are found and parsed.
     struct SceneNode {
-        Node yaml{};
+        YAML::Document yaml{};
         std::vector<Url> imports;
         std::vector<Node> pendingUrlNodes;
     };

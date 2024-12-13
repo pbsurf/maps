@@ -183,7 +183,7 @@ void Importer::addSceneYaml(const Url& sceneUrl, const char* sceneYaml, size_t l
 
     auto& sceneNode = m_sceneNodes[sceneUrl];
 
-    sceneNode.yaml = YamlUtil::loadNoCopy(sceneYaml, length);
+    sceneNode.yaml = YAML::Load(sceneYaml, length);
 
     if (!sceneNode.yaml.IsDefined() || !sceneNode.yaml.IsMap()) {
         LOGE("Scene is not a valid YAML map: %s", sceneUrl.string().c_str());

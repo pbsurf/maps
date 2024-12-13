@@ -15,6 +15,10 @@
 //   divergence between branches may have made swapping it in difficult
 // 3. huge reduction in LOC by replacing yaml-cpp and rapidjson
 
+#ifndef GAML_LOG
+#define GAML_LOG(msg, ...) do { fprintf(stderr, msg, ## __VA_ARGS__); } while (0)
+#endif
+
 namespace YAML {
 
 // helper fns
@@ -158,7 +162,7 @@ JsonValue JsonValue::clone() const {
 }
 
 Node Node::add(const char* key, bool replace) {
-    Node n = operator[](key);
+    const Node n = const_cast<const Node&>(*this)[key];
     if (n.value == &UNDEFINED_VALUE) {
         if (value->getTag() == Tag::UNDEFINED) {
             value->flags_ = Tag::OBJECT;
@@ -172,13 +176,14 @@ Node Node::add(const char* key, bool replace) {
             obj->next = val;
         }
         return Node(&val->value);
-    } else if (replace) {
-        n = JsonValue(Tag::UNDEFINED);
+    } else if (replace && n.value != &INVALID_VALUE) {
+        Node n2(n.value);
+        n2 = JsonValue(Tag::UNDEFINED);
     }
     return Node(n.value);
 }
 
-Node Node::operator[](const char* key) const {
+const Node Node::operator[](const char* key) const {
     if (value->getTag() == Tag::UNDEFINED) { return Node(&UNDEFINED_VALUE); }
     if (value->getTag() != Tag::OBJECT) { return Node(&INVALID_VALUE); }
     JsonNode* obj = value->pval_;
@@ -188,26 +193,7 @@ Node Node::operator[](const char* key) const {
     return obj ? obj->node() : Node(&UNDEFINED_VALUE);
 }
 
-/*Node Node::add(int idx, bool replace) {
-    Node n = operator[](idx);
-    if (n.value == &UNDEFINED_VALUE) {
-        if(value->getTag() == Tag::UNDEFINED) {
-            value->flags_ = Tag::ARRAY;
-        }
-        auto* val = new JsonNode{Tag::UNDEFINED, nullptr, {}};
-        if(!value->getNode()) {
-            value->pval_ = val;
-        } else {
-            JsonNode* obj = value->getNode();
-            while(obj->next) { obj = obj->next; }
-            obj->next = val;
-        }
-        return Node(&val->value);
-    }
-    return Node(n.value);
-}*/
-
-Node Node::operator[](int idx) const {
+const Node Node::operator[](int idx) const {
     if (value->getTag() == Tag::UNDEFINED) { return Node(&UNDEFINED_VALUE); }
     if (value->getTag() != Tag::ARRAY) { return Node(&INVALID_VALUE); }
     JsonNode* array = value->getNode();
@@ -217,14 +203,23 @@ Node Node::operator[](int idx) const {
     return array ? array->node() : Node(&UNDEFINED_VALUE);
 }
 
-void Node::push_back(JsonValue&& val) {
-    if (value->getTag() == Tag::UNDEFINED) { value->flags_ =Tag:: ARRAY; }
-    else if (value->getTag() != Tag::ARRAY) { return; }
+Node Node::operator[](int idx) {
+    int n = size();
+    if (idx > n) { return Node(&INVALID_VALUE); }
+    if (idx == n) { return push_back(JsonValue()); }
+    const Node node = const_cast<const Node&>(*this)[idx];
+    return Node(node.value);
+}
+
+Node Node::push_back(JsonValue&& val) {
+    if (value != &UNDEFINED_VALUE && value->getTag() == Tag::UNDEFINED) { value->flags_ = Tag::ARRAY; }
+    if (value->getTag() != Tag::ARRAY) { return Node(&INVALID_VALUE); }
     JsonNode* item = new JsonNode{std::move(val), nullptr, {}};
     JsonNode* array = value->getNode();
     if (!array) { value->pval_ = item; }
     while (array->next) { array = array->next; }
     array->next = item;
+    return Node(&item->value);
 }
 
 bool Node::remove(const char* key) {
@@ -242,7 +237,6 @@ bool Node::remove(const char* key) {
 
 bool Node::remove(int idx) {
     if (value->getTag() != Tag::ARRAY || !value->pval_) { return false; }
-
     if (idx == 0) {
         delete std::exchange(value->pval_, value->pval_->next);
         return true;
@@ -257,7 +251,7 @@ bool Node::remove(int idx) {
 }
 
 void Node::merge(JsonValue&& src) {
-    if (src.getTag() != Tag::OBJECT || !src.getNode()) { return; }
+    if (src.getTag() != Tag::OBJECT || !src.getNode() || value == &UNDEFINED_VALUE) { return; }
     if (value->getTag() != Tag::UNDEFINED && value->getTag() != Tag::OBJECT) { return; }
     for (auto other : src) {
         Node ours = add(other->key.getString());
@@ -269,8 +263,8 @@ void Node::merge(JsonValue&& src) {
     }
 }
 
-size_t Node::size() const {
-    size_t n = 0;
+int Node::size() const {
+    int n = 0;
     for (JsonNode* obj = value->getNode(); obj; obj = obj->next) { ++n; }
     return n;
 }
@@ -278,19 +272,21 @@ size_t Node::size() const {
 Node& Node::operator=(JsonValue&& val) {
   if (value != &UNDEFINED_VALUE && value != &INVALID_VALUE) {
       *value = std::move(val);
+  } else {
+      GAML_LOG("Assigment to undefined or invalid node!");
   }
   return *this;
 }
 
-template<> int Node::as(const int& _default, bool* ok) const {
+template<> int Node::as(int _default, bool* ok) const {
     return int(as<double>(double(_default), ok));
 }
 
-template<> float Node::as(const float& _default, bool* ok) const {
+template<> float Node::as(float _default, bool* ok) const {
     return float(as<double>(double(_default), ok));
 }
 
-template<> double Node::as(const double& _default, bool* ok) const {
+template<> double Node::as(double _default, bool* ok) const {
     if (ok) { *ok = true; }
     if (value->isNumber()) { return value->getNumber(); }
     if (value->getTag() == Tag::STRING) {
@@ -304,7 +300,7 @@ template<> double Node::as(const double& _default, bool* ok) const {
     return _default;
 }
 
-template<> std::string Node::as(const std::string& _default, bool* ok) const {
+template<> std::string Node::as(std::string _default, bool* ok) const {
     if (ok) { *ok = true; }
     if (value->isNumber()) { return std::to_string(value->getNumber()); }
     if (value->getTag() == Tag::STRING) { return value->getString(); }
@@ -312,7 +308,7 @@ template<> std::string Node::as(const std::string& _default, bool* ok) const {
     return _default;
 }
 
-template<> bool Node::as(const bool& _default, bool* ok) const {
+template<> bool Node::as(bool _default, bool* ok) const {
     // YAML 1.2 only allows true/false
     static const char* boolstrs[] = {"true","false","True","False","TRUE","FALSE"}; //,
     //"y","n","Y","N","yes","no","Yes","No","YES","NO","on","off","On","Off","ON","OFF"};
@@ -344,6 +340,7 @@ NodeType Node::Type() const {
 }
 
 void Node::setNoWrite(bool nowrite) {
+    if (value == &UNDEFINED_VALUE || value == &INVALID_VALUE) { return; }
     value->flags_ = nowrite ? (value->flags_ | Tag::NO_WRITE) : (value->flags_ & ~Tag::NO_WRITE);
 }
 
@@ -406,10 +403,6 @@ Document LoadFile(const std::string& filename) {
     }
     return Load(buffer.str());
 }
-
-#ifndef GAML_LOG
-#define GAML_LOG(msg, ...) do { fprintf(stderr, msg, ## __VA_ARGS__); } while (0)
-#endif
 
 Document parse(const char* s, size_t len, int flags, ParseResult* resultout) {
     Document doc;
@@ -774,6 +767,10 @@ static std::string strJoin(const std::vector<std::string>& strs, const std::stri
     return res;
 }
 
+static bool skipValue(const JsonValue& val) {
+    return !val || !!(val.getFlags() & Tag::NO_WRITE);
+}
+
 std::string Writer::spacing(int level) {
     return indent > 0 && level > 0 && level < flowLevel ? std::string(indent*level, ' ') : "";
 }
@@ -792,13 +789,13 @@ std::string Writer::convertArray(const JsonValue& obj, int level) {
     std::vector<std::string> res;
     if (indent < 2 || level >= flowLevel || (obj.getFlags() & Tag::YAML_FLOW) == Tag::YAML_FLOW) {
         for (auto item : obj) {
-            if (!!(item->value.getFlags() & Tag::NO_WRITE)) { continue; }
+            if (skipValue(item->value)) { continue; }
             res.push_back(convert(item->value, flowLevel));
         }
         return res.empty() ? "[]" : "[" + strJoin(res, ", ") + "]";
     }
     for (auto item : obj) {
-        if (!!(item->value.getFlags() & Tag::NO_WRITE)) { continue; }
+        if (skipValue(item->value)) { continue; }
         std::string str = convert(item->value, level+1);
         const char* s = str.c_str();
         while (isspace(*s)) { ++s; }
@@ -818,7 +815,7 @@ std::string Writer::convertHash(const JsonValue& obj, int level) {
         if (val.getTag() == Tag::YAML_COMMENT) {
             res.push_back(convert(val, level+1));
         } else {
-            if (!!(item->value.getFlags() & Tag::NO_WRITE)) { continue; }
+            if (skipValue(item->value)) { continue; }
             bool sameLine = !indent || level+1 >= flowLevel ||
                     !val.getNode() || (val.getFlags() & Tag::YAML_FLOW) == Tag::YAML_FLOW;
             const char* sep = sameLine ? ": " : ":\n";
@@ -885,6 +882,7 @@ layer1:
   "sub1": 4
   'sub2': 'hello'
   sub3: {a: 5, b: "test"}
+empty_layer:
 layer2:
   - item1
   - "item2"
@@ -929,7 +927,8 @@ layer2:
   //builder["e"] = {1, 2, 3, 4};
 
   YAML::Document jdoc = YAML::parse(json);
-  doc.add("jdoc") = std::move(*jdoc.value);
+  //doc.add("jdoc") = std::move(*jdoc.value);
+  doc.add("jdoc") = jdoc;
 
   assert(doc["a"]["b"].Scalar() == "this is a.b");
   assert(doc["b"].as<double>() == 5.6);

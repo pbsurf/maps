@@ -101,9 +101,10 @@ struct JsonTuple {
     std::string key;
     JsonValue val;
 
-    JsonTuple(const std::string& k, JsonValue&& v) : key(k), val(std::move(v)) {}
-    JsonTuple(const std::string& k, const char* v): key(k), val(v) {}
-    JsonTuple(const std::string& k, double v) : key(k), val(v) {}
+    JsonTuple(std::string k, JsonValue&& v) : key(std::move(k)), val(std::move(v)) {}
+    JsonTuple(std::string k, std::string v) : key(std::move(k)), val(std::move(v)) {}
+    JsonTuple(std::string k, const char* v): key(std::move(k)), val(v) {}
+    JsonTuple(std::string k, double v) : key(std::move(k)), val(v) {}
     //JsonTuple() : val(Tag::OBJECT) {}
 };
 
@@ -117,6 +118,7 @@ public:
 
     Node();
     Node(JsonValue* v) : value(v) {}
+    //operator JsonValue&() { return *node; }
 
     // match yaml-cpp Node for easy replacement
     const std::string& Scalar() const { return value->getString(); }
@@ -134,8 +136,6 @@ public:
     NodeIterator begin() const;
     NodeIterator end() const;
 
-    //operator JsonValue&() { return *node; }
-
     operator bool() const { return bool(*value); }
     bool operator!() const { return !operator bool(); }
 
@@ -144,30 +144,37 @@ public:
     Node& operator=(const std::string& s) { return operator=(s.c_str()); }
     Node& operator=(JsonValue&& val);
 
-    template <typename T> T as(const T& _default = {}, bool* ok = nullptr) const;
+    template <typename T> T as(T _default = {}, bool* ok = nullptr) const;
 
-    Node operator[](const char* key) const;
-    Node operator[](const std::string& key) const { return operator[](key.c_str()); }
-    Node operator[](int idx) const;  // using size_t creates ambiguity w/ nullptr for other overloads
-    void push_back(JsonValue&& val);
+    // tried to use a cstr_view class, but this breaks ["..."]!
+    const Node operator[](const char* key) const;
+    const Node operator[](const std::string& key) const { return operator[](key.c_str()); }
+    const Node operator[](int idx) const;  // using size_t creates ambiguity w/ nullptr for other overloads
+    Node push_back(JsonValue&& val);
     bool remove(const char* key);
     bool remove(const std::string& key) { return remove(key.c_str()); }
     bool remove(int idx);
     void merge(JsonValue&& src);
-    size_t size() const;
+    int size() const;  // use int instead of size_t to match operator[]
 
     JsonValue clone() const { return value->clone(); }
 
     //Builder build() { return Builder(value); }
+    bool has(const char* key) const { return bool(operator[](key)); }
+    bool has(const std::string& key) const { return has(key.c_str()); }
     Node add(const char* key, bool replace = false);
     Node add(const std::string& key, bool replace = false) { return add(key.c_str(), replace); }
+    // non-const [] adds Value if not present
+    Node operator[](const char* key) { return add(key); }
+    Node operator[](const std::string& key) { return add(key); }
+    Node operator[](int idx);
 };
 
-template<> int Node::as(const int& _default, bool* ok) const;
-template<> float Node::as(const float& _default, bool* ok) const;
-template<> double Node::as(const double& _default, bool* ok) const;
-template<> std::string Node::as(const std::string& _default, bool* ok) const;
-template<> bool Node::as(const bool& _default, bool* ok) const;
+template<> int Node::as(int _default, bool* ok) const;
+template<> float Node::as(float _default, bool* ok) const;
+template<> double Node::as(double _default, bool* ok) const;
+template<> std::string Node::as(std::string _default, bool* ok) const;
+template<> bool Node::as(bool _default, bool* ok) const;
 
 class Document : public Node {
 public:

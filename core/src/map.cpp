@@ -204,7 +204,7 @@ Scene* Map::getScene() {
 
 void Map::updateGlobals(const std::vector<SceneUpdate>& _sceneUpdates)
 {
-  auto config = const_cast<YAML::Node&>(impl->scene->config());
+  auto& config = const_cast<YAML::Document&>(impl->scene->config());
   SceneLoader::applyUpdates(config, _sceneUpdates);
   impl->scene->globalsGeneration++;
   impl->scene->tileManager()->clearTileSets();
