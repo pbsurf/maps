@@ -64,13 +64,12 @@ SceneError SceneLoader::applyUpdates(Node& _config, const std::vector<SceneUpdat
             return {update, Error::scene_update_value_yaml_syntax_error};
         }
 
-        Node node;
-        bool pathIsValid = YamlPath(update.path).get(_config, node);
-        if (!pathIsValid) {
+        Node* node = YamlPath(update.path).get(_config);
+        if (!node) {
             LOGE("Update: %s - %s", update.path.c_str(), update.value.c_str());
             return {update, Error::scene_update_path_not_found};
         }
-        node = value;
+        *node = std::move(value);
     }
     return {};
 }
@@ -123,11 +122,10 @@ void SceneLoader::applyGlobals(const Node& source, Node& destination) {
     }
 
     for (auto& globalRef : globalRefs) {
-        Node target, global;
-        bool targetPathIsValid = globalRef.first.get(destination, target);
-        bool globalPathIsValid = globalRef.second.get(globals, global);
-        if (targetPathIsValid && globalPathIsValid && target.IsDefined() && global.IsDefined()) {
-            target = global;
+        Node* target = globalRef.first.get(destination);
+        const Node* global = globalRef.second.get(globals);
+        if (target && global) {
+            *target = global->clone();
         } else {
             LOGW("Global reference is undefined: %s <= %s",
                  globalRef.first.codedPath.c_str(),
@@ -535,7 +533,7 @@ void SceneLoader::applyFonts(const Node& _node, SceneFonts& _fonts) {
                 loadFontDescription(node, family, _fonts);
             }
         } else {
-            LOGNode("Invalid fonts node", font);
+            LOGNode("Invalid fonts node %s", font.second, font.first.Scalar().c_str());
         }
     }
 }
@@ -875,7 +873,7 @@ Scene::Styles SceneLoader::applyStyles(const Node& _node, SceneTextures& _textur
     }
 
     StyleMixer mixer;
-    mixer.mixStyleNodes(_node);
+    mixer.mixStyleNodes(const_cast<Node&>(_node));
 
     for (const auto& entry : _node.pairs()) {
         auto name = entry.first.Scalar();

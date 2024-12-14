@@ -15,10 +15,9 @@ struct YamlPath {
     YamlPath(const std::string& path);
     YamlPath add(int index);
     YamlPath add(const std::string& key);
-    // Follow this path from a root node and set 'out' to the result.
-    // Returns true if the path exists up to the final token (i.e. the output
-    // may be a new node), otherwise returns false and leaves 'out' unchanged.
-    bool get(YAML::Node root, YAML::Node& out);
+    // Follow this path from a root node and return pointer to Node if it exists or nullptr if not
+    YAML::Node* get(YAML::Node& root);
+    const YAML::Node* get(const YAML::Node& root) { return get(const_cast<YAML::Node&>(root)); }
     std::string codedPath;
 };
 
@@ -38,7 +37,5 @@ struct YamlPathBuffer {
     void pop() { m_path.pop_back(); }
     YamlPath toYamlPath();
 };
-
-
 
 }

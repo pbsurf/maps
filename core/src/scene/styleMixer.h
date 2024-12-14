@@ -15,6 +15,7 @@ class StyleMixer {
 public:
 
     using Node = YAML::Node;
+    using Mixins = std::vector<const Node*>;
 
     // Get the sequence of style names that are designated to be mixed into the
     // input style node by its 'base' and 'mix' fields.
@@ -26,23 +27,23 @@ public:
 
     // Apply mixing to all styles in the input map with modifications in-place
     // unless otherwise noted.
-    void mixStyleNodes(Node _styles);
+    void mixStyleNodes(Node& _styles);
 
     // Apply the given list of 'mixin' styles to the first style.
-    void applyStyleMixins(Node _style, const std::vector<Node>& _mixins);
+    void applyStyleMixins(Node& _style, const Mixins& _mixins);
 
     // Apply the given list of 'mixin' style shader nodes to the first style
     // shader node. Note that 'blocks' and 'extensions' are merged into new
     // output fields called 'blocks_merged' and 'extensions_merged'.
-    void applyShaderMixins(Node _shaders, const std::vector<Node>& _mixins);
+    void applyShaderMixins(Node& _shaders, const Mixins& _mixins);
 
 private:
 
-    void mergeBooleanFieldAsDisjunction(const std::string& _key, Node _target, const std::vector<Node>& _sources);
+    void mergeBooleanFieldAsDisjunction(const std::string& _key, Node& _target, const Mixins& _sources);
 
-    void mergeFieldTakingLast(const std::string& _key, Node _target, const std::vector<Node>& _sources);
+    void mergeFieldTakingLast(const std::string& _key, Node& _target, const Mixins& _sources);
 
-    void mergeMapFieldTakingLast(const std::string& _key, Node _target, const std::vector<Node>& _sources);
+    void mergeMapFieldTakingLast(const std::string& _key, Node& _target, const Mixins& _sources);
 
 };
 

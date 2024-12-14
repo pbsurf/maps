@@ -212,7 +212,8 @@ struct NodeIteratorT {
     ListNode* p;
 
     void operator++() { p = p->next; }
-    bool operator!=(const NodeIteratorT& x) const { return p != x.p; }
+    bool operator==(const NodeIteratorT& x) const { return p == x.p; }
+    bool operator!=(const NodeIteratorT& x) const { return !operator==(x); }
     T& operator*() const { return p->value; }
     T* operator->() const { return &p->value; }
 };
@@ -222,7 +223,8 @@ struct PairIteratorT {
     ListNode* p;
 
     void operator++() { p = p->next; }
-    bool operator!=(const PairIteratorT& x) const { return p != x.p; }
+    bool operator==(const PairIteratorT& x) const { return p == x.p; }
+    bool operator!=(const PairIteratorT& x) const { return !operator==(x); }
     std::pair<T&, T&> operator*() const { return std::pair<T&, T&>(p->key, p->value); }
     //ptr_wrapper<T> operator->() const { return {operator*()}; }
 };
@@ -238,40 +240,6 @@ struct ConstPairItems {
     ConstPairIterator begin() { return ConstPairIterator{n}; }
     ConstPairIterator end() { return ConstPairIterator{nullptr}; }
 };
-
-// this is what yaml-cpp iterator does (!)
-//class NodeOrPair : public Node, public std::pair<Node, Node> { ...
-/*
-template<class T>
-struct ptr_wrapper {
-    T t;
-    T operator*()&& {return t;}
-    T* operator->() { return &t; }
-};
-
-template<class T>
-class NodeOrPairT {
-    T* _ptr;
-public:
-    T& first;
-    T& second;
-
-    constexpr operator T& () const noexcept { return *_ptr; }
-
-    NodeOrPairT(T& n);  // : _ptr(&v), first(INVALID_VALUE), second(INVALID_VALUE) {}
-    NodeOrPairT(T& k, T& v);  // : _ptr(&INVALID_VALUE), first(k), second(v) {}
-};
-
-template<class T>
-struct NodeIteratorT {
-    ListNode* p;
-
-    void operator++() { p = p->next;  }
-    bool operator!=(const NodeIteratorT &x) const { return p != x.p; }
-    T operator*() const { return p->key ? T(p->value) : T(p->key, p->value); }
-    ptr_wrapper<T> operator->() const { return {operator*()}; }
-};
-*/
 
 // Parser
 

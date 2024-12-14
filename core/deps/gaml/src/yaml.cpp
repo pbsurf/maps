@@ -333,18 +333,6 @@ void Node::setNoWrite(bool nowrite) {
     flags_ = nowrite ? (flags_ | Tag::NO_WRITE) : (flags_ & ~Tag::NO_WRITE);
 }
 
-/*
-template<>
-NodeOrPair::NodeOrPairT(Node& v) : _ptr(&v), first(INVALID_VALUE), second(INVALID_VALUE) {}
-template<>
-NodeOrPair::NodeOrPairT(Node& k, Node& v) : _ptr(&INVALID_VALUE), first(k), second(v) {}
-
-template<>
-ConstNodeOrPair::NodeOrPairT(const Node& v) : _ptr(&v), first(INVALID_VALUE), second(INVALID_VALUE) {}
-template<>
-ConstNodeOrPair::NodeOrPairT(const Node& k, const Node& v) : _ptr(&INVALID_VALUE), first(k), second(v) {}
-*/
-
 ConstNodeIterator Node::begin() const { return ConstNodeIterator{getNode()}; }
 ConstNodeIterator Node::end() const { return ConstNodeIterator{nullptr}; }
 NodeIterator Node::begin() { return NodeIterator{getNode()}; }

@@ -407,14 +407,13 @@ bool MarkerManager::buildStyling(Marker& marker) {
     size_t prevFunctionCount = m_functions.size();
 
     std::vector<StyleParam> params;
-    try {
-        YAML::Node node = YAML::Load(markerStyling.string);
-        SceneLoader::applyGlobals(m_scene.config(), node);
-        params = SceneLoader::parseStyleParams(node, m_stops, m_functions);
-    } catch (const YAML::Exception& e) {
-        LOG("Invalid marker styling '%s', %s", markerStyling.string.c_str(), e.what());
+    YAML::Node node = YAML::Load(markerStyling.string);
+    if (!node) {
+        LOG("Invalid marker styling '%s'", markerStyling.string.c_str());
         return false;
     }
+    SceneLoader::applyGlobals(m_scene.config(), node);
+    params = SceneLoader::parseStyleParams(node, m_stops, m_functions);
 
     // The StyleContext initially contains the set of functions from the scene definition, but the parsed style params
     // for the Marker use a separate Marker function list and the function indices are relative to that list. So to get

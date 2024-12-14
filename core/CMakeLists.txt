@@ -1,11 +1,6 @@
 project(tangram-core)
 
 # Build core library dependencies.
-#find_package(ZLIB REQUIRED) -- using miniz now
-
-if (TANGRAM_USE_VCPKG)
-  find_package(yaml-cpp CONFIG REQUIRED)
-endif()
 
 add_subdirectory(deps)
 
@@ -240,7 +235,7 @@ target_link_libraries(tangram-core
   PRIVATE
   glm
   css-color-parser-cpp
-  yaml-cpp
+  gaml
   double-conversion
   miniz
 )

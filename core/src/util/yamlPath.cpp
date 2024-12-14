@@ -48,14 +48,15 @@ YamlPath YamlPath::add(const std::string& key) {
     return YamlPath(codedPath + MAP_DELIM + key);
 }
 
-bool YamlPath::get(YAML::Node root, YAML::Node& out) {
+YAML::Node* YamlPath::get(YAML::Node& root) {
+    YAML::Node* proot = &root;
     size_t beginToken = 0, pathSize = codedPath.size();
     bool createPath = pathSize && codedPath[0] == '+';
     size_t endToken = createPath ? 1 : 0;
     auto delimiter = MAP_DELIM; // First token must be a map key.
     while (endToken < pathSize) {
-        if (!root.IsDefined()) {
-            return false; // A node before the end of the path was mising, quit!
+        if (!proot->IsDefined()) {
+            return nullptr; // A node before the end of the path was mising, quit!
         }
         beginToken = endToken;
         endToken = pathSize;
@@ -63,30 +64,27 @@ bool YamlPath::get(YAML::Node root, YAML::Node& out) {
         endToken = std::min(endToken, codedPath.find(MAP_DELIM, beginToken));
         if (delimiter == SEQ_DELIM) {
             int index = std::stoi(&codedPath[beginToken]);
-            if (root.IsSequence()) {
-                root.reset(root[index]);
+            if (proot->IsSequence()) {
+                proot = &(*proot)[index];
             } else {
-                return false;
+                return nullptr;
             }
         } else if (delimiter == MAP_DELIM) {
             auto key = codedPath.substr(beginToken, endToken - beginToken);
-            if (createPath && !root[key])
-                root[key] = YAML::Node();  //YAML::NodeType::Null);
-            if (root.IsMap()) {
-                root.reset(root[key]);
+            if (createPath && !(*proot)[key])
+                (*proot)[key] = YAML::Node();
+            if (proot->IsMap()) {
+                proot = &(*proot)[key];
             } else {
-                return false;
+                return nullptr;
             }
         } else {
-            return false; // Path is malformed, return null node.
+            return nullptr; // Path is malformed, return null node.
         }
         delimiter = codedPath[endToken]; // Get next character as the delimiter.
         ++endToken; // Move past the delimiter.
     }
-    // Success! Assign the result.
-    out.reset(root);
-    return true;
+    return proot;
 }
-
 
 }

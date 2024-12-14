@@ -43,7 +43,7 @@ std::vector<std::string> StyleMixer::getMixingOrder(const Node& _styles) {
     // If style 'a' mixes style 'b', the dependency would be {'b', 'a'}.
     std::vector<std::pair<std::string, std::string>> dependencies;
 
-    for (const auto& entry : _styles) {
+    for (auto entry : _styles.pairs()) {
         const auto& name = entry.first;
         const auto& config = entry.second;
         for (const auto& mix : getStylesToMix(config)) {
@@ -54,14 +54,14 @@ std::vector<std::string> StyleMixer::getMixingOrder(const Node& _styles) {
     return topologicalSort(dependencies);
 }
 
-void StyleMixer::mixStyleNodes(Node _styles) {
+void StyleMixer::mixStyleNodes(Node& _styles) {
 
     // First determine the order of nodes to evaluate.
     auto styleNamesSorted = getMixingOrder(_styles);
 
     for (const auto& name : styleNamesSorted) {
 
-        const auto& style = _styles[name];
+        auto& style = _styles[name];
 
         if (!style || !style.IsMap()) {
             // Something's wrong here, try the next one!
@@ -71,7 +71,7 @@ void StyleMixer::mixStyleNodes(Node _styles) {
         // For each style to evaluate, get the list of styles that need to be mixed with this one.
         auto stylesToMix = getStylesToMix(style);
 
-        std::vector<Node> mixins;
+        Mixins mixins;
         for (const auto& styleNameToMix : stylesToMix) {
 
             // Skip mixing built-in styles.
@@ -80,14 +80,14 @@ void StyleMixer::mixStyleNodes(Node _styles) {
                 continue;
             }
 
-            mixins.push_back(_styles[styleNameToMix]);
+            mixins.push_back(&_styles[styleNameToMix]);
         }
 
         applyStyleMixins(style, mixins);
     }
 }
 
-void StyleMixer::applyStyleMixins(Node _style, const std::vector<Node>& _mixins) {
+void StyleMixer::applyStyleMixins(Node& _style, const Mixins& _mixins) {
 
     // Merge boolean flags as a disjunction.
     mergeBooleanFieldAsDisjunction("animated", _style, _mixins);
@@ -106,16 +106,16 @@ void StyleMixer::applyStyleMixins(Node _style, const std::vector<Node>& _mixins)
     mergeMapFieldTakingLast("draw", _style, _mixins);
 
     // Produce a list of all 'mixins' with shader nodes and merge those separately.
-    std::vector<Node> shaderMixins;
+    Mixins shaderMixins;
     for (const auto& mixin : _mixins) {
-        if (const auto& shaders = mixin["shaders"]) {
-            shaderMixins.push_back(shaders);
+        if (const auto& shaders = (*mixin)["shaders"]) {
+            shaderMixins.push_back(&shaders);
         }
     }
     applyShaderMixins(_style["shaders"], shaderMixins);
 }
 
-void StyleMixer::applyShaderMixins(Node _shaders, const std::vector<Node>& _mixins) {
+void StyleMixer::applyShaderMixins(Node& _shaders, const Mixins& _mixins) {
 
     // Merge maps fields with newer values taking precedence.
     mergeMapFieldTakingLast("defines", _shaders, _mixins);
@@ -124,15 +124,15 @@ void StyleMixer::applyShaderMixins(Node _shaders, const std::vector<Node>& _mixi
     // Merge "extensions" as a non-repeating set.
     {
         std::set<std::string> set;
-        Node output = _shaders["extensions_mixed"];
-        output = Node(); // Clear this node in case something was already there.
-        for (const auto& mixin : _mixins) {
-            Node extensions = mixin["extensions_mixed"];
+        // Clear this node in case something was already there.
+        Node& output = _shaders["extensions_mixed"] = Node();
+        for (const Node* mixin : _mixins) {
+            const Node& extensions = (*mixin)["extensions_mixed"];
             for (const auto& e : extensions) {
                 set.insert(e.Scalar());
             }
         }
-        Node extensions = _shaders["extensions"];
+        Node& extensions = _shaders["extensions"];
         if (extensions.IsScalar()) {
             set.insert(extensions.Scalar());
         } else if (extensions.IsSequence()) {
@@ -147,37 +147,38 @@ void StyleMixer::applyShaderMixins(Node _shaders, const std::vector<Node>& _mixi
 
     // Merge "blocks" into a list of strings for each key.
     {
-        Node output = _shaders["blocks_mixed"];
-        output = Node(); // Clear this node in case something was already there.
-        for (const auto& mixin : _mixins) {
-            Node blocks = mixin["blocks_mixed"];
-            for (const auto& entry : blocks) {
-                Node list = output[entry.first.Scalar()];
+        // Clear this node in case something was already there.
+        Node& output = _shaders["blocks_mixed"] = Node();
+        for (const Node* mixin : _mixins) {
+            const Node& blocks = (*mixin)["blocks_mixed"];
+            for (auto entry : blocks.pairs()) {
+                Node& list = output[entry.first.Scalar()];
                 for (const auto& block : entry.second) {
                     // If the list already contains an exact reference to the same node,
                     // don't add it again.
-                    if (std::find(list.begin(), list.end(), block) == list.end()) {
-                        list.push_back(block);
+                    auto findfn = [&](Node& listitem){ return listitem == block.Scalar(); };
+                    if (std::find_if(list.begin(), list.end(), findfn) == list.end()) {
+                        list.push_back(block.clone());
                     }
                 }
             }
         }
-        for (const auto& entry : _shaders["blocks"]) {
+        for (auto entry : _shaders["blocks"].pairs()) {
             output[entry.first.Scalar()].push_back(entry.second.Scalar());
         }
     }
 }
 
-void StyleMixer::mergeBooleanFieldAsDisjunction(const std::string& key, Node target, const std::vector<Node>& sources) {
+void StyleMixer::mergeBooleanFieldAsDisjunction(const std::string& key, Node& target, const Mixins& sources) {
 
-    auto current = target[key];
+    Node& current = target[key];
     if (current && current.as<bool>(false)) {
         // Target field is already true, we can stop here.
         return;
     }
 
-    for (const auto& source : sources) {
-        const auto& value = source[key];
+    for (const Node* source : sources) {
+        const auto& value = (*source)[key];
         if (value && value.as<bool>(false)) {
             target[key] = true;
             return;
@@ -185,7 +186,7 @@ void StyleMixer::mergeBooleanFieldAsDisjunction(const std::string& key, Node tar
     }
 }
 
-void StyleMixer::mergeFieldTakingLast(const std::string& key, Node target, const std::vector<Node>& sources) {
+void StyleMixer::mergeFieldTakingLast(const std::string& key, Node& target, const Mixins& sources) {
 
     if (target[key]) {
         // Target already has a value, we can stop here.
@@ -193,29 +194,29 @@ void StyleMixer::mergeFieldTakingLast(const std::string& key, Node target, const
     }
 
     for (auto it = sources.rbegin(); it != sources.rend(); ++it) {
-        const auto& value = (*it)[key];
+        const auto& value = (**it)[key];
         if (value) {
-            target[key] = value;
+            target[key] = value.clone();
             return;
         }
     }
 }
 
-void StyleMixer::mergeMapFieldTakingLast(const std::string& key, Node target, const std::vector<Node>& sources) {
+void StyleMixer::mergeMapFieldTakingLast(const std::string& key, Node& target, const Mixins& sources) {
 
-    Node map = target[key];
+    Node& map = target[key];
     if (map && !map.IsMap()) { return; }
 
     for (auto it = sources.rbegin(); it != sources.rend(); ++it) {
-        const auto& source = (*it)[key];
+        const Node& source = (**it)[key];
         if (!source || !source.IsMap()) {
             continue;
         }
 
-        for (const auto& entry : source) {
+        for (auto entry : source.pairs()) {
             const auto& subkey = entry.first.Scalar();
             if (!map[subkey]) {
-                map[subkey] = entry.second;
+                map[subkey] = entry.second.clone();
             }
         }
     }

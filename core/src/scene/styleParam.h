@@ -260,6 +260,8 @@ struct StyleParam {
         key(_key),
         value(std::move(_value)) {}
 
+    StyleParam(StyleParamKey _key, const char* _value) : StyleParam(_key, std::string(_value)) {}
+
     StyleParam(StyleParamKey _key, const Stops* _stops) :
         key(_key),
         value(none_type{}),
