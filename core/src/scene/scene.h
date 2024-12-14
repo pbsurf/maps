@@ -101,14 +101,14 @@ class DataSourceContext {
     std::mutex m_jsMutex;
     int64_t globalsGeneration = -1;
     JSFunctionIndex m_functionIndex = 0;
-    YAML::Node m_globals;
+    const YAML::Node& m_globals;
 
     Platform& m_platform;
     Scene* m_scene;
 
 public:
     DataSourceContext(Platform& _platform, Scene* _scene);
-    DataSourceContext(Platform& _platform, YAML::Node _globals);
+    DataSourceContext(Platform& _platform, const YAML::Node& _globals);
     ~DataSourceContext();
 
     struct JSLockedContext { std::unique_lock<std::mutex> lock; JSContext* ctx; };
@@ -251,7 +251,7 @@ protected:
     /// ---------------------------------------------------------------///
     /// Loaded Scene Data
     /// The root node of the YAML scene configuration
-    YAML::Document m_config;
+    YAML::Node m_config;
 
     // object to manage JS context used for (optional) tile URL fns - must be destroyed after TileSources
     DataSourceContext m_sourceContext;

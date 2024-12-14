@@ -22,15 +22,15 @@ auto Stops::Colors(const YAML::Node& _node) -> Stops {
 
         // parse color from sequence or string
         Color color;
-        YAML::Node colorNode = frameNode[1];
+        const YAML::Node& colorNode = frameNode[1];
         if (colorNode.IsScalar()) {
             color.abgr = CSSColorParser::parse(colorNode.as<std::string>()).getInt();
         } else if (colorNode.IsSequence() && colorNode.size() >= 3) {
-            color.r = colorNode[0].as<float>() * 255.;
-            color.g = colorNode[1].as<float>() * 255.;
-            color.b = colorNode[2].as<float>() * 255.;
+            color.r = colorNode[0].as<float>() * 255.f;
+            color.g = colorNode[1].as<float>() * 255.f;
+            color.b = colorNode[2].as<float>() * 255.f;
             float alpha = colorNode.size() > 3 ? colorNode[3].as<float>() : 1.f;
-            color.a = alpha * 255.;
+            color.a = alpha * 255.f;
         }
         stops.frames.emplace_back(key, color);
     }
@@ -246,7 +246,7 @@ auto Stops::Numbers(const YAML::Node& node) -> Stops {
 
     float lastKey = 0;
 
-    for (const auto frameNode : node) {
+    for (const auto& frameNode : node) {
         if (!frameNode.IsSequence() || frameNode.size() != 2) { continue; }
 
         float key = frameNode[0].as<float>();

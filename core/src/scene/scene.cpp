@@ -748,9 +748,9 @@ DataSourceContext::JSLockedContext DataSourceContext::getJSContext() {
 }
 
 DataSourceContext::DataSourceContext(Platform& _platform, Scene* _scene)
-    : m_platform(_platform), m_scene(_scene) {}
+    : m_platform(_platform), m_scene(_scene), m_globals(_scene->config()["globals"]) {}
 
-DataSourceContext::DataSourceContext(Platform& _platform, YAML::Node _globals)
+DataSourceContext::DataSourceContext(Platform& _platform, const YAML::Node& _globals)
     : m_globals(_globals), m_platform(_platform), m_scene(nullptr) {}
 
 DataSourceContext::~DataSourceContext() {}

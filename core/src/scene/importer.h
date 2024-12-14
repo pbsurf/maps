@@ -29,7 +29,7 @@ public:
     ~Importer();
 
     // Loads the main scene with deep merging dependent imported scenes.
-    YAML::Document loadSceneData(Platform& platform, const Url& sceneUrl, const std::string& sceneYaml = "");
+    YAML::Node loadSceneData(Platform& platform, const Url& sceneUrl, const std::string& sceneYaml = "");
 
     void cancelLoading();
 
@@ -44,7 +44,7 @@ public:
     // against the given base URL.
     static void resolveSceneUrls(Node& root, const Url& base);
 
-    static std::vector<Node> getTextureUrlNodes(Node& root);
+    static std::vector<std::string> getTextureUrlNodes(const Node& root);
 
     // Start an asynchronous request for the scene resource at the given URL.
     // In addition to the URL types supported by the platform instance, this
@@ -77,9 +77,9 @@ protected:
     // The parsed scenes are stored in a map with their URLs to be merged once
     // all imports are found and parsed.
     struct SceneNode {
-        YAML::Document yaml{};
+        YAML::Node yaml{};
         std::vector<Url> imports;
-        std::vector<Node> pendingUrlNodes;
+        std::vector<std::string> pendingUrls;
     };
     std::unordered_map<Url, SceneNode> m_sceneNodes = {};
 

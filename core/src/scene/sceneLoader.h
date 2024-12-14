@@ -47,12 +47,12 @@ struct SceneLoader {
 
     /// Lights
     static Scene::Lights applyLights(const Node& lightsNode);
-    static std::unique_ptr<Light> loadLight(const std::pair<Node, Node>& light);
+    static std::unique_ptr<Light> loadLight(std::pair<const Node&, const Node&> light);
     static void parseLightPosition(const Node& positionNode, PointLight& light);
 
     /// Textures
     static void applyTextures(const Node& texturesNode, SceneTextures& textures);
-    static void loadTexture(const std::pair<Node, Node>& texture, SceneTextures& textures);
+    static void loadTexture(std::pair<const Node&, const Node&> texture, SceneTextures& textures);
     static bool parseTexFiltering(const Node& filteringNode, TextureOptions& options);
 
     /// Fonts

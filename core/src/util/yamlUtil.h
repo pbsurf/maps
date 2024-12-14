@@ -26,7 +26,7 @@ bool getBool(const YAML::Node& node, bool& result);
 
 bool getBoolOrDefault(const YAML::Node& node, bool defaultValue);
 
-void mergeMapFields(YAML::Node& target, const YAML::Node& import);
+void mergeMapFields(YAML::Node& target, YAML::Node&& import);
 
 JSValue toJSValue(JSScope& jsScope, const YAML::Node& node);
 

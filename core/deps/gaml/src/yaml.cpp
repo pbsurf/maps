@@ -96,7 +96,7 @@ static double string2double(const char *s, char **endptr) {
     return ch == '-' ? -result : result;
 }
 
-static inline JsonNode* insertAfter(JsonNode* tail, JsonNode* node) {
+static inline ListNode* insertAfter(ListNode* tail, ListNode* node) {
     if (!tail)
         return node->next = node;
     node->next = tail->next;
@@ -104,128 +104,127 @@ static inline JsonNode* insertAfter(JsonNode* tail, JsonNode* node) {
     return node;
 }
 
-static inline JsonValue listToValue(Tag tag, JsonNode* tail) {
+static inline Node listToValue(Tag tag, ListNode* tail) {
     if (tail) {
         auto head = tail->next;
         tail->next = nullptr;
-        return JsonValue(tag, head);
+        return Node(tag, head);
     }
-    return JsonValue(tag, nullptr);
+    return Node(tag, nullptr);
 }
 
 // Node
 
-static JsonValue UNDEFINED_VALUE(Tag::UNDEFINED);
-static JsonValue INVALID_VALUE(Tag::INVALID);
+static Node UNDEFINED_VALUE(Tag::UNDEFINED);
+static Node INVALID_VALUE(Tag::INVALID);
 
-JsonValue::JsonValue(std::initializer_list<JsonTuple> items) {
-  JsonNode* tail = nullptr;
+Node::Node(std::initializer_list<InitPair> items) {
+  ListNode* tail = nullptr;
   for (auto& item : items) {
-      insertAfter(tail, new JsonNode{item.val.clone(), nullptr, item.key});
+      insertAfter(tail, new ListNode{item.val.clone(), nullptr, item.key});
   }
   *this = listToValue(Tag::OBJECT, tail);
 }
 
-JsonValue Array(std::initializer_list<JsonValue> items) {
-    JsonNode* tail = nullptr;
+Node Array(std::initializer_list<Node> items) {
+    ListNode* tail = nullptr;
     for (auto& item : items) {
-      insertAfter(tail, new JsonNode{item.clone(), nullptr, {}});
+      insertAfter(tail, new ListNode{item.clone(), nullptr, {}});
     }
     return listToValue(Tag::ARRAY, tail);
 }
 
-JsonValue::~JsonValue() {
+Node::~Node() {
     if (getTag() == Tag::ARRAY || getTag() == Tag::OBJECT) {
         while (pval_) { delete std::exchange(pval_, pval_->next);  }
     }
 }
 
-JsonValue& JsonValue::operator=(JsonValue&& b) {
+ListItems Node::items() const { return ListItems{getNode()}; }
+
+Node& Node::operator=(Node&& b) {
+    assert(this != &UNDEFINED_VALUE && this != &INVALID_VALUE);
     std::swap(pval_, b.pval_);
     std::swap(flags_, b.flags_);
     std::swap(strVal, b.strVal);
     return *this;
 }
 
-JsonValue JsonValue::clone() const {
+Node Node::clone() const {
     if (!getNode()) {
-        JsonValue res(flags_);
+        Node res(flags_);
         res.strVal = strVal;
         res.fval_ = fval_;
         return res;
     }
-    JsonNode* tail = nullptr;
-    for (auto item : *this) {
-        insertAfter(tail, new JsonNode{item->value.clone(), nullptr, item->key.clone()});
+    ListNode* tail = nullptr;
+    for (auto item : items()) {
+        insertAfter(tail, new ListNode{item->value.clone(), nullptr, item->key.clone()});
     }
     return listToValue(flags_, tail);
 }
 
-Node Node::add(const char* key, bool replace) {
-    const Node n = const_cast<const Node&>(*this)[key];
-    if (n.value == &UNDEFINED_VALUE) {
-        if (value->getTag() == Tag::UNDEFINED) {
-            value->flags_ = Tag::OBJECT;
-        }
-        auto* val = new JsonNode{Tag::UNDEFINED, nullptr, key};
-        if (!value->getNode()) {
-            value->pval_ = val;
+Node& Node::add(const char* key, bool replace) {
+    Node& n = const_cast<Node&>(const_cast<const Node&>(*this)[key]);
+    if (&n == &UNDEFINED_VALUE) {
+        if (getTag() == Tag::UNDEFINED) { flags_ = Tag::OBJECT; }
+        auto* val = new ListNode{Tag::UNDEFINED, nullptr, key};
+        ListNode* obj = getNode();
+        if (!obj) {
+            pval_ = val;
         } else {
-            JsonNode* obj = value->getNode();
             while (obj->next) { obj = obj->next; }
             obj->next = val;
         }
-        return Node(&val->value);
-    } else if (replace && n.value != &INVALID_VALUE) {
-        Node n2(n.value);
-        n2 = JsonValue(Tag::UNDEFINED);
+        return val->node();
+    } else if (replace && &n != &INVALID_VALUE) {
+        n = Node();
     }
-    return Node(n.value);
+    return n;
 }
 
-const Node Node::operator[](const char* key) const {
-    if (value->getTag() == Tag::UNDEFINED) { return Node(&UNDEFINED_VALUE); }
-    if (value->getTag() != Tag::OBJECT) { return Node(&INVALID_VALUE); }
-    JsonNode* obj = value->pval_;
+const Node& Node::operator[](const char* key) const {
+    if (getTag() == Tag::UNDEFINED) { return UNDEFINED_VALUE; }
+    if (getTag() != Tag::OBJECT) { return INVALID_VALUE; }
+    ListNode* obj = pval_;
     while (obj && obj->key != key) {
       obj = obj->next;
     }
-    return obj ? obj->node() : Node(&UNDEFINED_VALUE);
+    return obj ? obj->node() : UNDEFINED_VALUE;
 }
 
-const Node Node::operator[](int idx) const {
-    if (value->getTag() == Tag::UNDEFINED) { return Node(&UNDEFINED_VALUE); }
-    if (value->getTag() != Tag::ARRAY) { return Node(&INVALID_VALUE); }
-    JsonNode* array = value->getNode();
+const Node& Node::operator[](int idx) const {
+    if (getTag() == Tag::UNDEFINED) { return UNDEFINED_VALUE; }
+    if (getTag() != Tag::ARRAY) { return INVALID_VALUE; }
+    ListNode* array = getNode();
     do {
         while (array && array->value.getTag() == Tag::YAML_COMMENT) { array = array->next; }
     } while (idx-- && array && (array = array->next));
-    return array ? array->node() : Node(&UNDEFINED_VALUE);
+    return array ? array->node() : UNDEFINED_VALUE;
 }
 
-Node Node::operator[](int idx) {
+Node& Node::operator[](int idx) {
     int n = size();
-    if (idx > n) { return Node(&INVALID_VALUE); }
-    if (idx == n) { return push_back(JsonValue()); }
-    const Node node = const_cast<const Node&>(*this)[idx];
-    return Node(node.value);
+    if (idx > n) { return INVALID_VALUE; }
+    if (idx == n) { return push_back(Node()); }
+    return const_cast<Node&>(const_cast<const Node&>(*this)[idx]);
 }
 
-Node Node::push_back(JsonValue&& val) {
-    if (value != &UNDEFINED_VALUE && value->getTag() == Tag::UNDEFINED) { value->flags_ = Tag::ARRAY; }
-    if (value->getTag() != Tag::ARRAY) { return Node(&INVALID_VALUE); }
-    JsonNode* item = new JsonNode{std::move(val), nullptr, {}};
-    JsonNode* array = value->getNode();
-    if (!array) { value->pval_ = item; }
+Node& Node::push_back(Node&& val) {
+    if (this != &UNDEFINED_VALUE && getTag() == Tag::UNDEFINED) { flags_ = Tag::ARRAY; }
+    if (getTag() != Tag::ARRAY) { return INVALID_VALUE; }
+    ListNode* item = new ListNode{std::move(val), nullptr, {}};
+    ListNode* array = pval_;
+    if (!array) { pval_ = item; }
     while (array->next) { array = array->next; }
     array->next = item;
-    return Node(&item->value);
+    return item->node();
 }
 
 bool Node::remove(const char* key) {
-    if (value->getTag() != Tag::OBJECT) { return false; }
+    if (getTag() != Tag::OBJECT) { return false; }
 
-    JsonNode** obj = &value->pval_;
+    ListNode** obj = &pval_;
     while (*obj && (*obj)->key != key) {
         obj = &(*obj)->next;
     }
@@ -236,12 +235,12 @@ bool Node::remove(const char* key) {
 }
 
 bool Node::remove(int idx) {
-    if (value->getTag() != Tag::ARRAY || !value->pval_) { return false; }
+    if (getTag() != Tag::ARRAY || !pval_) { return false; }
     if (idx == 0) {
-        delete std::exchange(value->pval_, value->pval_->next);
+        delete std::exchange(pval_, pval_->next);
         return true;
     }
-    JsonNode* obj = value->pval_;
+    ListNode* obj = pval_;
     while (obj && --idx) { obj = obj->next; }  // note pre-decrement to get node before [idx]
     if (obj && obj->next) {
         delete std::exchange(obj->next, obj->next->next);
@@ -250,12 +249,12 @@ bool Node::remove(int idx) {
     return false;
 }
 
-void Node::merge(JsonValue&& src) {
-    if (src.getTag() != Tag::OBJECT || !src.getNode() || value == &UNDEFINED_VALUE) { return; }
-    if (value->getTag() != Tag::UNDEFINED && value->getTag() != Tag::OBJECT) { return; }
-    for (auto other : src) {
-        Node ours = add(other->key.getString());
-        if (ours.value->getTag() == Tag::OBJECT && other->value.getTag() == Tag::OBJECT) {
+void Node::merge(Node&& src) {
+    if (src.getTag() != Tag::OBJECT || !src.getNode() || this == &UNDEFINED_VALUE) { return; }
+    if (getTag() != Tag::UNDEFINED && getTag() != Tag::OBJECT) { return; }
+    for (auto other : src.items()) {
+        Node& ours = add(other->key.getString());
+        if (ours.getTag() == Tag::OBJECT && other->value.getTag() == Tag::OBJECT) {
             ours.merge(std::move(other->value));
         }  else {
             ours = std::move(other->value);
@@ -265,17 +264,8 @@ void Node::merge(JsonValue&& src) {
 
 int Node::size() const {
     int n = 0;
-    for (JsonNode* obj = value->getNode(); obj; obj = obj->next) { ++n; }
+    for (ListNode* obj = getNode(); obj; obj = obj->next) { ++n; }
     return n;
-}
-
-Node& Node::operator=(JsonValue&& val) {
-  if (value != &UNDEFINED_VALUE && value != &INVALID_VALUE) {
-      *value = std::move(val);
-  } else {
-      GAML_LOG("Assigment to undefined or invalid node!");
-  }
-  return *this;
 }
 
 template<> int Node::as(int _default, bool* ok) const {
@@ -288,10 +278,10 @@ template<> float Node::as(float _default, bool* ok) const {
 
 template<> double Node::as(double _default, bool* ok) const {
     if (ok) { *ok = true; }
-    if (value->isNumber()) { return value->getNumber(); }
-    if (value->getTag() == Tag::STRING) {
+    if (isNumber()) { return getNumber(); }
+    if (getTag() == Tag::STRING) {
         char* endptr;
-        auto s = value->getString();
+        auto s = getString();
         double val = s[0] == '0' ? strtoul(s.c_str(), &endptr, 0) : string2double(s.c_str(), &endptr);
         // endptr should point to '\0' terminator char after successful conversion
         if (!s.empty() && *endptr == '\0') { return val; }
@@ -302,24 +292,25 @@ template<> double Node::as(double _default, bool* ok) const {
 
 template<> std::string Node::as(std::string _default, bool* ok) const {
     if (ok) { *ok = true; }
-    if (value->isNumber()) { return std::to_string(value->getNumber()); }
-    if (value->getTag() == Tag::STRING) { return value->getString(); }
+    if (isNumber()) { return std::to_string(getNumber()); }
+    if (getTag() == Tag::STRING) { return getString(); }
     if (ok) { *ok = false; }
     return _default;
 }
 
 template<> bool Node::as(bool _default, bool* ok) const {
     // YAML 1.2 only allows true/false
-    static const char* boolstrs[] = {"true","false","True","False","TRUE","FALSE"}; //,
+    static const char* boolstrs[] = {"true","false","True","False","TRUE","FALSE"};
     //"y","n","Y","N","yes","no","Yes","No","YES","NO","on","off","On","Off","ON","OFF"};
 
     if (ok) { *ok = true; }
-    if (value->isNumber()) { return value->getNumber() != 0; }
-    auto s = value->getString();
-    int idx = 0;
-    for (const char* boolstr : boolstrs) {
-        if (s == boolstr) { return idx%2 == 0; }
-        ++idx;
+    if (isNumber()) { return getNumber() != 0; }
+    if (getTag() == Tag::STRING) {
+        int idx = 0;
+        for (const char* boolstr : boolstrs) {
+            if (strVal == boolstr) { return idx%2 == 0; }
+            ++idx;
+        }
     }
     if (ok) { *ok = false; }
     return  _default;
@@ -327,32 +318,37 @@ template<> bool Node::as(bool _default, bool* ok) const {
 
 // only for yaml-cpp compatibility
 
-Node::Node() : value(&UNDEFINED_VALUE) {}
-
 NodeType Node::Type() const {
-  switch(value->getTag()) {
-  case Tag::STRING:
-  case Tag::NUMBER: return NodeType::Scalar;
-  case Tag::ARRAY: return NodeType::Sequence;
-  case Tag::OBJECT: return NodeType::Map;
-  default: return NodeType::Undefined;  // Null?
-  }
+    switch(getTag()) {
+    case Tag::STRING:
+    case Tag::NUMBER: return NodeType::Scalar;
+    case Tag::ARRAY: return NodeType::Sequence;
+    case Tag::OBJECT: return NodeType::Map;
+    default: return NodeType::Undefined;  // Null?
+    }
 }
 
 void Node::setNoWrite(bool nowrite) {
-    if (value == &UNDEFINED_VALUE || value == &INVALID_VALUE) { return; }
-    value->flags_ = nowrite ? (value->flags_ | Tag::NO_WRITE) : (value->flags_ & ~Tag::NO_WRITE);
+    //if (value == &UNDEFINED_VALUE || value == &INVALID_VALUE) { return; }
+    flags_ = nowrite ? (flags_ | Tag::NO_WRITE) : (flags_ & ~Tag::NO_WRITE);
 }
 
-NodeOrPair::NodeOrPair(JsonValue* v) : Node(v), std::pair<Node, Node>{&INVALID_VALUE, &INVALID_VALUE} {}
-NodeOrPair::NodeOrPair(JsonValue* k, JsonValue* v) : Node(&INVALID_VALUE), std::pair<Node, Node>{k, v} {}
+/*
+template<>
+NodeOrPair::NodeOrPairT(Node& v) : _ptr(&v), first(INVALID_VALUE), second(INVALID_VALUE) {}
+template<>
+NodeOrPair::NodeOrPairT(Node& k, Node& v) : _ptr(&INVALID_VALUE), first(k), second(v) {}
 
-NodeOrPair NodeIterator::operator*() const {
-    return p->key ? NodeOrPair(&p->value) : NodeOrPair(&p->key, &p->value);
-}
+template<>
+ConstNodeOrPair::NodeOrPairT(const Node& v) : _ptr(&v), first(INVALID_VALUE), second(INVALID_VALUE) {}
+template<>
+ConstNodeOrPair::NodeOrPairT(const Node& k, const Node& v) : _ptr(&INVALID_VALUE), first(k), second(v) {}
+*/
 
-NodeIterator Node::begin() const { return NodeIterator{value->getNode()}; }
-NodeIterator Node::end() const { return NodeIterator{nullptr}; }
+ConstNodeIterator Node::begin() const { return ConstNodeIterator{getNode()}; }
+ConstNodeIterator Node::end() const { return ConstNodeIterator{nullptr}; }
+NodeIterator Node::begin() { return NodeIterator{getNode()}; }
+NodeIterator Node::end() { return NodeIterator{nullptr}; }
 
 // Parser
 
@@ -391,11 +387,11 @@ const char* jsonStrError(Error err) {
     return errorMsg[std::min(size_t(err), size_t(Error::COUNT))];
 }
 
-Document parse(const std::string& s, int flags, ParseResult* resultout) {
+Node parse(const std::string& s, int flags, ParseResult* resultout) {
     return parse(s.c_str(), s.size(), flags, resultout);
 }
 
-Document LoadFile(const std::string& filename) {
+Node LoadFile(const std::string& filename) {
     std::stringstream buffer;
     {
         std::ifstream instrm(filename);  //"stylus-osm.yaml"); //argv[1]);
@@ -404,9 +400,9 @@ Document LoadFile(const std::string& filename) {
     return Load(buffer.str());
 }
 
-Document parse(const char* s, size_t len, int flags, ParseResult* resultout) {
-    Document doc;
-    ParseResult res = parseTo(s, len, doc.value, flags);
+Node parse(const char* s, size_t len, int flags, ParseResult* resultout) {
+    Node doc;
+    ParseResult res = parseTo(s, len, &doc, flags);
     if (resultout) { *resultout = res; }
     if (res.error != Error::OK) {
         const char* ends = s + (len > 0 ? len : strlen(s));
@@ -418,14 +414,14 @@ Document parse(const char* s, size_t len, int flags, ParseResult* resultout) {
     return doc;
 }
 
-ParseResult parseTo(const char *s, size_t len, JsonValue *valueout, int flags) {
+ParseResult parseTo(const char *s, size_t len, Node *valueout, int flags) {
     constexpr size_t PARSE_STACK_SIZE = 32;
-    JsonNode* tails[PARSE_STACK_SIZE];
+    ListNode* tails[PARSE_STACK_SIZE];
     Tag tags[PARSE_STACK_SIZE];
-    JsonValue keys[PARSE_STACK_SIZE];
+    Node keys[PARSE_STACK_SIZE];
     int indents[PARSE_STACK_SIZE];
 
-    JsonValue o(Tag::UNDEFINED);
+    Node o(Tag::UNDEFINED);
     int pos = -1;
     int indent = 0;
     int flowlevel = 0;
@@ -433,7 +429,7 @@ ParseResult parseTo(const char *s, size_t len, JsonValue *valueout, int flags) {
     bool separator = true;
     bool blockarrayobj = false;
     char nextchar;
-    JsonNode* node;
+    ListNode* node;
     std::string temp;
     const char* s0 = s;
     const char* linestart = s;
@@ -524,7 +520,7 @@ ParseResult parseTo(const char *s, size_t len, JsonValue *valueout, int flags) {
             if (s < ends && !isdelim(*s)) {
                 return {Error::BAD_STRING, linenum, s};
             }
-            o = JsonValue(temp, Tag::YAML_DBLQUOTED);
+            o = Node(temp, Tag::YAML_DBLQUOTED);
             temp.clear();
             break;
         case '[':
@@ -533,7 +529,7 @@ ParseResult parseTo(const char *s, size_t len, JsonValue *valueout, int flags) {
                 return {Error::STACK_OVERFLOW, linenum, endptr};
             tails[pos] = nullptr;
             tags[pos] = (nextchar == '{' ? Tag::OBJECT : Tag::ARRAY);
-            keys[pos] = blockarrayobj ? std::move(o) : JsonValue();  //nullptr;
+            keys[pos] = blockarrayobj ? std::move(o) : Node();  //nullptr;
             indents[pos] = indent;
             separator = true;
             blockarrayobj = false;
@@ -570,7 +566,7 @@ ParseResult parseTo(const char *s, size_t len, JsonValue *valueout, int flags) {
         case '#':  // comment
             while (s < ends && *s != '\r' && *s != '\n') { ++s; }
             if (flags & PARSE_COMMENTS) {
-                o = JsonValue(std::string(s0+1, s), Tag::YAML_COMMENT);
+                o = Node(std::string(s0+1, s), Tag::YAML_COMMENT);
                 break;
             }
             continue;
@@ -588,7 +584,7 @@ ParseResult parseTo(const char *s, size_t len, JsonValue *valueout, int flags) {
             if (s < ends && !isdelim(*s)) {
                 return {Error::BAD_STRING, linenum, s};
             }
-            o = JsonValue(temp, Tag::YAML_SINGLEQUOTED);
+            o = Node(temp, Tag::YAML_SINGLEQUOTED);
             temp.clear();
             break;
         case '|':  // literal block scalar
@@ -630,7 +626,7 @@ ParseResult parseTo(const char *s, size_t len, JsonValue *valueout, int flags) {
                 temp.push_back('\n');
             }
 
-            o = JsonValue(temp, Tag::YAML_BLOCKSTRING);
+            o = Node(temp, Tag::YAML_BLOCKSTRING);
             temp.clear();  // note that we do not move temp
             endptr = s;
             break;
@@ -658,7 +654,7 @@ ParseResult parseTo(const char *s, size_t len, JsonValue *valueout, int flags) {
                 while (s < ends && !isendscalar(*s)) { ++s; }
             }
             while (isspace(*(s-1))) { --s; }  // trim trailing spaces
-            o = JsonValue(std::string(s0, s), Tag::YAML_UNQUOTED);
+            o = Node(std::string(s0, s), Tag::YAML_UNQUOTED);
             break;
         }
 
@@ -673,17 +669,17 @@ ParseResult parseTo(const char *s, size_t len, JsonValue *valueout, int flags) {
             }
             if (t == Tag::YAML_UNQUOTED) {
                 if (o.getString() == "true") {
-                    o = JsonValue(1, Tag::JSON_BOOL);
+                    o = Node(1, Tag::JSON_BOOL);
                 } else if (o.getString() == "false") {
-                    o = JsonValue(0.0, Tag::JSON_BOOL);
+                    o = Node(0.0, Tag::JSON_BOOL);
                 } else if (o.getString() == "null") {
-                    o = JsonValue(Tag::JSON_NULL);
+                    o = Node(Tag::JSON_NULL);
                 } else {
                     // try to parse as number
                     char* endnum;
                     double val = string2double(o.getCStr(), &endnum);
                     if (*endnum != '\0') { return {Error::BAD_NUMBER, linenum, endptr}; }
-                    o = JsonValue(val);
+                    o = Node(val);
                 }
             }
         }
@@ -700,16 +696,16 @@ ParseResult parseTo(const char *s, size_t len, JsonValue *valueout, int flags) {
                 keys[pos] = std::move(o);  //o.getString().c_str();
                 continue;
             }
-            node = new JsonNode{std::move(o), nullptr, std::move(keys[pos])};
+            node = new ListNode{std::move(o), nullptr, std::move(keys[pos])};
             tails[pos] = insertAfter(tails[pos], node);
-            keys[pos] = JsonValue();  //nullptr;
+            keys[pos] = Node();  //nullptr;
         } else {
             // handle case of object in array
             if (!flowlevel && *s == ':' && isspace(s[1])) {
                 blockarrayobj = true;
                 continue;
             }
-            node = new JsonNode{std::move(o), nullptr, {}};
+            node = new ListNode{std::move(o), nullptr, {}};
             tails[pos] = insertAfter(tails[pos], node);
         }
     }
@@ -767,7 +763,7 @@ static std::string strJoin(const std::vector<std::string>& strs, const std::stri
     return res;
 }
 
-static bool skipValue(const JsonValue& val) {
+static bool skipValue(const Node& val) {
     return !val || !!(val.getFlags() & Tag::NO_WRITE);
 }
 
@@ -785,16 +781,16 @@ std::string Writer::keyString(std::string str) {
     return str;
 }
 
-std::string Writer::convertArray(const JsonValue& obj, int level) {
+std::string Writer::convertArray(const Node& obj, int level) {
     std::vector<std::string> res;
     if (indent < 2 || level >= flowLevel || (obj.getFlags() & Tag::YAML_FLOW) == Tag::YAML_FLOW) {
-        for (auto item : obj) {
+        for (auto item : obj.items()) {
             if (skipValue(item->value)) { continue; }
             res.push_back(convert(item->value, flowLevel));
         }
         return res.empty() ? "[]" : "[" + strJoin(res, ", ") + "]";
     }
-    for (auto item : obj) {
+    for (auto item : obj.items()) {
         if (skipValue(item->value)) { continue; }
         std::string str = convert(item->value, level+1);
         const char* s = str.c_str();
@@ -804,14 +800,14 @@ std::string Writer::convertArray(const JsonValue& obj, int level) {
     return res.empty() ? "[]" : strJoin(res, "\n");
 }
 
-std::string Writer::convertHash(const JsonValue& obj, int level) {
+std::string Writer::convertHash(const Node& obj, int level) {
     std::vector<std::string> res;
     if ((obj.getFlags() & Tag::YAML_FLOW) == Tag::YAML_FLOW) { level = flowLevel; }
-    for (auto item : obj) {
+    for (auto item : obj.items()) {
         Tag keyquote = item->key.getFlags() & Tag::YAML_STRINGMASK;
         std::string key = item->key.getTag() == Tag::STRING && (!indent || keyquote == Tag::YAML_UNQUOTED ||
                 keyquote == Tag::YAML_BLOCKSTRING) ? keyString(item->key.getString()) : convert(item->key);
-        JsonValue& val = item->value;
+        Node& val = item->value;
         if (val.getTag() == Tag::YAML_COMMENT) {
             res.push_back(convert(val, level+1));
         } else {
@@ -829,7 +825,7 @@ std::string Writer::convertHash(const JsonValue& obj, int level) {
     return strJoin(res, std::string(std::max(1, 1+extraLines - level), '\n'));
 }
 
-std::string Writer::convert(const JsonValue& obj, int level) {
+std::string Writer::convert(const Node& obj, int level) {
     switch (obj.getTag()) {
     case Tag::ARRAY:
         return convertArray(obj, level);
@@ -865,17 +861,17 @@ std::string Writer::convert(const JsonValue& obj, int level) {
 }
 
 std::string Dump(const Node& node) {
-  YAML::Writer writer;
-  writer.indent = 4;
-  //writer.extraLines = 1;
-  return writer.convert(*node.value);
+    YAML::Writer writer;
+    writer.indent = 4;
+    //writer.extraLines = 1;
+    return writer.convert(node);
 }
 
 }  // namespace YAML
 
 #if 1 //def GAML_MAIN
 
-YAML::Document basicTests()
+YAML::Node basicTests()
 {
   static const char* yaml = R"(# comment
 layer1:
@@ -893,7 +889,7 @@ layer2:
   "json2": ["item1", "item2"]
 })";
 
-  YAML::Document doc = YAML::parse(yaml);
+  YAML::Node doc = YAML::parse(yaml);
 
   doc.merge({
     {"layer1", {
@@ -904,14 +900,15 @@ layer2:
     {"a", { {"b", "this is a.b"} }},
     {"b", 4.6},
     {"z", "this is z"},
-    //{"empty", {}}
+    {"empty", YAML::Map()}
   });
 
+  std::string teststr = "teststr";
   doc.add("more") = {
     { "level1_1", 4 },
     { "level1_2", 1 },
     { "level2", {
-        { "level2_1", "test" },
+        { "level2_1", teststr },
         { "level2_2", 5 },
     }},
   };
@@ -922,13 +919,13 @@ layer2:
   //doc["a"]["c"].push_back("this is a.c[1]");
   doc["b"] = 5.6;
   doc.add("cloned") = doc["more"].clone();
-  doc.add("c") = YAML::JsonValue({{"x", "this is c.x"}, {"y", "this is c.y"}, {"z", 4.5}});
+  doc.add("c") = YAML::Node({{"x", "this is c.x"}, {"y", "this is c.y"}, {"z", 4.5}});
   //builder["d"] = {"a", "b", "c", "d"};
   //builder["e"] = {1, 2, 3, 4};
 
-  YAML::Document jdoc = YAML::parse(json);
+  YAML::Node jdoc = YAML::parse(json);
   //doc.add("jdoc") = std::move(*jdoc.value);
-  doc.add("jdoc") = jdoc;
+  doc.add("jdoc") = std::move(jdoc);
 
   assert(doc["a"]["b"].Scalar() == "this is a.b");
   assert(doc["b"].as<double>() == 5.6);
@@ -939,7 +936,7 @@ layer2:
   YAML::Writer writer;
   writer.indent = 4;
   writer.extraLines = 1;
-  std::string out = writer.convert(*doc.value);
+  std::string out = writer.convert(doc);
   puts(out.c_str());
 
   return doc;
@@ -949,7 +946,7 @@ int main(int argc, char **argv) {
 
     if (argc < 2) {
         fprintf(stderr, "No input file specified!");
-        YAML::Document doc = basicTests();
+        YAML::Node doc = basicTests();
         return -1;
     }
 
@@ -962,12 +959,12 @@ int main(int argc, char **argv) {
     //std::ofstream outstr(infile.substr(0, ext) + );
     bool isJson = infile.substr(infile.size() - 5) == ".json";
 
-    YAML::Document doc = YAML::parse(buffer.str(), isJson ? YAML::PARSE_JSON : 0);
+    YAML::Node doc = YAML::parse(buffer.str(), isJson ? YAML::PARSE_JSON : 0);
 
     YAML::Writer writer;
     writer.indent = isJson ? 0 : 4;
     writer.extraLines = 1;
-    std::string out = writer.convert(*doc.value);
+    std::string out = writer.convert(doc);
     puts(out.c_str());
     return 0;
 }

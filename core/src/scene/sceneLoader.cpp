@@ -58,7 +58,7 @@ static const std::string GLOBAL_PREFIX = "global.";
 SceneError SceneLoader::applyUpdates(Node& _config, const std::vector<SceneUpdate>& _updates) {
 
     for (const auto& update : _updates) {
-        YAML::Document value = YAML::Load(update.value);
+        YAML::Node value = YAML::Load(update.value);
         if (!value) {
             LOGE("Unable to parse scene update YAML for %s : %s", update.path.c_str(), update.value.c_str());
             return {update, Error::scene_update_value_yaml_syntax_error};
@@ -97,7 +97,7 @@ void createGlobalRefs(std::vector<std::pair<YamlPath, YamlPath>>& _globalRefs,
     }
         break;
     case NodeType::Map:
-        for (const auto& entry : _node) {
+        for (const auto& entry : _node.pairs()) {
             _path.pushMap(&entry.first.Scalar());
             createGlobalRefs(_globalRefs, entry.second, _path);
             _path.pop();
@@ -183,7 +183,7 @@ void SceneLoader::loadCameras(const Node& _cameras, SceneCamera& _sceneCamera) {
     // right now, we'll just apply the settings from the first active camera we
     // find.
 
-    for (const auto& entry : _cameras) {
+    for (const auto& entry : _cameras.pairs()) {
         loadCamera(entry.second, _sceneCamera);
     }
 }
@@ -275,7 +275,7 @@ Scene::Lights SceneLoader::applyLights(const Node& _node) {
     Scene::Lights lights;
 
     if (_node && _node.IsMap()) {
-        for (const auto& light : _node) {
+        for (const auto& light : _node.pairs()) {
             if (auto sceneLight = loadLight(light)) {
                 lights.push_back(std::move(sceneLight));
             }
@@ -293,7 +293,7 @@ Scene::Lights SceneLoader::applyLights(const Node& _node) {
     return lights;
 }
 
-std::unique_ptr<Light> SceneLoader::loadLight(const std::pair<Node, Node>& _node) {
+std::unique_ptr<Light> SceneLoader::loadLight(std::pair<const Node&, const Node&> _node) {
     const Node& light = _node.second;
     const std::string& name = _node.first.Scalar();
     const std::string& type = light["type"].Scalar();
@@ -428,12 +428,12 @@ void SceneLoader::applyTextures(const Node& _node, SceneTextures& _textures) {
         return;
     }
 
-    for (const auto& texture : _node) {
+    for (const auto& texture : _node.pairs()) {
         loadTexture(texture, _textures);
     }
 }
 
-void SceneLoader::loadTexture(const std::pair<Node, Node>& _node, SceneTextures& _textures) {
+void SceneLoader::loadTexture(std::pair<const Node&, const Node&> _node, SceneTextures& _textures) {
     const std::string& name = _node.first.Scalar();
     const Node& textureConfig = _node.second;
 
@@ -469,7 +469,7 @@ void SceneLoader::loadTexture(const std::pair<Node, Node>& _node, SceneTextures&
 
     if (const Node& sprites = textureConfig["sprites"]) {
         auto atlas = std::make_unique<SpriteAtlas>();
-        for (const auto& entry : sprites) {  //auto it = sprites.begin(); it != sprites.end(); ++it) {
+        for (const auto& entry : sprites.pairs()) {  //auto it = sprites.begin(); it != sprites.end(); ++it) {
 
             const Node& sprite = entry.second;
             const std::string& spriteName = entry.first.Scalar();
@@ -525,7 +525,7 @@ void SceneLoader::applyFonts(const Node& _node, SceneFonts& _fonts) {
         return;
     }
 
-    for (const auto& font : _node) {
+    for (const auto& font : _node.pairs()) {
         const std::string& family = font.first.Scalar();
 
         if (font.second.IsMap()) {
@@ -548,7 +548,7 @@ void SceneLoader::loadFontDescription(const Node& _node, const std::string& _fam
     }
 
     std::string style = "regular", weight = "400", uri;
-    for (const auto& fontDesc : _node) {
+    for (const auto& fontDesc : _node.pairs()) {
         const std::string& key = fontDesc.first.Scalar();
         if (key == "weight") {
             weight = fontDesc.second.Scalar();
@@ -580,7 +580,7 @@ Scene::TileSources SceneLoader::applySources(const Node& _config, const SceneOpt
         LOGW("No source defined in the yaml scene configuration.");
         return {};
     }
-    for (const auto& source : sources) {
+    for (const auto& source : sources.pairs()) {
         std::string srcName = source.first.Scalar();
         if (auto tileSource = loadSource(source.second, srcName, _options, _context)) {
             tileSources.push_back(std::move(tileSource));
@@ -595,7 +595,7 @@ Scene::TileSources SceneLoader::applySources(const Node& _config, const SceneOpt
     };
 
     // Add Raster subsources
-    for (const auto& source : sources) {
+    for (const auto& source : sources.pairs()) {
         std::string srcName = source.first.Scalar();
         auto tileSource = getTileSource(srcName);
         if (!tileSource) { continue; }
@@ -624,7 +624,7 @@ Scene::TileSources SceneLoader::applySources(const Node& _config, const SceneOpt
     // within a layer's data block and when the layer is not disabled
 
     if (const Node& layers = _config["layers"]) {
-        for (const auto& member : layers) {
+        for (const auto& member : layers.pairs()) {
             const auto& layer = member.second;
 
             if (!layer.IsMap()) { continue; }
@@ -672,25 +672,25 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
 
     int32_t zoomOffset = 0;
 
-    if (auto typeNode = _source["type"]) {
+    if (const auto& typeNode = _source["type"]) {
         type = typeNode.Scalar();
     }
-    if (auto urlNode = _source["url"]) {
+    if (const auto& urlNode = _source["url"]) {
         url = urlNode.Scalar();
     }
-    if (auto minDisplayZoomNode = _source["min_display_zoom"]) {
+    if (const auto& minDisplayZoomNode = _source["min_display_zoom"]) {
         YamlUtil::getInt(minDisplayZoomNode, zoomOptions.minDisplayZoom);
     }
-    if (auto maxDisplayZoomNode = _source["max_display_zoom"]) {
+    if (const auto& maxDisplayZoomNode = _source["max_display_zoom"]) {
         YamlUtil::getInt(maxDisplayZoomNode, zoomOptions.maxDisplayZoom);
     }
-    if (auto maxZoomNode = _source["max_zoom"]) {
+    if (const auto& maxZoomNode = _source["max_zoom"]) {
         YamlUtil::getInt(maxZoomNode, zoomOptions.maxZoom);
     }
-    if (auto zoomOffsetNode = _source["zoom_offset"]) {
+    if (const auto& zoomOffsetNode = _source["zoom_offset"]) {
         YamlUtil::getInt(zoomOffsetNode, zoomOffset);
     }
-    if (auto tileSizeNode = _source["tile_size"]) {
+    if (const auto& tileSizeNode = _source["tile_size"]) {
         int tileSize = 0;
         if (YamlUtil::getInt(tileSizeNode, tileSize)) {
             zoomOptions.zoomBias = TileSource::zoomBiasFromTileSize(tileSize);
@@ -701,7 +701,7 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
     zoomOptions.zoomBias += zoomOffset;  //if (zoomOffset >= 0) {
 
     // Parse and append any URL parameters.
-    if (auto urlParamsNode = _source["url_params"]) {
+    if (const auto& urlParamsNode = _source["url_params"]) {
         std::stringstream urlStream;
         // Transform our current URL from "base[?query][#hash]" into "base?params[query][#hash]".
         auto hashStart = std::min(url.find_first_of("#"), url.size());
@@ -712,7 +712,7 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
             urlStream << "?";
         }
         if (urlParamsNode.IsMap()) {
-            for (const auto& entry : urlParamsNode) {
+            for (const auto& entry : urlParamsNode.pairs()) {
                 if (entry.first.IsScalar() && entry.second.IsScalar()) {
                     urlStream << entry.first.Scalar() << "=" << entry.second.Scalar() << "&";
                 } else {
@@ -750,10 +750,10 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
     }
 
     // custom headers
-    if (auto headersNode = _source["headers"]) {
+    if (const auto& headersNode = _source["headers"]) {
         std::string& headers = urlOptions.httpOptions.headers;
         if (headersNode.IsMap()) {
-            for (const auto& hdr : headersNode) {
+            for (const auto& hdr : headersNode.pairs()) {
                 headers += hdr.first.Scalar() + ": " + hdr.second.Scalar() + "\r\n";
             }
             headers.resize(std::max(2UL, headers.size()) - 2);  // remove trailing \r\n
@@ -818,7 +818,7 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
 
     if (type == "GeoJSON" && !isTiled) {
         bool generateCentroids = false;
-        if (auto genLabelCentroidsNode = _source["generate_label_centroids"]) {
+        if (const auto& genLabelCentroidsNode = _source["generate_label_centroids"]) {
             generateCentroids = true;
         }
         sourcePtr = std::make_shared<ClientDataSource>(_context.getPlatform(),
@@ -877,9 +877,9 @@ Scene::Styles SceneLoader::applyStyles(const Node& _node, SceneTextures& _textur
     StyleMixer mixer;
     mixer.mixStyleNodes(_node);
 
-    for (const auto& entry : _node) {
+    for (const auto& entry : _node.pairs()) {
         auto name = entry.first.Scalar();
-        auto styleConfig =  entry.second;
+        const Node& styleConfig =  entry.second;
 
         auto style = loadStyle(name, styleConfig);
         if (!style) { continue; }
@@ -1065,7 +1065,7 @@ std::vector<StyleParam> SceneLoader::parseStyleParams(const Node& _params, Scene
 void SceneLoader::parseStyleParams(const Node& _params, const std::string& _prefix, SceneStops& _stops,
                                    SceneFunctions& _functions, std::vector<StyleParam>& _out) {
 
-    for (const auto& prop : _params) {
+    for (const auto& prop : _params.pairs()) {
         std::string key;
         if (!_prefix.empty()) {
             key = _prefix + DELIMITER + prop.first.Scalar();
@@ -1155,7 +1155,7 @@ void SceneLoader::parseStyleParams(const Node& _params, const std::string& _pref
 void SceneLoader::parseTransition(const Node& _params, std::string _prefix, std::vector<StyleParam>& _out) {
 
     // First iterate over the mapping of 'events', we currently recognize 'hide', 'selected', and 'show'.
-    for (const auto& event : _params) {
+    for (const auto& event : _params.pairs()) {
         if (!event.first.IsScalar() || !event.second.IsMap()) {
             LOGW("Can't parse 'transitions' entry, expected a mapping of strings to mappings at: %s",
                  _prefix.c_str());
@@ -1166,7 +1166,7 @@ void SceneLoader::parseTransition(const Node& _params, std::string _prefix, std:
         std::string transitionEvent = _prefix + DELIMITER + event.first.Scalar();
 
         // Iterate over the parameters in the 'event', we currently only recognize 'time'.
-        for (const auto& param : event.second) {
+        for (const auto& param : event.second.pairs()) {
             if (!param.first.IsScalar() || !param.second.IsScalar()) {
                 LOGW("Expected a mapping of strings to strings or numbers in: %s",
                      transitionEvent.c_str());
@@ -1195,7 +1195,7 @@ void SceneLoader::loadShaderConfig(const Node& _shaders, Style& _style, SceneTex
     }
 
     if (const Node& definesNode = _shaders["defines"]) {
-        for (const auto& define : definesNode) {
+        for (const auto& define : definesNode.pairs()) {
             const std::string& name = define.first.Scalar();
 
             // undefine any previous definitions
@@ -1223,7 +1223,7 @@ void SceneLoader::loadShaderConfig(const Node& _shaders, Style& _style, SceneTex
     }
 
     if (const Node& uniformsNode = _shaders["uniforms"]) {
-        for (const auto& uniform : uniformsNode) {
+        for (const auto& uniform : uniformsNode.pairs()) {
             const std::string& name = uniform.first.Scalar();
             StyleUniform styleUniform;
 
@@ -1248,7 +1248,7 @@ void SceneLoader::loadShaderConfig(const Node& _shaders, Style& _style, SceneTex
     }
 
     if (const Node& blocksNode = _shaders["blocks_mixed"]) {
-        for (const auto& block : blocksNode) {
+        for (const auto& block : blocksNode.pairs()) {
             const auto& name = block.first.Scalar();
             const auto& value = block.second;
             if (value.IsSequence()){
@@ -1432,7 +1432,7 @@ MaterialTexture SceneLoader::loadMaterialTexture(const Node& _matCompNode, Style
 
     if (!_matCompNode) { return MaterialTexture{}; }
 
-    Node textureNode = _matCompNode["texture"];
+    const Node& textureNode = _matCompNode["texture"];
     if (!textureNode) {
         LOGNode("Expected a 'texture' parameter", _matCompNode, "");
 
@@ -1499,7 +1499,7 @@ std::vector<DataLayer> SceneLoader::applyLayers(const Node& _node,  SceneFunctio
     }
 
     std::vector<DataLayer> dataLayers;
-    for (const auto& layer : _node) {
+    for (const auto& layer : _node.pairs()) {
         const std::string& name = layer.first.Scalar();
         std::string source;
         std::vector<std::string> collections;
@@ -1543,7 +1543,7 @@ SceneLayer SceneLoader::loadSublayer(const Node& _layer, const std::string& _lay
     Filter filter;
     SceneLayer::Options layerOptions;
 
-    for (const auto& member : _layer) {
+    for (const auto& member : _layer.pairs()) {
 
         const std::string& key = member.first.Scalar();
 
@@ -1551,7 +1551,7 @@ SceneLayer SceneLoader::loadSublayer(const Node& _layer, const std::string& _lay
             // Ignored for sublayers
         } else if (key == "draw") {
             // Member is a mapping of draw rules
-            for (const auto& ruleNode : member.second) {
+            for (const auto& ruleNode : member.second.pairs()) {
                 auto params = parseStyleParams(ruleNode.second, _stops, _functions);
 
                 auto const& ruleName = ruleNode.first.Scalar();
@@ -1610,7 +1610,7 @@ Filter SceneLoader::generateFilter(SceneFunctions& _functions, const Node& _filt
     }
     case NodeType::Map: {
         std::vector<Filter> filters;
-        for (const auto& filtItr : _filter) {
+        for (const auto& filtItr : _filter.pairs()) {
             const std::string& key = filtItr.first.Scalar();
             const Node& node = _filter[key];
             Filter f;
@@ -1723,7 +1723,7 @@ Filter SceneLoader::generatePredicate(const Node& _node, std::string _key) {
         bool hasMinPixelArea = false;
         bool hasMaxPixelArea = false;
 
-        for (const auto& n : _node) {
+        for (const auto& n : _node.pairs()) {
             if (n.first.Scalar() == "min") {
                 if(!getFilterRangeValue(n.second, minVal, hasMinPixelArea)) {
                     return Filter();

@@ -96,7 +96,7 @@ bool getBoolOrDefault(const YAML::Node& node, bool defaultValue) {
     return defaultValue;
 }
 
-void mergeMapFields(YAML::Node& target, const YAML::Node& import) {
+void mergeMapFields(YAML::Node& target, YAML::Node&& import) {
     if (!target.IsMap() || !import.IsMap()) {
 
         if (target.IsDefined() && !target.IsNull() && (target.Type() != import.Type())) {
@@ -104,16 +104,16 @@ void mergeMapFields(YAML::Node& target, const YAML::Node& import) {
                  Dump(target).c_str(), Dump(import).c_str());
         }
 
-        target = import;
+        target = std::move(import);
 
     } else {
-        for (const auto& entry : import) {
+        for (auto entry : import.pairs()) {
 
             const auto& key = entry.first.Scalar();
-            const auto& source = entry.second;
-            auto dest = target[key];
+            auto& source = entry.second;
+            auto& dest = target[key];
             //if(dest.isMap() && source.IsNull) continue;  -- don't replace map w/ empty node?
-            mergeMapFields(dest, source);
+            mergeMapFields(dest, std::move(source));
         }
     }
 }
@@ -158,7 +158,7 @@ JSValue toJSValue(JSScope& jsScope, const YAML::Node& node) {
     }
     case YAML::NodeType::Map: {
         auto jsObject = jsScope.newObject();
-        for (const auto& entry : node) {
+        for (const auto& entry : node.pairs()) {
             if (!entry.first.IsScalar()) {
                 continue; // Can't put non-scalar keys in JS objects.
             }

@@ -400,8 +400,7 @@ StyleParam::Value StyleParam::parseNode(StyleParamKey key, const YAML::Node& nod
 }
 
 StyleParam::Value StyleParam::parseString(StyleParamKey key, const std::string& value) {
-    YAML::JsonValue v(value);  //YAML::Node node(value);
-    return parseNode(key, YAML::Node(&v));
+    return parseNode(key, YAML::Node(value));
 }
 
 std::string StyleParam::toString() const {
