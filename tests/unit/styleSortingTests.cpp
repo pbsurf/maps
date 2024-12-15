@@ -4,7 +4,7 @@
 #include <vector>
 #include <string>
 
-#include "yaml-cpp/yaml.h"
+#include "gaml/src/yaml.h"
 #include "scene/filters.h"
 #include "scene/sceneLoader.h"
 #include "style/polygonStyle.h"

@@ -162,13 +162,14 @@ TEST_CASE("YamlUtil functions correctly handle scalar node", "[YamlUtil]") {
     }
 
     SECTION("Non-scalar Node") {
-        auto node = GENERATE(
-                YAML::Node(YAML::NodeType::Null),
-                YAML::Node(YAML::NodeType::Sequence),
-                YAML::Node(YAML::NodeType::Map),
-                YAML::Node(YAML::NodeType::Undefined)
+        auto nodetype = GENERATE(
+                YAML::Tag::INVALID, //YAML::NodeType::Null),
+                YAML::Tag::ARRAY,  //Node(YAML::NodeType::Sequence),
+                YAML::Tag::OBJECT,  //Node(YAML::NodeType::Map),
+                YAML::Tag::UNDEFINED  //YAML::NodeType::Undefined)
                 );
 
+        auto node = YAML::Node(nodetype);
         CHECK_FALSE(YamlUtil::getInt(node, resultInt));
         CHECK(resultInt == initialInt);
         CHECK(YamlUtil::getIntOrDefault(node, defaultInt) == defaultInt);

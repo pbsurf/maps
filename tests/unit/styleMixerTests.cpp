@@ -1,6 +1,6 @@
 #include "catch.hpp"
 #include "scene/styleMixer.h"
-#include "yaml-cpp/yaml.h"
+#include "gaml/src/yaml.h"
 #include <iostream>
 #include <set>
 
@@ -92,22 +92,17 @@ TEST_CASE("Correctly mix two shader configuration nodes", "[mixing][yaml]") {
 
     // Mixing is applied in-place, so independent tests need to take copies of the original nodes.
 
-    Node resultAB;
-    {
-        Node shaders = Clone(shadersMap);
-        mixer.applyShaderMixins(shaders["B"], {});
-        mixer.applyShaderMixins(shaders["A"], { shaders["B"] });
-        resultAB = shaders["A"];
-        // std::cout << "### B mixed into A ###\n" << Dump(shaders) << std::endl;
-    }
-    Node resultBA;
-    {
-        Node shaders = Clone(shadersMap);
-        mixer.applyShaderMixins(shaders["A"], {});
-        mixer.applyShaderMixins(shaders["B"], { shaders["A"] });
-        resultBA = shaders["B"];
-        // std::cout << "### A mixed into B ###\n" << Dump(shaders) << std::endl;
-    }
+    Node shadersAB = shadersMap.clone();
+    mixer.applyShaderMixins(shadersAB["B"], {});
+    mixer.applyShaderMixins(shadersAB["A"], { &shadersAB["B"] });
+    Node& resultAB = shadersAB["A"];
+    // std::cout << "### B mixed into A ###\n" << Dump(shaders) << std::endl;
+
+    Node shadersBA = shadersMap.clone();
+    mixer.applyShaderMixins(shadersBA["A"], {});
+    mixer.applyShaderMixins(shadersBA["B"], { &shadersBA["A"] });
+    Node& resultBA = shadersBA["B"];
+    // std::cout << "### A mixed into B ###\n" << Dump(shaders) << std::endl;
 
     REQUIRE(resultAB["uniforms"]["red"].Scalar() == "0xff0000");
     REQUIRE(resultBA["uniforms"]["red"].Scalar() == "0xff0000");
@@ -150,27 +145,21 @@ TEST_CASE("Correctly mix two shader configuration nodes", "[mixing][yaml]") {
     REQUIRE(resultExtensionsAB == correctExtensions);
     REQUIRE(resultExtensionsBA == correctExtensions);
 
-    Node resultABCD;
-    {
-        Node shaders = Clone(shadersMap);
-        mixer.applyShaderMixins(shaders["D"], {});
-        mixer.applyShaderMixins(shaders["C"], { shaders["D"] });
-        mixer.applyShaderMixins(shaders["B"], { shaders["D"] });
-        mixer.applyShaderMixins(shaders["A"], { shaders["B"], shaders["C"] });
-        resultABCD = shaders["A"];
-        // std::cout << "### D mixed into B and C, B and C mixed into A ###\n" << Dump(shaders) << std::endl;
-    }
+    Node shadersABCD = shadersMap.clone();
+    mixer.applyShaderMixins(shadersABCD["D"], {});
+    mixer.applyShaderMixins(shadersABCD["C"], { &shadersABCD["D"] });
+    mixer.applyShaderMixins(shadersABCD["B"], { &shadersABCD["D"] });
+    mixer.applyShaderMixins(shadersABCD["A"], { &shadersABCD["B"], &shadersABCD["C"] });
+    Node& resultABCD = shadersABCD["A"];
+    // std::cout << "### D mixed into B and C, B and C mixed into A ###\n" << Dump(shaders) << std::endl;
 
     // Check that "diamond inheritance" doesn't result in repeated blocks.
     REQUIRE(resultABCD["blocks_mixed"]["color"].size() == 4);
 
-    Node resultEA;
-    {
-        Node shaders = Clone(shadersMap);
-        mixer.applyShaderMixins(shaders["A"], {});
-        mixer.applyShaderMixins(shaders["E"], { shaders["A"] });
-        resultEA = shaders["E"];
-    }
+    Node shadersEA = shadersMap.clone();
+    mixer.applyShaderMixins(shadersEA["A"], {});
+    mixer.applyShaderMixins(shadersEA["E"], { &shadersEA["A"] });
+    Node& resultEA = shadersEA["E"];
 
     REQUIRE(resultEA["extensions_mixed"].IsSequence() == true);
     correctExtensions = { "gl_arb_stuff" };
@@ -216,18 +205,13 @@ TEST_CASE("Correctly mix two style config nodes", "[yaml][mixing]") {
                 specular: green
         )END");
 
-    Node resultAB;
-    {
-        Node styles = Clone(stylesMap);
-        mixer.applyStyleMixins(styles["styleA"], { styles["styleB"] });
-        resultAB = styles["styleA"];
-    }
-    Node resultBA;
-    {
-        Node styles = Clone(stylesMap);
-        mixer.applyStyleMixins(styles["styleB"], { styles["styleA"] });
-        resultBA = styles["styleB"];
-    }
+    Node stylesAB = stylesMap.clone();
+    mixer.applyStyleMixins(stylesAB["styleA"], { &stylesAB["styleB"] });
+    Node& resultAB = stylesAB["styleA"];
+
+    Node stylesBA = stylesMap.clone();
+    mixer.applyStyleMixins(stylesBA["styleB"], { &stylesBA["styleA"] });
+    Node& resultBA = stylesBA["styleB"];
 
     REQUIRE(resultAB["base"].Scalar() == "baseA");
     REQUIRE(resultBA["base"].Scalar() == "baseB");
@@ -277,8 +261,8 @@ TEST_CASE("fix:mergeMapFieldTakingLast: Correctly mix two style config nodes", "
                 specular: green
         )END");
 
-    mixer.applyStyleMixins(styles["styleB"], { styles["styleA"] });
-    auto resultB = styles["styleB"];
+    mixer.applyStyleMixins(styles["styleB"], { &styles["styleA"] });
+    auto& resultB = styles["styleB"];
 
     REQUIRE(resultB["base"].Scalar() == "styleA");
     REQUIRE(resultB["animated"].Scalar() == "true");

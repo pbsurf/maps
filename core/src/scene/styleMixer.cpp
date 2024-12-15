@@ -156,8 +156,9 @@ void StyleMixer::applyShaderMixins(Node& _shaders, const Mixins& _mixins) {
                 for (const auto& block : entry.second) {
                     // If the list already contains an exact reference to the same node,
                     // don't add it again.
-                    auto findfn = [&](Node& listitem){ return listitem == block.Scalar(); };
-                    if (std::find_if(list.begin(), list.end(), findfn) == list.end()) {
+                    auto listit = list.begin();
+                    while (listit != list.end() && *listit != block.Scalar()) { ++listit; }
+                    if (listit == list.end()) {
                         list.push_back(block.clone());
                     }
                 }

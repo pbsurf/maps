@@ -5,8 +5,6 @@
 #include "scene/styleContext.h"
 #include "util/builders.h"
 
-#include "yaml-cpp/yaml.h"
-
 using namespace Tangram;
 
 TEST_CASE( "", "[Duktape][init]") {

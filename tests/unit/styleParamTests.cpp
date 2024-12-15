@@ -3,7 +3,7 @@
 #include "scene/styleParam.h"
 
 #include "glm/vec3.hpp"
-#include "yaml-cpp/yaml.h"
+#include "gaml/src/yaml.h"
 
 using namespace Tangram;
 

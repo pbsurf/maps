@@ -1,7 +1,7 @@
 #include "catch.hpp"
 
+#include "gaml/src/yaml.h"
 #include "scene/stops.h"
-#include "yaml-cpp/yaml.h"
 #include "util/mapProjection.h"
 #include "glm/gtc/epsilon.hpp"
 

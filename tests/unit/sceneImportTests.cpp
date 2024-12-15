@@ -4,8 +4,6 @@
 #include "scene/importer.h"
 #include "scene/scene.h"
 
-#include "yaml-cpp/yaml.h"
-
 #include <iostream>
 #include <vector>
 
@@ -142,7 +140,7 @@ TEST_CASE("Scene URLs are resolved against their parent during import", "[import
 
     // Check that global texture URLs are resolved correctly.
 
-    auto textures = root["textures"];
+    const auto& textures = root["textures"];
 
     CHECK(textures["tex1"]["url"].Scalar() == "/root/path/to/texture.png");
     CHECK(textures["tex2"]["url"].Scalar() == "/up_a_directory.png");
@@ -152,11 +150,11 @@ TEST_CASE("Scene URLs are resolved against their parent during import", "[import
 
     // Check that "inline" texture URLs are resolved correctly.
 
-    auto styleA = root["styles"]["styleA"];
+    const auto& styleA = root["styles"]["styleA"];
 
     CHECK(styleA["texture"].Scalar() == "/root/path/to/texture.png");
 
-    auto uniformsA = styleA["shaders"]["uniforms"];
+    const auto& uniformsA = styleA["shaders"]["uniforms"];
 
     CHECK(uniformsA["u_tex1"].Scalar() == "/at_root.png");
     CHECK(uniformsA["u_tex2"][0].Scalar() == "/root/path/to/texture.png");
@@ -165,11 +163,11 @@ TEST_CASE("Scene URLs are resolved against their parent during import", "[import
     CHECK(uniformsA["u_float"].Scalar() == "0.25");
     CHECK(uniformsA["u_tex3"].Scalar() == "tex3");
 
-    auto styleB = root["styles"]["styleB"];
+    const auto& styleB = root["styles"]["styleB"];
 
     CHECK(styleB["texture"].Scalar() == "/root/imports/in_imports.png");
 
-    auto uniformsB = styleB["shaders"]["uniforms"];
+    const auto& uniformsB = styleB["shaders"]["uniforms"];
 
     CHECK(uniformsB["u_tex1"].Scalar() == "/root/imports/in_imports.png");
 

@@ -3,10 +3,15 @@
 #include <string.h>
 #include <climits>
 #include <vector>
-#include <set>
 #include <utility>
+#include <algorithm>
 #include <fstream>
 #include <sstream>
+#ifdef GAML_DOUBLE_CONV
+#include "double-conversion.h"
+#endif
+
+// based on https://github.com/vivkin/gason
 
 // Why this was written:
 // 1. NIH syndrome
@@ -96,6 +101,26 @@ static double string2double(const char *s, char **endptr) {
     return ch == '-' ? -result : result;
 }
 
+// float to string is non-trivial
+// maybe use github.com/abolz/Drachennest (dragonbox) or github.com/miloyip/dtoa-benchmark
+static std::string double2string(double f, unsigned int prec = 16) {
+#ifdef GAML_DOUBLE_CONV
+    using namespace double_conversion;
+    static DoubleToStringConverter D2S(
+        DoubleToStringConverter::UNIQUE_ZERO | DoubleToStringConverter::EMIT_POSITIVE_EXPONENT_SIGN,
+        "inf", "nan", 'e', -6, 21, 6, 0);
+
+    char buffer[256];
+    StringBuilder builder(buffer, 256);
+    D2S.ToShortest(f, &builder);
+    return std::string(builder.Finalize());
+#else
+    char buff[64];
+    snprintf(buff, 64, "%g", f);
+    return std::string(buff);
+#endif
+}
+
 static inline ListNode* insertAfter(ListNode* tail, ListNode* node) {
     if (!tail)
         return node->next = node;
@@ -118,10 +143,14 @@ static inline Node listToValue(Tag tag, ListNode* tail) {
 static Node UNDEFINED_VALUE(Tag::UNDEFINED);
 static Node INVALID_VALUE(Tag::INVALID);
 
+Node::Node(std::string&& s, Tag flags) : strVal(std::move(s)), flags_(flags) {
+    if (getTag() == Tag::UNDEFINED) { flags_ = flags | Tag::STRING; }
+}
+
 Node::Node(std::initializer_list<InitPair> items) {
   ListNode* tail = nullptr;
   for (auto& item : items) {
-      insertAfter(tail, new ListNode{item.val.clone(), nullptr, item.key});
+      tail = insertAfter(tail, new ListNode{item.val.clone(), nullptr, item.key});
   }
   *this = listToValue(Tag::OBJECT, tail);
 }
@@ -129,7 +158,7 @@ Node::Node(std::initializer_list<InitPair> items) {
 Node Array(std::initializer_list<Node> items) {
     ListNode* tail = nullptr;
     for (auto& item : items) {
-      insertAfter(tail, new ListNode{item.clone(), nullptr, {}});
+      tail = insertAfter(tail, new ListNode{item.clone(), nullptr, {}});
     }
     return listToValue(Tag::ARRAY, tail);
 }
@@ -140,6 +169,8 @@ Node::~Node() {
     }
 }
 
+ConstPairItems Node::pairs() const { return ConstPairItems{getNode()}; }
+PairItems Node::pairs() { return PairItems{getNode()}; }
 ListItems Node::items() const { return ListItems{getNode()}; }
 
 Node& Node::operator=(Node&& b) {
@@ -159,7 +190,7 @@ Node Node::clone() const {
     }
     ListNode* tail = nullptr;
     for (auto item : items()) {
-        insertAfter(tail, new ListNode{item->value.clone(), nullptr, item->key.clone()});
+        tail = insertAfter(tail, new ListNode{item->value.clone(), nullptr, item->key.clone()});
     }
     return listToValue(flags_, tail);
 }
@@ -250,8 +281,10 @@ bool Node::remove(int idx) {
 }
 
 void Node::merge(Node&& src) {
-    if (src.getTag() != Tag::OBJECT || !src.getNode() || this == &UNDEFINED_VALUE) { return; }
-    if (getTag() != Tag::UNDEFINED && getTag() != Tag::OBJECT) { return; }
+    if (src.getTag() != Tag::OBJECT || !src.getNode() || this == &UNDEFINED_VALUE) {
+      return; }
+    if (getTag() != Tag::UNDEFINED && getTag() != Tag::OBJECT) {
+      return; }
     for (auto other : src.items()) {
         Node& ours = add(other->key.getString());
         if (ours.getTag() == Tag::OBJECT && other->value.getTag() == Tag::OBJECT) {
@@ -268,18 +301,10 @@ int Node::size() const {
     return n;
 }
 
-template<> int Node::as(int _default, bool* ok) const {
-    return int(as<double>(double(_default), ok));
-}
-
-template<> float Node::as(float _default, bool* ok) const {
-    return float(as<double>(double(_default), ok));
-}
-
 template<> double Node::as(double _default, bool* ok) const {
     if (ok) { *ok = true; }
     if (isNumber()) { return getNumber(); }
-    if (getTag() == Tag::STRING) {
+    if (getTag() == Tag::STRING && (getFlags() & Tag::YAML_STRINGMASK) == Tag::YAML_UNQUOTED) {
         char* endptr;
         auto s = getString();
         double val = s[0] == '0' ? strtoul(s.c_str(), &endptr, 0) : string2double(s.c_str(), &endptr);
@@ -292,7 +317,7 @@ template<> double Node::as(double _default, bool* ok) const {
 
 template<> std::string Node::as(std::string _default, bool* ok) const {
     if (ok) { *ok = true; }
-    if (isNumber()) { return std::to_string(getNumber()); }
+    if (isNumber()) { return double2string(getNumber()); }
     if (getTag() == Tag::STRING) { return getString(); }
     if (ok) { *ok = false; }
     return _default;
@@ -382,7 +407,7 @@ Node parse(const std::string& s, int flags, ParseResult* resultout) {
 Node LoadFile(const std::string& filename) {
     std::stringstream buffer;
     {
-        std::ifstream instrm(filename);  //"stylus-osm.yaml"); //argv[1]);
+        std::ifstream instrm(filename);
         buffer << instrm.rdbuf();
     }
     return Load(buffer.str());
@@ -449,6 +474,11 @@ ParseResult parseTo(const char *s, size_t len, Node *valueout, int flags) {
             nextchar = *s++;
         } else if (pos < 0 || indent > indents[pos]) {
             nextchar = (*s == '-' && isspace(s[1])) ? '[' : '{';
+        } else if (linestart && keys[pos]) {
+            // next non-empty, non-comment line after key has same or less indent -> key w/o value
+            if (!separator || tags[pos] != Tag::OBJECT) { return {Error::UNEXPECTED_CHAR, linenum, endptr}; }
+            o = Node("~");  // key w/o value -> null value
+            nextchar = '\x7F';  // skip switch() to add object item
         } else if (pos >= 0 && indent < indents[pos]) {
             nextchar = tags[pos] == Tag::ARRAY ? ']' : '}';
         } else {
@@ -458,7 +488,7 @@ ParseResult parseTo(const char *s, size_t len, Node *valueout, int flags) {
             if (linestart) {
                 linestart = nullptr;
                 if (nextchar == '-' && isspace(*s)) {
-                    if (tags[pos] != Tag::ARRAY) { return {Error::UNEXPECTED_CHARACTER, linenum, endptr}; }
+                    if (tags[pos] != Tag::ARRAY) { return {Error::UNEXPECTED_CHAR, linenum, endptr}; }
                     ++s;
                     continue;
                 }
@@ -466,6 +496,7 @@ ParseResult parseTo(const char *s, size_t len, Node *valueout, int flags) {
         }
 
         switch (nextchar) {
+        case '\x7F': break;  // special code to skip switch ... don't want to wrap switch in if() {}
         case '"':
             ++s0;  // skip "
             for (; s < ends; ++s) {
@@ -508,7 +539,7 @@ ParseResult parseTo(const char *s, size_t len, Node *valueout, int flags) {
             if (s < ends && !isdelim(*s)) {
                 return {Error::BAD_STRING, linenum, s};
             }
-            o = Node(temp, Tag::YAML_DBLQUOTED);
+            o = Node(temp, Tag::YAML_DBLQUOTED | Tag::PARSED);
             temp.clear();
             break;
         case '[':
@@ -529,7 +560,7 @@ ParseResult parseTo(const char *s, size_t len, Node *valueout, int flags) {
             if (tags[pos] != (nextchar == '}' ? Tag::OBJECT : Tag::ARRAY))
                 return {Error::MISMATCH_BRACKET, linenum, endptr};
             if (nextchar == '}' && keys[pos])  // != nullptr)
-                return {Error::UNEXPECTED_CHARACTER, linenum, endptr};
+                return {Error::UNEXPECTED_CHAR, linenum, endptr};
             if (flowlevel > 0) {
                 tags[pos] = tags[pos] | Tag::YAML_FLOW;
                 --flowlevel;
@@ -539,12 +570,12 @@ ParseResult parseTo(const char *s, size_t len, Node *valueout, int flags) {
             break;
         case ':':
             if (separator || !keys[pos])  // == nullptr)
-                return {Error::UNEXPECTED_CHARACTER, linenum, endptr};
+                return {Error::UNEXPECTED_CHAR, linenum, endptr};
             separator = true;
             continue;
         case ',':
             if (separator || keys[pos])  // != nullptr)
-                return {Error::UNEXPECTED_CHARACTER, linenum, endptr};
+                return {Error::UNEXPECTED_CHAR, linenum, endptr};
             separator = true;
             continue;
         case '\0':
@@ -554,7 +585,7 @@ ParseResult parseTo(const char *s, size_t len, Node *valueout, int flags) {
         case '#':  // comment
             while (s < ends && *s != '\r' && *s != '\n') { ++s; }
             if (flags & PARSE_COMMENTS) {
-                o = Node(std::string(s0+1, s), Tag::YAML_COMMENT);
+                o = Node(std::string(s0+1, s), Tag::YAML_COMMENT | Tag::PARSED);
                 break;
             }
             continue;
@@ -572,7 +603,7 @@ ParseResult parseTo(const char *s, size_t len, Node *valueout, int flags) {
             if (s < ends && !isdelim(*s)) {
                 return {Error::BAD_STRING, linenum, s};
             }
-            o = Node(temp, Tag::YAML_SINGLEQUOTED);
+            o = Node(temp, Tag::YAML_SINGLEQUOTED | Tag::PARSED);
             temp.clear();
             break;
         case '|':  // literal block scalar
@@ -614,7 +645,7 @@ ParseResult parseTo(const char *s, size_t len, Node *valueout, int flags) {
                 temp.push_back('\n');
             }
 
-            o = Node(temp, Tag::YAML_BLOCKSTRING);
+            o = Node(temp, Tag::YAML_BLOCKSTRING | Tag::PARSED);
             temp.clear();  // note that we do not move temp
             endptr = s;
             break;
@@ -626,11 +657,11 @@ ParseResult parseTo(const char *s, size_t len, Node *valueout, int flags) {
         case '!':  // tag handle
         case '@':  // reserved
         case '`':  // reserved
-            return {Error::UNEXPECTED_CHARACTER, linenum, endptr};
+            return {Error::UNEXPECTED_CHAR, linenum, endptr};
         case '-':  // '-' could be array element, document separator, unquoted string, or number
             // '---' separates multiple documents in a single stream
             if (linestart && indent == 0 && *s == '-' && s[1] == '-') {
-                if (pos != -1) { return {Error::UNEXPECTED_CHARACTER, linenum, endptr}; }
+                if (pos != -1) { return {Error::UNEXPECTED_CHAR, linenum, endptr}; }
                 s += 2;
                 break;
             }
@@ -642,32 +673,31 @@ ParseResult parseTo(const char *s, size_t len, Node *valueout, int flags) {
                 while (s < ends && !isendscalar(*s)) { ++s; }
             }
             while (isspace(*(s-1))) { --s; }  // trim trailing spaces
-            o = Node(std::string(s0, s), Tag::YAML_UNQUOTED);
+            o = Node(std::string(s0, s), Tag::YAML_UNQUOTED | Tag::PARSED);
             break;
         }
 
-        //linestart = nullptr;
         separator = false;
 
         // check for invalid JSON if requested
         if ((flags & PARSE_JSON) && o.getTag() == Tag::STRING) {
             Tag t = o.getFlags() & Tag::YAML_STRINGMASK;
             if (t == Tag::YAML_SINGLEQUOTED || t == Tag::YAML_BLOCKSTRING || t == Tag::YAML_COMMENT) {
-                return {Error::UNEXPECTED_CHARACTER, linenum, endptr};
+                return {Error::UNEXPECTED_CHAR, linenum, endptr};
             }
             if (t == Tag::YAML_UNQUOTED) {
                 if (o.getString() == "true") {
-                    o = Node(1, Tag::JSON_BOOL);
+                    o = Node(1, Tag::JSON_BOOL | Tag::PARSED);
                 } else if (o.getString() == "false") {
-                    o = Node(0.0, Tag::JSON_BOOL);
+                    o = Node(0.0, Tag::JSON_BOOL | Tag::PARSED);
                 } else if (o.getString() == "null") {
-                    o = Node(Tag::JSON_NULL);
+                    o = Node(Tag::JSON_NULL | Tag::PARSED);
                 } else {
                     // try to parse as number
                     char* endnum;
                     double val = string2double(o.getCStr(), &endnum);
                     if (*endnum != '\0') { return {Error::BAD_NUMBER, linenum, endptr}; }
-                    o = Node(val);
+                    o = Node(val, Tag::NUMBER | Tag::PARSED);
                 }
             }
         }
@@ -686,7 +716,7 @@ ParseResult parseTo(const char *s, size_t len, Node *valueout, int flags) {
             }
             node = new ListNode{std::move(o), nullptr, std::move(keys[pos])};
             tails[pos] = insertAfter(tails[pos], node);
-            keys[pos] = Node();  //nullptr;
+            keys[pos] = Node();
         } else {
             // handle case of object in array
             if (!flowlevel && *s == ':' && isspace(s[1])) {
@@ -700,6 +730,8 @@ ParseResult parseTo(const char *s, size_t len, Node *valueout, int flags) {
 }
 
 // Writer
+
+static constexpr int YAML_KEY_STRING_LEVEL = 0x7FFFF;
 
 static std::string escapeSingleQuoted(const std::string& str) {
     std::string res = "'";
@@ -719,11 +751,7 @@ static std::string escapeDoubleQuoted(const std::string& str) {
     return res.append("\"");
 }
 
-static std::string escapeUnQuoted(const std::string& s, bool block, char quote) {
-    const char* special = block ? "#\r\n" : ",:]}#\r\n";
-    if (s.find_first_of(special) == std::string::npos) {
-        return s;
-    }
+static std::string escapeQuoted(const std::string& s, char quote) {
     return quote == '"' ? escapeDoubleQuoted(s) : escapeSingleQuoted(s);
 }
 
@@ -759,16 +787,6 @@ std::string Writer::spacing(int level) {
     return indent > 0 && level > 0 && level < flowLevel ? std::string(indent*level, ' ') : "";
 }
 
-// quote key string if necessary
-std::string Writer::keyString(std::string str) {
-    static std::string special("!&*-:?{}[],#|>@`\"'%");
-    if (!indent || isspace(str[0]) || special.find_first_of(str[0]) != std::string::npos
-            || str.find_first_of(":#") != std::string::npos) {
-        return quote == '"' ? escapeDoubleQuoted(str.c_str()) : escapeSingleQuoted(str.c_str());
-    }
-    return str;
-}
-
 std::string Writer::convertArray(const Node& obj, int level) {
     std::vector<std::string> res;
     if (indent < 2 || level >= flowLevel || (obj.getFlags() & Tag::YAML_FLOW) == Tag::YAML_FLOW) {
@@ -792,9 +810,6 @@ std::string Writer::convertHash(const Node& obj, int level) {
     std::vector<std::string> res;
     if ((obj.getFlags() & Tag::YAML_FLOW) == Tag::YAML_FLOW) { level = flowLevel; }
     for (auto item : obj.items()) {
-        Tag keyquote = item->key.getFlags() & Tag::YAML_STRINGMASK;
-        std::string key = item->key.getTag() == Tag::STRING && (!indent || keyquote == Tag::YAML_UNQUOTED ||
-                keyquote == Tag::YAML_BLOCKSTRING) ? keyString(item->key.getString()) : convert(item->key);
         Node& val = item->value;
         if (val.getTag() == Tag::YAML_COMMENT) {
             res.push_back(convert(val, level+1));
@@ -803,6 +818,7 @@ std::string Writer::convertHash(const Node& obj, int level) {
             bool sameLine = !indent || level+1 >= flowLevel ||
                     !val.getNode() || (val.getFlags() & Tag::YAML_FLOW) == Tag::YAML_FLOW;
             const char* sep = sameLine ? ": " : ":\n";
+            std::string key = convert(item->key, YAML_KEY_STRING_LEVEL);
             res.push_back(spacing(level) + key + sep + convert(val, level+1));
         }
     }
@@ -820,14 +836,34 @@ std::string Writer::convert(const Node& obj, int level) {
     case Tag::OBJECT:
         return convertHash(obj, level);
     case Tag::STRING:
-        if (!indent) { return escapeDoubleQuoted(obj.getCStr()); }  // JSON
+        if (!indent) { return escapeDoubleQuoted(obj.getString()); }  // JSON
         switch(obj.getFlags() & Tag::YAML_STRINGMASK) {
         case Tag::YAML_SINGLEQUOTED:
             return escapeSingleQuoted(obj.getString());
-        case Tag::YAML_UNQUOTED:
-            return escapeUnQuoted(obj.getString(), level < flowLevel, quote);
+        case Tag::YAML_UNQUOTED: {
+            const std::string& str = obj.getString();
+            const char* special = level < flowLevel ? "#\r\n" : ",:]}#\r\n";
+            if (str.empty() || isspace(str[0]) || str[0] == '"' ||
+                    str[0] == '\'' || str.find_first_of(special) != std::string::npos) {
+                return escapeQuoted(str, quote);
+            }
+            if (level == YAML_KEY_STRING_LEVEL) {
+                static std::string keyspecial("!&*-:?{}[],#|>@`\"'%");
+                if (keyspecial.find_first_of(str[0]) != std::string::npos
+                        || str.find_first_of(":#") != std::string::npos) {
+                    return escapeQuoted(str, quote);
+                }
+            }
+            if (!(obj.getFlags() & Tag::PARSED) && (str[0] == '-' || isdigit(str[0]))) {
+                return escapeQuoted(str, quote);
+            }
+            return str;  // actually unquoted!
+        }
         case Tag::YAML_BLOCKSTRING:
-            return blockString(obj.getString(), spacing(level));
+            // block string node could have been moved/copied or flow level could be different from input file
+            if (level < flowLevel)
+                return blockString(obj.getString(), spacing(level));
+            [[fallthrough]];
         case Tag::YAML_DBLQUOTED:
         default:
             return escapeDoubleQuoted(obj.getString());
@@ -837,7 +873,7 @@ std::string Writer::convert(const Node& obj, int level) {
     case Tag::NUMBER:
     {
         double val = obj.getNumber();
-        return int64_t(val) == val ? std::to_string(int64_t(val)) : std::to_string(val);
+        return int64_t(val) == val ? std::to_string(int64_t(val)) : double2string(val);
     }
     case Tag::JSON_BOOL:
         return obj.getNumber() != 0 ? "true" : "false";
@@ -857,7 +893,7 @@ std::string Dump(const Node& node) {
 
 }  // namespace YAML
 
-#if 1 //def GAML_MAIN
+#ifndef GAML_LIB_ONLY
 
 YAML::Node basicTests()
 {
@@ -866,9 +902,11 @@ layer1:
   "sub1": 4
   'sub2': 'hello'
   sub3: {a: 5, b: "test"}
+  empty_at_end:
 empty_layer:
 layer2:
   - item1
+  -        # empty array item
   - "item2"
 )";
 
@@ -887,29 +925,31 @@ layer2:
     }},
     {"a", { {"b", "this is a.b"} }},
     {"b", 4.6},
-    {"z", "this is z"},
+    {"z", "true"},
     {"empty", YAML::Map()}
   });
 
   std::string teststr = "teststr";
   doc.add("more") = {
     { "level1_1", 4 },
-    { "level1_2", 1 },
+    { "level1_2", 1.45435515E-45 },
     { "level2", {
         { "level2_1", teststr },
-        { "level2_2", 5 },
+        { "level2_2", "5.5" },
     }},
   };
 
-  doc["a"].add("c") = YAML::Array({"this is a.c[0]", "this is a.c[1]", "this is a.c[2]"});
-  doc["a"].add("d") = YAML::Array({ { {"a", 5}, {"b", "xxx"} }, "this is a.c[0]"});
+  doc["a"]["c"] = YAML::Array({"this is a.c[0]", "this is a.c[1]", "this is a.c[2]"});
+  doc["a"]["d"] = YAML::Array({ { {"a", 5}, {"b", "xxx"} }, "this is a.c[0]"});
 
-  //doc["a"]["c"].push_back("this is a.c[1]");
+  doc["a"]["c"].push_back("this is a.c[3]");
   doc["b"] = 5.6;
-  doc.add("cloned") = doc["more"].clone();
+  doc["cloned"] = doc["more"].clone();
   doc.add("c") = YAML::Node({{"x", "this is c.x"}, {"y", "this is c.y"}, {"z", 4.5}});
-  //builder["d"] = {"a", "b", "c", "d"};
-  //builder["e"] = {1, 2, 3, 4};
+  doc["c"]["a"]["b"] = "create nested with # symbol";
+
+  const YAML::Node& nodec = doc["c"];
+  nodec["m"]["n"].as<std::string>("const Node doesn't create anything");
 
   YAML::Node jdoc = YAML::parse(json);
   //doc.add("jdoc") = std::move(*jdoc.value);
@@ -918,14 +958,21 @@ layer2:
   assert(doc["a"]["b"].Scalar() == "this is a.b");
   assert(doc["b"].as<double>() == 5.6);
 
+  assert(doc["b"].as<int>() == 5);
+  assert(doc["b"].as<size_t>() == 5);
+  assert(doc["b"].as<float>() == 5.6f);
+
   doc.remove("b");
   assert(doc["b"].as<double>(0) == 0);
+
+  assert(doc["z"].as<bool>(false) == true);
 
   YAML::Writer writer;
   writer.indent = 4;
   writer.extraLines = 1;
   std::string out = writer.convert(doc);
   puts(out.c_str());
+  fflush(stdout);
 
   return doc;
 }

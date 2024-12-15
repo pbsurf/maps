@@ -7,8 +7,6 @@
 #include "scene/sceneLoader.h"
 #include "style/style.h"
 
-#include "yaml-cpp/yaml.h"
-
 using YAML::Node;
 using namespace Tangram;
 
@@ -33,9 +31,9 @@ nest:
 
 bool loadConfig(const std::string& _sceneString, Node& root) {
 
-    try { root = YAML::Load(_sceneString); }
-    catch (YAML::ParserException e) {
-        LOGE("Parsing scene config '%s'", e.what());
+    root = YAML::Load(_sceneString);
+    if (!root) {
+        LOGE("Parsing scene config");
         return false;
     }
     return true;

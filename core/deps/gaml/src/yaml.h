@@ -30,7 +30,9 @@ enum class Tag {
     // bit 10
     YAML_FLOW = 1 << 10,
     // bit 11; Value is ignored by Writer if set
-    NO_WRITE = 1 << 11
+    NO_WRITE = 1 << 11,
+    // set if parsed from input (instead of created in code)
+    PARSED = 1 << 12
 };
 
 inline constexpr Tag operator&(Tag a, Tag b) { return Tag(int(a) & int(b)); }
@@ -66,11 +68,10 @@ class Node {
     Tag flags_ = Tag::UNDEFINED;
 
 public:
-    Node(double x, Tag flags = Tag::NUMBER) : fval_(x), flags_(flags) {}
-    Node(std::string&& s, Tag flags = Tag::STRING)
-        : strVal(s), flags_((flags & Tag::TYPE_MASK) != Tag::UNDEFINED ? flags : (flags | Tag::STRING)) {}
+    Node(std::string&& s, Tag flags = Tag::STRING);
     Node(const char* s, Tag flags = Tag::STRING) : Node(std::string(s), flags) {}
     Node(const std::string& s, Tag flags = Tag::STRING) : Node(std::string(s), flags) {}
+    Node(double x, Tag flags = Tag::NUMBER) : fval_(x), flags_(flags) {}
     Node(Tag flags = Tag::UNDEFINED, ListNode* payload = nullptr) : pval_(payload), flags_(flags) {}
 
     Node(std::initializer_list<InitPair> items);
@@ -86,6 +87,7 @@ public:
 
     Tag getTag() const { return flags_ & Tag::TYPE_MASK; }
     Tag getFlags() const { return flags_; }
+    bool isString() const { return getTag() == Tag::STRING; }
     const std::string& getString() const { return strVal; }
     const char* getCStr() const { return strVal.c_str(); }
     bool isNumber() const { return getTag() == Tag::NUMBER; }
@@ -113,7 +115,14 @@ public:
     Node& operator=(const char* s) { return operator=(Node(s)); }
     Node& operator=(const std::string& s) { return operator=(s.c_str()); }
 
-    template <typename T> T as(T _default = {}, bool* ok = nullptr) const;
+    // note that we use SFINAE on return type to create overloads
+    template <typename T> typename std::enable_if<!std::is_arithmetic<T>::value, T>::type
+    as(T _default = {}, bool* ok = nullptr) const;
+
+    template <typename T> typename std::enable_if<std::is_arithmetic<T>::value, T>::type
+    as(T _default = {}, bool* ok = nullptr) const {
+        return static_cast<T>(as<double>(static_cast<double>(_default), ok));
+    }
 
     // tried to use a cstr_view class, but this breaks ["..."]!
     const Node& operator[](const char* key) const;
@@ -156,11 +165,9 @@ public:
     void setNoWrite(bool nowrite = true);
 };
 
-template<> int Node::as(int _default, bool* ok) const;
-template<> float Node::as(float _default, bool* ok) const;
+template<> bool Node::as(bool _default, bool* ok) const;
 template<> double Node::as(double _default, bool* ok) const;
 template<> std::string Node::as(std::string _default, bool* ok) const;
-template<> bool Node::as(bool _default, bool* ok) const;
 
 // helpers for initializer list creation
 Node Array(std::initializer_list<Node> items = {});
@@ -251,7 +258,7 @@ enum class Error {
     STACK_OVERFLOW,
     STACK_UNDERFLOW,
     MISMATCH_BRACKET,
-    UNEXPECTED_CHARACTER,
+    UNEXPECTED_CHAR,
     UNQUOTED_KEY,
     BREAKING_BAD,
     ALLOCATION_FAILURE,
@@ -277,8 +284,8 @@ Node parse(const char* s, size_t len = 0, int flags = 0, ParseResult* resultout 
 Node parse(const std::string& s, int flags = 0, ParseResult* resultout = nullptr);
 
 // yaml-cpp compatibility
-Node Load(const char* s, size_t len = 0) { return parse(s, len); }
-Node Load(const std::string& s) { return parse(s); }
+inline Node Load(const char* s, size_t len = 0) { return parse(s, len); }
+inline Node Load(const std::string& s) { return parse(s); }
 Node LoadFile(const std::string& filename);
 
 // Writer
@@ -291,7 +298,6 @@ struct Writer {
     //std::set<std::string> alwaysFlow; // always use flow style for specified key names
 
     std::string spacing(int level);
-    std::string keyString(std::string str);
     std::string convertArray(const Node& obj, int level);
     std::string convertHash(const Node& obj, int level);
 

@@ -9,8 +9,6 @@
 #include "style/polygonStyle.h"
 #include "style/style.h"
 
-#include "yaml-cpp/yaml.h"
-
 using namespace Tangram;
 using YAML::Node;
 

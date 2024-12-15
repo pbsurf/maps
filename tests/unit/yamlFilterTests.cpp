@@ -7,7 +7,7 @@
 #include "scene/sceneLoader.h"
 #include "scene/styleContext.h"
 
-#include "yaml-cpp/yaml.h"
+#include "gaml/src/yaml.h"
 
 #include <iostream>
 #include <vector>
