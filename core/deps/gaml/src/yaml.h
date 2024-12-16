@@ -158,7 +158,7 @@ public:
     bool IsSequence() const { return getTag() == Tag::ARRAY; }
     bool IsMap() const { return getTag() == Tag::OBJECT; }
     bool IsDefined() const { return bool(*this); }
-    bool IsNull() const { return bool(*this); }
+    bool IsNull() const;
     bool IsQuoted() const { return getTag() == Tag::STRING &&
         (getFlags() & YAML::Tag::YAML_STRINGMASK) != YAML::Tag::YAML_UNQUOTED; }
     NodeType Type() const;

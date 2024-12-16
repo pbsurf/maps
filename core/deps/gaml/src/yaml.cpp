@@ -28,22 +28,26 @@ namespace YAML {
 
 // helper fns
 
-static inline bool isspace(char c) {
-    return c == ' ' || (c >= '\t' && c <= '\r');
-}
+static inline bool isspace(char c) { return c == ' ' || (c >= '\t' && c <= '\r'); }
 
 static inline bool isdelim(char c) {
     return c == ',' || c == ':' || c == ']' || c == '}' || isspace(c) || c == '#' || !c;
 }
 
-// technically, we should check for space after ',' and ':' if not in flow mode
-static inline bool isendscalar(char c) {
-    return c == ',' || c == ':' || c == ']' || c == '}' || c == '\r' || c == '\n' || c == '#'|| !c;
+static inline bool isflowdelim(char c) {
+  return c == ',' || c == ']' || c == '}' || c == '[' || c == '{';
 }
 
-static inline bool isdigit(char c) {
-    return c >= '0' && c <= '9';
+// YAML allows newlines in unquoted strings, but we don't
+static inline bool isendscalar(char c, char d) {
+    return c == '\r' || c == '\n' || (c == ':' && isspace(d)) || (d == '#' && isspace(c));
 }
+
+static inline bool isarray(char c, char d) { return c == '-' && isspace(d); }
+
+static inline bool iskeydelim(char c, char d) { return c == ':' && isspace(d); }
+
+static inline bool isdigit(char c) { return c >= '0' && c <= '9'; }
 
 static inline bool isxdigit(char c) {
     return (c >= '0' && c <= '9') || ((c & ~' ') >= 'A' && (c & ~' ') <= 'F');
@@ -174,7 +178,7 @@ PairItems Node::pairs() { return PairItems{getNode()}; }
 ListItems Node::items() const { return ListItems{getNode()}; }
 
 Node& Node::operator=(Node&& b) {
-    assert(this != &UNDEFINED_VALUE && this != &INVALID_VALUE);
+    if(this == &UNDEFINED_VALUE || this == &INVALID_VALUE) { assert(false); return *this; }
     std::swap(pval_, b.pval_);
     std::swap(flags_, b.flags_);
     std::swap(strVal, b.strVal);
@@ -246,7 +250,7 @@ Node& Node::push_back(Node&& val) {
     if (getTag() != Tag::ARRAY) { return INVALID_VALUE; }
     ListNode* item = new ListNode{std::move(val), nullptr, {}};
     ListNode* array = pval_;
-    if (!array) { pval_ = item; }
+    if (!array) { pval_ = item; return item->node(); }
     while (array->next) { array = array->next; }
     array->next = item;
     return item->node();
@@ -330,10 +334,10 @@ template<> bool Node::as(bool _default, bool* ok) const {
 
     if (ok) { *ok = true; }
     if (isNumber()) { return getNumber() != 0; }
-    if (getTag() == Tag::STRING) {
+    if (getTag() == Tag::STRING && ((getFlags() & Tag::YAML_STRINGMASK) == Tag::YAML_UNQUOTED)) {
         int idx = 0;
-        for (const char* boolstr : boolstrs) {
-            if (strVal == boolstr) { return idx%2 == 0; }
+        for (const char* s : boolstrs) {
+            if (strVal == s) { return idx%2 == 0; }
             ++idx;
         }
     }
@@ -342,6 +346,17 @@ template<> bool Node::as(bool _default, bool* ok) const {
 }
 
 // only for yaml-cpp compatibility
+
+bool Node::IsNull() const {
+    static const char* nullstrs[] = {"~", "null","Null","NULL"};
+
+    if (getTag() == Tag::STRING && ((getFlags() & Tag::YAML_STRINGMASK) == Tag::YAML_UNQUOTED)) {
+        for (const char* s : nullstrs) {
+            if (strVal == s) { return true; }
+        }
+    }
+    return false;
+}
 
 NodeType Node::Type() const {
     switch(getTag()) {
@@ -440,7 +455,7 @@ ParseResult parseTo(const char *s, size_t len, Node *valueout, int flags) {
     int flowlevel = 0;
     int linenum = 1;
     bool separator = true;
-    bool blockarrayobj = false;
+    bool startobj = false;
     char nextchar;
     ListNode* node;
     std::string temp;
@@ -458,41 +473,34 @@ ParseResult parseTo(const char *s, size_t len, Node *valueout, int flags) {
             ++s;
         }
         if (s == ends) {
-            if (flowlevel || blockarrayobj) { return {Error::MISMATCH_BRACKET, linenum, s}; }
+            if (flowlevel || startobj) { return {Error::MISMATCH_BRACKET, linenum, s}; }
             indent = -1;
         } else {
             if (linestart) { indent = s - linestart; }
             if (*s == '{' || *s == '[') { ++flowlevel; }
         }
 
-        if (blockarrayobj) {
+        if (startobj) {
             ++s;  // skip ':'
-            indent += 2;
             nextchar = '{';
         } else if (flowlevel || (s < ends && *s == '#')) {
             endptr = s0 = s;
             nextchar = *s++;
-        } else if (pos < 0 || indent > indents[pos]) {
-            nextchar = (*s == '-' && isspace(s[1])) ? '[' : '{';
-        } else if (linestart && keys[pos]) {
+        } else if (linestart && pos >= 0 && indent <= indents[pos] && keys[pos]) {
             // next non-empty, non-comment line after key has same or less indent -> key w/o value
-            if (!separator || tags[pos] != Tag::OBJECT) { return {Error::UNEXPECTED_CHAR, linenum, endptr}; }
+            if (!separator || tags[pos] != Tag::OBJECT) { return {Error::UNEXPECTED_CHAR, linenum, s}; }
             o = Node("~");  // key w/o value -> null value
             nextchar = '\x7F';  // skip switch() to add object item
         } else if (pos >= 0 && indent < indents[pos]) {
             nextchar = tags[pos] == Tag::ARRAY ? ']' : '}';
+        } else if (linestart && s+1 < ends && isarray(*s, s[1])) {
+            if (pos < 0 || indent > indents[pos]) { nextchar = '['; }
+            else if (tags[pos] == Tag::ARRAY) { ++s; continue; }
+            else { return {Error::UNEXPECTED_CHAR, linenum, s}; }
         } else {
             endptr = s0 = s;
             nextchar = *s++;
-            // handle array '-'
-            if (linestart) {
-                linestart = nullptr;
-                if (nextchar == '-' && isspace(*s)) {
-                    if (tags[pos] != Tag::ARRAY) { return {Error::UNEXPECTED_CHAR, linenum, endptr}; }
-                    ++s;
-                    continue;
-                }
-            }
+            linestart = nullptr;
         }
 
         switch (nextchar) {
@@ -548,10 +556,10 @@ ParseResult parseTo(const char *s, size_t len, Node *valueout, int flags) {
                 return {Error::STACK_OVERFLOW, linenum, endptr};
             tails[pos] = nullptr;
             tags[pos] = (nextchar == '{' ? Tag::OBJECT : Tag::ARRAY);
-            keys[pos] = blockarrayobj ? std::move(o) : Node();  //nullptr;
+            keys[pos] = startobj ? std::move(o) : Node();  //nullptr;
             indents[pos] = indent;
             separator = true;
-            blockarrayobj = false;
+            startobj = false;
             continue;
         case ']':
         case '}':
@@ -667,10 +675,12 @@ ParseResult parseTo(const char *s, size_t len, Node *valueout, int flags) {
             }
             [[fallthrough]];
         default:  // unquoted string
-            if (!flowlevel && keys[pos]) {
-                while (s < ends && *s != '\r' && *s != '\n' && *s != '#') { ++s; }
+            if (flowlevel) {  // flow key or value
+                while (s+1 < ends && !isflowdelim(*s) &&
+                       !isendscalar(*s, s[1]) && !(*s == ':' && isflowdelim(s[1]))) { ++s; }
             } else {
-                while (s < ends && !isendscalar(*s)) { ++s; }
+                while (s+1 < ends && !isendscalar(*s, s[1])) { ++s; }
+                if (s+1 == ends && !isendscalar(*s, '\n')) { ++s; }  // last char of single value
             }
             while (isspace(*(s-1))) { --s; }  // trim trailing spaces
             o = Node(std::string(s0, s), Tag::YAML_UNQUOTED | Tag::PARSED);
@@ -678,6 +688,12 @@ ParseResult parseTo(const char *s, size_t len, Node *valueout, int flags) {
         }
 
         separator = false;
+
+        // wait until we see "key: " before starting object to handle single values and objects in arrays
+        if (!flowlevel && (pos < 0 || indent > indents[pos]) && s+1 < ends && iskeydelim(*s, s[1])) {
+            startobj = true;
+            continue;
+        }
 
         // check for invalid JSON if requested
         if ((flags & PARSE_JSON) && o.getTag() == Tag::STRING) {
@@ -718,11 +734,6 @@ ParseResult parseTo(const char *s, size_t len, Node *valueout, int flags) {
             tails[pos] = insertAfter(tails[pos], node);
             keys[pos] = Node();
         } else {
-            // handle case of object in array
-            if (!flowlevel && *s == ':' && isspace(s[1])) {
-                blockarrayobj = true;
-                continue;
-            }
             node = new ListNode{std::move(o), nullptr, {}};
             tails[pos] = insertAfter(tails[pos], node);
         }
@@ -905,15 +916,40 @@ layer1:
   empty_at_end:
 empty_layer:
 layer2:
-  - item1
-  -        # empty array item
-  - "item2"
+    -   item1
+    -          # empty array item
+    -   "item2"
+    -   - nested array
+        - second item
+    -   objinarray: val1
+        key2: val2
+        emptyatend:
 )";
 
   static const char* json = R"({
   "json1": {"sub1": 4, "sub2": "hello"},
   "json2": ["item1", "item2"]
 })";
+
+  static const char* colonspace = R"END(
+    import: imports/urls.yaml
+    fonts: { fontA: { url: https://host/font.woff } }
+    sources: { sourceA: { url: 'https://host/tiles/{z}/{y}/{x}.mvt' } }
+    textures:
+        tex1: { url: path/to/texture.png#not-a-comment, something: else }
+        tex2: { url: "../up_a_directory.png" }
+    styles:
+        styleA:
+            texture: https://host/font.woff#this-is-not-a-comment  #but this is
+            need:spaceto: make-a-key
+            shaders:
+                uniforms:
+                    u_tex1: "/at_root.png"
+                    u_tex2: ["path/to/texture.png", tex2]
+                    u_tex3: tex3
+                    u_bool: true
+                    u_float: 0.25
+)END";
 
   YAML::Node doc = YAML::parse(yaml);
 
@@ -954,6 +990,12 @@ layer2:
   YAML::Node jdoc = YAML::parse(json);
   //doc.add("jdoc") = std::move(*jdoc.value);
   doc.add("jdoc") = std::move(jdoc);
+
+  doc["colonspace"] = YAML::parse(colonspace);
+
+  doc["single_scalar"] = YAML::parse("test_value");
+  doc["single_array"] = YAML::parse("- test_item");
+  doc["single_obj"] = YAML::parse("test_key:");
 
   assert(doc["a"]["b"].Scalar() == "this is a.b");
   assert(doc["b"].as<double>() == 5.6);

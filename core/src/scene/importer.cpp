@@ -91,11 +91,11 @@ YAML::Node Importer::loadSceneData(Platform& _platform, const Url& _sceneUrl, co
         if (isZipArchiveUrl(sceneUrl)) {
             sceneUrl = getBaseUrlForZipArchive(sceneUrl);
         }
-        for (auto& url : sceneNode.second.pendingUrls) {
+        for (auto* url : sceneNode.second.pendingUrlNodes) {
             // If the node does not contain a named texture in the final scene, treat it as a URL relative to the scene
             // file where it was originally encountered.
-            if (!textures[url]) {
-                url = sceneUrl.resolve(Url(url)).string();
+            if (!textures[url->Scalar()]) {
+                *const_cast<YAML::Node*>(url) = sceneUrl.resolve(Url(url->Scalar())).string();
             }
         }
     }
@@ -185,14 +185,14 @@ void Importer::addSceneYaml(const Url& sceneUrl, const char* sceneYaml, size_t l
 
     sceneNode.yaml = YAML::Load(sceneYaml, length);
 
-    if (!sceneNode.yaml.IsDefined() || !sceneNode.yaml.IsMap()) {
+    if (!sceneNode.yaml.IsMap()) {
         LOGE("Scene is not a valid YAML map: %s", sceneUrl.string().c_str());
         return;
     }
 
     sceneNode.imports = getResolvedImportUrls(sceneNode.yaml, sceneUrl);
 
-    sceneNode.pendingUrls = getTextureUrlNodes(sceneNode.yaml);
+    sceneNode.pendingUrlNodes = getTextureUrlNodes(sceneNode.yaml);
 
     // Remove 'import' values so they don't get merged.
     sceneNode.yaml.remove("import");
@@ -261,7 +261,7 @@ void Importer::importScenesRecursive(Node& root, const Url& sceneUrl, std::unord
     }
 
     // don't overwrite root with empty node from missing file!
-    if (!sceneNode.yaml.IsNull()) {
+    if (sceneNode.yaml) {
       YamlUtil::mergeMapFields(root, std::move(sceneNode.yaml));
     }
 
@@ -310,13 +310,13 @@ static bool nodeIsPotentialTextureUrl(const Node& node) {
     return true;
 }
 
-std::vector<std::string> Importer::getTextureUrlNodes(const Node& root) {
+std::vector<const YAML::Node*> Importer::getTextureUrlNodes(const Node& root) {
 
-    std::vector<std::string> nodes;
+    std::vector<const YAML::Node*> nodes;
 
     if (const Node& styles = root["styles"]) {
 
-        for (const auto& entry : styles.pairs()) {
+        for (auto entry : styles.pairs()) {
 
             const Node& style = entry.second;
             if (!style.IsMap()) { continue; }
@@ -324,7 +324,7 @@ std::vector<std::string> Importer::getTextureUrlNodes(const Node& root) {
             //style->texture
             if (const Node& texture = style["texture"]) {
                 if (nodeIsPotentialTextureUrl(texture)) {
-                    nodes.push_back(texture.Scalar());
+                    nodes.push_back(&texture);
                 }
             }
 
@@ -336,7 +336,7 @@ std::vector<std::string> Importer::getTextureUrlNodes(const Node& root) {
                         if (!propNode.IsMap()) { continue; }
                         if (const Node& matTexture = propNode["texture"]) {
                             if (nodeIsPotentialTextureUrl(matTexture)) {
-                                nodes.push_back(matTexture.Scalar());
+                                nodes.push_back(&matTexture);
                             }
                         }
                     }
@@ -347,14 +347,14 @@ std::vector<std::string> Importer::getTextureUrlNodes(const Node& root) {
             if (const Node& shaders = style["shaders"]) {
                 if (!shaders.IsMap()) { continue; }
                 if (const Node& uniforms = shaders["uniforms"]) {
-                    for (const auto& uniformEntry : uniforms.pairs()) {
+                    for (auto uniformEntry : uniforms.pairs()) {
                         const Node& uniformValue = uniformEntry.second;
                         if (nodeIsPotentialTextureUrl(uniformValue)) {
-                            nodes.push_back(uniformValue.Scalar());
+                            nodes.push_back(&uniformValue);
                         } else if (uniformValue.IsSequence()) {
                             for (const Node& u : uniformValue) {
                                 if (nodeIsPotentialTextureUrl(u)) {
-                                    nodes.push_back(u.Scalar());
+                                    nodes.push_back(&u);
                                 }
                             }
                         }
@@ -376,9 +376,7 @@ void Importer::resolveSceneUrls(Node& root, const Url& baseUrl) {
 
     // Resolve global texture URLs.
 
-    Node& textures = root["textures"];
-
-    if (textures.IsDefined()) {
+    if (Node& textures = root["textures"]) {
         for (auto texture : textures.pairs()) {
             if (Node& textureUrlNode = texture.second["url"]) {
                 if (nodeIsPotentialUrl(textureUrlNode)) {

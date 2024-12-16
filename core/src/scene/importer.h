@@ -44,7 +44,7 @@ public:
     // against the given base URL.
     static void resolveSceneUrls(Node& root, const Url& base);
 
-    static std::vector<std::string> getTextureUrlNodes(const Node& root);
+    static std::vector<const YAML::Node*> getTextureUrlNodes(const Node& root);
 
     // Start an asynchronous request for the scene resource at the given URL.
     // In addition to the URL types supported by the platform instance, this
@@ -79,7 +79,7 @@ protected:
     struct SceneNode {
         YAML::Node yaml{};
         std::vector<Url> imports;
-        std::vector<std::string> pendingUrls;
+        std::vector<const YAML::Node*> pendingUrlNodes;
     };
     std::unordered_map<Url, SceneNode> m_sceneNodes = {};
 

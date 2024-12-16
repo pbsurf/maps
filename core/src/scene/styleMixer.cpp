@@ -2,6 +2,7 @@
 
 #include "style/style.h"
 #include "util/topologicalSort.h"
+#include "log.h"
 
 #include <algorithm>
 #include <set>
@@ -116,6 +117,13 @@ void StyleMixer::applyStyleMixins(Node& _style, const Mixins& _mixins) {
 }
 
 void StyleMixer::applyShaderMixins(Node& _shaders, const Mixins& _mixins) {
+
+    if (_shaders.IsNull()) {
+        _shaders = YAML::Map();
+    } else if (_shaders && !_shaders.IsMap()) {
+        LOGE("Invalid node type for 'shaders': %s", YAML::Dump(_shaders).c_str());
+        return;
+    }
 
     // Merge maps fields with newer values taking precedence.
     mergeMapFieldTakingLast("defines", _shaders, _mixins);
