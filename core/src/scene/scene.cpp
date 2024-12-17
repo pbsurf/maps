@@ -641,7 +641,7 @@ Scene::UpdateState Scene::update(RenderState& _rs, View& _view, float _dt) {
 
     m_labelManager->updateLabelSet(_view.state(), _dt, *this, tiles, markers, !changed);
 
-    return { m_tileManager->hasLoadingTiles(), m_labelManager->needUpdate(), markersChanged };
+    return { m_tileManager->numLoadingTiles(), m_labelManager->needUpdate(), markersChanged };
 }
 
 void Scene::renderBeginFrame(RenderState& _rs) {

@@ -48,6 +48,7 @@ int getIntOrDefault(const YAML::Node& node, int defaultValue, bool allowTrailing
 }
 
 bool getFloat(const YAML::Node& node, float& result, bool allowTrailingJunk) {
+    if (node.isNumber()) { result = float(node.getNumber()); return true; }
     if (node.IsScalar()) {
         const std::string& scalar = node.Scalar();
         int size = static_cast<int>(scalar.size());
@@ -67,6 +68,7 @@ float getFloatOrDefault(const YAML::Node& node, float defaultValue, bool allowTr
 }
 
 bool getDouble(const YAML::Node& node, double& result, bool allowTrailingJunk) {
+    if (node.isNumber()) { result = node.getNumber(); return true; }
     if (node.IsScalar()) {
         const std::string& scalar = node.Scalar();
         int size = static_cast<int>(scalar.size());

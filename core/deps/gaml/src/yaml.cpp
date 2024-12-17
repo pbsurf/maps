@@ -18,7 +18,7 @@
 // 2. data race in tangrams/yaml-cpp causing crashes (due to custom, non-atomic ref counting)
 //  - upstream yaml-cpp uses shared_ptr instead and probably would have fixed the issue, but
 //   divergence between branches may have made swapping it in difficult
-// 3. huge reduction in LOC by replacing yaml-cpp and rapidjson
+// 3. significant reduction in LOC by replacing yaml-cpp and rapidjson
 
 #ifndef GAML_LOG
 #define GAML_LOG(msg, ...) do { fprintf(stderr, msg, ## __VA_ARGS__); } while (0)
@@ -35,7 +35,7 @@ static inline bool isdelim(char c) {
 }
 
 static inline bool isflowdelim(char c) {
-  return c == ',' || c == ']' || c == '}' || c == '[' || c == '{';
+    return c == ',' || c == ']' || c == '}' || c == '[' || c == '{';
 }
 
 // YAML allows newlines in unquoted strings, but we don't
@@ -211,7 +211,7 @@ Node& Node::add(const char* key, bool replace) {
             while (obj->next) { obj = obj->next; }
             obj->next = val;
         }
-        return val->node();
+        return val->value;
     } else if (replace && &n != &INVALID_VALUE) {
         n = Node();
     }
@@ -225,7 +225,7 @@ const Node& Node::operator[](const char* key) const {
     while (obj && obj->key != key) {
       obj = obj->next;
     }
-    return obj ? obj->node() : UNDEFINED_VALUE;
+    return obj ? obj->value : UNDEFINED_VALUE;
 }
 
 const Node& Node::operator[](int idx) const {
@@ -235,7 +235,7 @@ const Node& Node::operator[](int idx) const {
     do {
         while (array && array->value.getTag() == Tag::YAML_COMMENT) { array = array->next; }
     } while (idx-- && array && (array = array->next));
-    return array ? array->node() : UNDEFINED_VALUE;
+    return array ? array->value : UNDEFINED_VALUE;
 }
 
 Node& Node::operator[](int idx) {
@@ -250,10 +250,10 @@ Node& Node::push_back(Node&& val) {
     if (getTag() != Tag::ARRAY) { return INVALID_VALUE; }
     ListNode* item = new ListNode{std::move(val), nullptr, {}};
     ListNode* array = pval_;
-    if (!array) { pval_ = item; return item->node(); }
+    if (!array) { pval_ = item; return item->value; }
     while (array->next) { array = array->next; }
     array->next = item;
-    return item->node();
+    return item->value;
 }
 
 bool Node::remove(const char* key) {
@@ -309,11 +309,18 @@ template<> double Node::as(double _default, bool* ok) const {
     if (ok) { *ok = true; }
     if (isNumber()) { return getNumber(); }
     if (getTag() == Tag::STRING && (getFlags() & Tag::YAML_STRINGMASK) == Tag::YAML_UNQUOTED) {
-        char* endptr;
+        char* endptr = nullptr;
         auto s = getString();
-        double val = s[0] == '0' ? strtoul(s.c_str(), &endptr, 0) : string2double(s.c_str(), &endptr);
+        double val = _default;
+        if (s.size() > 2 && s[0] == '0' && s[1] != '.') {
+            if (s[1] == 'x') { val = strtoul(&s[2], &endptr, 16); }
+            else if (s[1] == 'b') { val = strtoul(&s[2], &endptr, 2); }
+            else if (s[1] == 'o') { val = strtoul(&s[2], &endptr, 8); }
+        } else if (!s.empty()) {
+            val = string2double(s.c_str(), &endptr);
+        }
         // endptr should point to '\0' terminator char after successful conversion
-        if (!s.empty() && *endptr == '\0') { return val; }
+        if (endptr && *endptr == '\0') { return val; }
     }
     if (ok) { *ok = false; }
     return _default;
@@ -321,6 +328,7 @@ template<> double Node::as(double _default, bool* ok) const {
 
 template<> std::string Node::as(std::string _default, bool* ok) const {
     if (ok) { *ok = true; }
+    if (getTag() == Tag::JSON_BOOL) { return fval_ != 0.0 ? "true" : "false"; }
     if (isNumber()) { return double2string(getNumber()); }
     if (getTag() == Tag::STRING) { return getString(); }
     if (ok) { *ok = false; }
@@ -333,7 +341,7 @@ template<> bool Node::as(bool _default, bool* ok) const {
     //"y","n","Y","N","yes","no","Yes","No","YES","NO","on","off","On","Off","ON","OFF"};
 
     if (ok) { *ok = true; }
-    if (isNumber()) { return getNumber() != 0; }
+    if (isNumber() || getTag() == Tag::JSON_BOOL) { return getNumber() != 0; }
     if (getTag() == Tag::STRING && ((getFlags() & Tag::YAML_STRINGMASK) == Tag::YAML_UNQUOTED)) {
         int idx = 0;
         for (const char* s : boolstrs) {
@@ -508,23 +516,20 @@ ParseResult parseTo(const char *s, size_t len, Node *valueout, int flags) {
         case '"':
             ++s0;  // skip "
             for (; s < ends; ++s) {
-                char c = *s;
-                if (c == '\\') {
+                if (*s == '\\') {
                     temp.append(s0, s);
-                    if (++s == ends) { return {Error::BAD_STRING, linenum, endptr}; }
-                    c = *s;
-                    if (c == 'u') {
+                    if (++s == ends || (*s == '\r' && ++s == ends)) {  // handle \ at end of line
+                        return {Error::BAD_STRING, linenum, endptr};
+                    }
+                    if (*s == 'u') {
                         if (s + 5 > ends) { return {Error::BAD_STRING, linenum, s}; }
                         int u = 0;
                         for (int i = 0; i < 4; ++i) {
-                            if (isxdigit(*++s)) {
-                                u = u * 16 + char2int(*s);
-                            } else {
-                                return {Error::BAD_STRING, linenum, s};
-                            }
+                            if (!isxdigit(*++s)) { return {Error::BAD_STRING, linenum, s}; }
+                            u = u * 16 + char2int(*s);
                         }
                         if (u < 0x80) {
-                            temp.push_back(u);  //*it = c;
+                            temp.push_back(u);
                         } else if (u < 0x800) {
                             temp.push_back(0xC0 | (u >> 6));
                             temp.push_back(0x80 | (u & 0x3F));
@@ -533,20 +538,19 @@ ParseResult parseTo(const char *s, size_t len, Node *valueout, int flags) {
                             temp.push_back(0x80 | ((u >> 6) & 0x3F));
                             temp.push_back(0x80 | (u & 0x3F));
                         }
-                    } else if ((c = unescapedChar(c))) {
-                        temp.push_back(c);  //*it = c;
+                    } else if (*s == '\n') {  // don't insert anything (line continuation)
+                    } else if (char c = unescapedChar(*s)) {
+                        temp.push_back(c);
                     } else {
                         return {Error::BAD_STRING, linenum, s};
                     }
                     s0 = s+1;
-                } else if (c == '"') {
+                } else if (*s == '"') {
                     temp.append(s0, s++);
                     break;
                 }
             }
-            if (s < ends && !isdelim(*s)) {
-                return {Error::BAD_STRING, linenum, s};
-            }
+            if (s < ends && !isdelim(*s)) { return {Error::BAD_STRING, linenum, s}; }
             o = Node(temp, Tag::YAML_DBLQUOTED | Tag::PARSED);
             temp.clear();
             break;
@@ -577,13 +581,11 @@ ParseResult parseTo(const char *s, size_t len, Node *valueout, int flags) {
             --pos;
             break;
         case ':':
-            if (separator || !keys[pos])  // == nullptr)
-                return {Error::UNEXPECTED_CHAR, linenum, endptr};
+            if (separator || !keys[pos]) { return {Error::UNEXPECTED_CHAR, linenum, endptr}; }
             separator = true;
             continue;
         case ',':
-            if (separator || keys[pos])  // != nullptr)
-                return {Error::UNEXPECTED_CHAR, linenum, endptr};
+            if (separator || keys[pos]) { return {Error::UNEXPECTED_CHAR, linenum, endptr}; }
             separator = true;
             continue;
         case '\0':
@@ -608,9 +610,7 @@ ParseResult parseTo(const char *s, size_t len, Node *valueout, int flags) {
                     s0 = s;
                 }
             }
-            if (s < ends && !isdelim(*s)) {
-                return {Error::BAD_STRING, linenum, s};
-            }
+            if (s < ends && !isdelim(*s)) { return {Error::BAD_STRING, linenum, s}; }
             o = Node(temp, Tag::YAML_SINGLEQUOTED | Tag::PARSED);
             temp.clear();
             break;

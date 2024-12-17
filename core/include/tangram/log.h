@@ -1,7 +1,6 @@
 #pragma once
 
 #include "platform.h"
-#include "util/util.h"
 
 #include <atomic>
 #include <cstring>
@@ -15,6 +14,10 @@
  * LOG: Default log, LOG_LEVEL >= 0
  * LOGS: Screen log, no LOG_LEVEL
  */
+
+namespace Tangram {
+    std::string fstring(const char* fmt, ...);
+}
 
 #ifdef __clang__
 #pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"

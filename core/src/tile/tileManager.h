@@ -50,11 +50,7 @@ public:
     /* Returns the set of currently visible tiles */
     const auto& getVisibleTiles() const { return m_tiles; }
 
-    //bool hasTileSetChanged() const { return m_tileSetChanged; }
-
-    bool hasLoadingTiles() const {
-        return m_tilesInProgress > 0;
-    }
+    int numLoadingTiles() const { return m_tilesInProgress; }
 
     std::shared_ptr<TileSource> getTileSource(int32_t _sourceId);
 

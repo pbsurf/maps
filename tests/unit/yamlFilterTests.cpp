@@ -64,7 +64,7 @@ void init() {
 //1. basic predicate
 TEST_CASE( "yaml-filter-tests: basic predicate test", "[filters][core][yaml]") {
     init();
-    Filter filter = load("filter: { series: !!str 3}");
+    Filter filter = load("filter: { series: '3' }");
 
     REQUIRE(!filter.eval(civic, ctx));
     REQUIRE(filter.eval(bmw1, ctx));

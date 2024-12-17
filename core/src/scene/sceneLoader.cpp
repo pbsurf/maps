@@ -66,7 +66,7 @@ SceneError SceneLoader::applyUpdates(Node& _config, const std::vector<SceneUpdat
 
         Node* node = YamlPath(update.path).get(_config);
         if (!node) {
-            LOGE("Update: %s - %s", update.path.c_str(), update.value.c_str());
+            LOGE("Scene update path not found: %s = %s", update.path.c_str(), update.value.c_str());
             return {update, Error::scene_update_path_not_found};
         }
         *node = std::move(value);

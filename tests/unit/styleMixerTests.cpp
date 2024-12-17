@@ -207,20 +207,20 @@ TEST_CASE("Correctly mix two style config nodes", "[yaml][mixing]") {
 
     Node stylesAB = stylesMap.clone();
     mixer.applyStyleMixins(stylesAB["styleA"], { &stylesAB["styleB"] });
-    Node& resultAB = stylesAB["styleA"];
+    const Node& resultAB = stylesAB["styleA"];
 
     Node stylesBA = stylesMap.clone();
     mixer.applyStyleMixins(stylesBA["styleB"], { &stylesBA["styleA"] });
-    Node& resultBA = stylesBA["styleB"];
+    const Node& resultBA = stylesBA["styleB"];
 
     REQUIRE(resultAB["base"].Scalar() == "baseA");
     REQUIRE(resultBA["base"].Scalar() == "baseB");
 
-    REQUIRE(resultAB["animated"].Scalar() == "true");
-    REQUIRE(resultBA["animated"].Scalar() == "true");
+    REQUIRE(resultAB["animated"].as<std::string>() == "true");
+    REQUIRE(resultBA["animated"].as<std::string>() == "true");
 
-    REQUIRE(resultAB["texcoords"].Scalar() == "false");
-    REQUIRE(resultBA["texcoords"].Scalar() == "false");
+    REQUIRE(resultAB["texcoords"].as<std::string>() == "false");
+    REQUIRE(resultBA["texcoords"].as<std::string>() == "false");
 
     REQUIRE(resultAB["lighting"].Scalar() == "vertex");
     REQUIRE(resultBA["lighting"].Scalar() == "fragment");

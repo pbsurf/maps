@@ -69,9 +69,14 @@ class Node {
 
 public:
     Node(std::string&& s, Tag flags = Tag::STRING);
-    Node(const char* s, Tag flags = Tag::STRING) : Node(std::string(s), flags) {}
     Node(const std::string& s, Tag flags = Tag::STRING) : Node(std::string(s), flags) {}
+    Node(const char* s, Tag flags = Tag::STRING) : Node(std::string(s), flags) {}
     Node(double x, Tag flags = Tag::NUMBER) : fval_(x), flags_(flags) {}
+    Node(int x, Tag flags = Tag::NUMBER) : fval_(x), flags_(flags) {}
+    Node(unsigned int x, Tag flags = Tag::NUMBER) : fval_(x), flags_(flags) {}
+    Node(int64_t x, Tag flags = Tag::NUMBER) : fval_(x), flags_(flags) {}
+    Node(uint64_t x, Tag flags = Tag::NUMBER) : fval_(x), flags_(flags) {}
+    Node(bool x, Tag flags = Tag::JSON_BOOL) : fval_(x ? 1.0 : 0.0), flags_(flags) {}
     Node(Tag flags = Tag::UNDEFINED, ListNode* payload = nullptr) : pval_(payload), flags_(flags) {}
 
     Node(std::initializer_list<InitPair> items);
@@ -110,10 +115,6 @@ public:
 
     // iterate over ListNodes (mostly for internal use)
     ListItems items() const;
-
-    Node& operator=(double x) { return operator=(Node(x)); }
-    Node& operator=(const char* s) { return operator=(Node(s)); }
-    Node& operator=(const std::string& s) { return operator=(s.c_str()); }
 
     // note that we use SFINAE on return type to create overloads
     template <typename T> typename std::enable_if<!std::is_arithmetic<T>::value, T>::type
@@ -176,21 +177,14 @@ inline Node Map(std::initializer_list<InitPair> items = {}) { return Node(items)
 struct InitPair {
     std::string key;
     Node val;
-
-    InitPair(std::string k, Node&& v) : key(std::move(k)), val(std::move(v)) {}
-    InitPair(std::string k, std::string v) : key(std::move(k)), val(std::move(v)) {}
-    InitPair(std::string k, const char* v): key(std::move(k)), val(v) {}
-    InitPair(std::string k, double v) : key(std::move(k)), val(v) {}
-    //JsonTuple() : val(Tag::OBJECT) {}
 };
+
+// internal linked list for containers
 
 struct ListNode {
     Node value;
     ListNode *next = nullptr;
-    Node key;  //std::string key;  //char *key;
-
-    Node& node() { return value; }
-    Node& keynode() { return key; }
+    Node key;
 };
 
 // ListIterator - mostly for internal use, so no const version for now

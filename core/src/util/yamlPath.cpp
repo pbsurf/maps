@@ -55,29 +55,18 @@ YAML::Node* YamlPath::get(YAML::Node& root) {
     size_t endToken = createPath ? 1 : 0;
     auto delimiter = MAP_DELIM; // First token must be a map key.
     while (endToken < pathSize) {
-        if (!proot->IsDefined()) {
-            return nullptr; // A node before the end of the path was mising, quit!
-        }
         beginToken = endToken;
         endToken = pathSize;
         endToken = std::min(endToken, codedPath.find(SEQ_DELIM, beginToken));
         endToken = std::min(endToken, codedPath.find(MAP_DELIM, beginToken));
         if (delimiter == SEQ_DELIM) {
             int index = std::stoi(&codedPath[beginToken]);
-            if (proot->IsSequence()) {
-                proot = &(*proot)[index];
-            } else {
-                return nullptr;
-            }
+            if (!proot->IsSequence()) { return nullptr; }
+            proot = &(*proot)[index];
         } else if (delimiter == MAP_DELIM) {
             auto key = codedPath.substr(beginToken, endToken - beginToken);
-            if (createPath && !(*proot)[key])
-                (*proot)[key] = YAML::Node();
-            if (proot->IsMap()) {
-                proot = &(*proot)[key];
-            } else {
-                return nullptr;
-            }
+            if (*proot ? !proot->IsMap() : !createPath) { return nullptr; }
+            proot = &(*proot)[key];
         } else {
             return nullptr; // Path is malformed, return null node.
         }
