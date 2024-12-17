@@ -184,7 +184,7 @@ bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb
             }
 
             if (tileData && !tileData->empty()) {
-                task.rawTileData = std::move(tileData);
+                task.rawTileData = std::move(tileData);  // known data race w/ TileTask::hasData() on main thread
                 LOGV("%s - loaded tile: %s, %d bytes", m_name.c_str(), tileId.toString().c_str(), task.rawTileData->size());
 
                 _cb.func(_task);

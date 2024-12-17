@@ -214,8 +214,8 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
     m_style->draw(*m_renderState, _view, _tiles, {});
 
     drawFinished = true;
+    drawCond.notify_all();  // notify before unlocking since drawCond can be destroyed after unlock
     workerLock.unlock();
-    drawCond.notify_all();
 
     GL::readPixels(0, 0, w, h, GL_RED_INTEGER, GL_UNSIGNED_INT, d.depth.data());
   });
