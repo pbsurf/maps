@@ -126,24 +126,30 @@ public:
     }
 
     // tried to use a cstr_view class, but this breaks ["..."]!
-    const Node& operator[](const char* key) const;
+    const Node& at(const char* key) const;
+    const Node& at(const std::string& key) const { return at(key.c_str()); }
+    const Node& at(int idx) const;  // using size_t creates ambiguity w/ nullptr for other overloads
+    // at() allows us to get value w/o adding even if Node is not const
+    const Node& operator[](const char* key) const { return at(key); }
     const Node& operator[](const std::string& key) const { return operator[](key.c_str()); }
-    const Node& operator[](int idx) const;  // using size_t creates ambiguity w/ nullptr for other overloads
-    Node& push_back(Node&& val);
-    bool remove(const char* key);
-    bool remove(const std::string& key) { return remove(key.c_str()); }
-    bool remove(int idx);
-    void merge(Node&& src);
-    int size() const;  // use int instead of size_t to match operator[]
+    const Node& operator[](int idx) const { return at(idx); }
 
-    bool has(const char* key) const { return bool(operator[](key)); }
-    bool has(const std::string& key) const { return has(key.c_str()); }
     Node& add(const char* key, bool replace = false);
     Node& add(const std::string& key, bool replace = false) { return add(key.c_str(), replace); }
     // non-const [] adds Value if not present
     Node& operator[](const char* key) { return add(key); }
     Node& operator[](const std::string& key) { return add(key); }
     Node& operator[](int idx);
+
+    bool has(const char* key) const { return bool(at(key)); }
+    bool has(const std::string& key) const { return has(key.c_str()); }
+
+    Node& push_back(Node&& val);
+    bool remove(const char* key);
+    bool remove(const std::string& key) { return remove(key.c_str()); }
+    bool remove(int idx);
+    void merge(Node&& src);
+    int size() const;  // use int instead of size_t to match operator[]
 
     operator bool() const { return getTag() != Tag::UNDEFINED && getTag() != Tag::INVALID; }
     bool operator!() const { return !operator bool(); }
@@ -155,7 +161,7 @@ public:
 
     // match yaml-cpp Node for easy replacement
     const std::string& Scalar() const { return getString(); }
-    bool IsScalar() const { return getTag() == Tag::STRING || getTag() == Tag::NUMBER; }
+    bool IsScalar() const { return getTag() == Tag::STRING || getTag() == Tag::NUMBER || getTag() == Tag::JSON_BOOL; }
     bool IsSequence() const { return getTag() == Tag::ARRAY; }
     bool IsMap() const { return getTag() == Tag::OBJECT; }
     bool IsDefined() const { return bool(*this); }

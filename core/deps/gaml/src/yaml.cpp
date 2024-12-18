@@ -218,7 +218,7 @@ Node& Node::add(const char* key, bool replace) {
     return n;
 }
 
-const Node& Node::operator[](const char* key) const {
+const Node& Node::at(const char* key) const {
     if (getTag() == Tag::UNDEFINED) { return UNDEFINED_VALUE; }
     if (getTag() != Tag::OBJECT) { return INVALID_VALUE; }
     ListNode* obj = pval_;
@@ -228,7 +228,7 @@ const Node& Node::operator[](const char* key) const {
     return obj ? obj->value : UNDEFINED_VALUE;
 }
 
-const Node& Node::operator[](int idx) const {
+const Node& Node::at(int idx) const {
     if (getTag() == Tag::UNDEFINED) { return UNDEFINED_VALUE; }
     if (getTag() != Tag::ARRAY) { return INVALID_VALUE; }
     ListNode* array = getNode();
@@ -814,7 +814,7 @@ std::string Writer::convertArray(const Node& obj, int level) {
         while (isspace(*s)) { ++s; }
         res.push_back(spacing(level) + "-" + std::string(indent-1, ' ') + s);
     }
-    return res.empty() ? "[]" : strJoin(res, "\n");
+    return res.empty() ? "[]" : "\n" + strJoin(res, "\n");
 }
 
 std::string Writer::convertHash(const Node& obj, int level) {
@@ -826,18 +826,15 @@ std::string Writer::convertHash(const Node& obj, int level) {
             res.push_back(convert(val, level+1));
         } else {
             if (skipValue(item->value)) { continue; }
-            bool sameLine = !indent || level+1 >= flowLevel ||
-                    !val.getNode() || (val.getFlags() & Tag::YAML_FLOW) == Tag::YAML_FLOW;
-            const char* sep = sameLine ? ": " : ":\n";
             std::string key = convert(item->key, YAML_KEY_STRING_LEVEL);
-            res.push_back(spacing(level) + key + sep + convert(val, level+1));
+            res.push_back(spacing(level) + key + ": " + convert(val, level+1));
         }
     }
     if (res.empty())
         return "{}";
-    if (level >= flowLevel)
+    if (!indent || level >= flowLevel)
         return "{ " + strJoin(res, ", ") + " }";
-    return strJoin(res, std::string(std::max(1, 1+extraLines - level), '\n'));
+    return "\n" + strJoin(res, std::string(std::max(1, 1+extraLines - level), '\n'));
 }
 
 std::string Writer::convert(const Node& obj, int level) {
@@ -922,6 +919,7 @@ layer2:
     -   - nested array
         - second item
     -   objinarray: val1
+        empty_map: {}
         key2: val2
         emptyatend:
 )";
@@ -1022,7 +1020,7 @@ layer2:
 int main(int argc, char **argv) {
 
     if (argc < 2) {
-        fprintf(stderr, "No input file specified!");
+        fprintf(stderr, "No input file specified!\n");
         YAML::Node doc = basicTests();
         return -1;
     }

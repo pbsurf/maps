@@ -62,7 +62,7 @@ void StyleMixer::mixStyleNodes(Node& _styles) {
 
     for (const auto& name : styleNamesSorted) {
 
-        auto& style = _styles[name];
+        const Node& style = _styles.at(name);
 
         if (!style || !style.IsMap()) {
             // Something's wrong here, try the next one!
@@ -84,7 +84,7 @@ void StyleMixer::mixStyleNodes(Node& _styles) {
             mixins.push_back(&_styles[styleNameToMix]);
         }
 
-        applyStyleMixins(style, mixins);
+        applyStyleMixins(const_cast<Node&>(style), mixins);
     }
 }
 
@@ -140,7 +140,7 @@ void StyleMixer::applyShaderMixins(Node& _shaders, const Mixins& _mixins) {
                 set.insert(e.Scalar());
             }
         }
-        Node& extensions = _shaders["extensions"];
+        const Node& extensions = _shaders.at("extensions");
         if (extensions.IsScalar()) {
             set.insert(extensions.Scalar());
         } else if (extensions.IsSequence()) {
@@ -180,7 +180,7 @@ void StyleMixer::applyShaderMixins(Node& _shaders, const Mixins& _mixins) {
 
 void StyleMixer::mergeBooleanFieldAsDisjunction(const std::string& key, Node& target, const Mixins& sources) {
 
-    Node& current = target[key];
+    const Node& current = target.at(key);
     if (current && current.as<bool>(false)) {
         // Target field is already true, we can stop here.
         return;
@@ -197,7 +197,7 @@ void StyleMixer::mergeBooleanFieldAsDisjunction(const std::string& key, Node& ta
 
 void StyleMixer::mergeFieldTakingLast(const std::string& key, Node& target, const Mixins& sources) {
 
-    if (target[key]) {
+    if (target.at(key)) {
         // Target already has a value, we can stop here.
         return;
     }
