@@ -623,7 +623,9 @@ float View::getTileScreenArea(TileID tile) const
 {
     TileCoordinates tc = {double(tile.x), double(tile.y), tile.z};
     // use elevation at center of screen (used to calc m_zoom) for tile bottom
-    float elev0 = m_elevationManager ? m_eye.z * (1 - exp2(m_baseZoom - m_zoom)) : 0;
+    // 1 - 2^(base_z - z) gives normalized distance along pos -> eye vector of terrain intersection, so
+    //  multiplying by eye elev gives terrain elev (similar triangles)
+    float elev0 = m_elevationManager ? m_eye.z * (1 - std::exp2(m_baseZoom - m_zoom)) : 0;
     auto a00 = tileCoordsToClipSpace(tc, elev0);
     auto a01 = tileCoordsToClipSpace({tc.x, tc.y + 1, tc.z}, elev0);
     auto a10 = tileCoordsToClipSpace({tc.x + 1, tc.y, tc.z}, elev0);

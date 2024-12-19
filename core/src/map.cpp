@@ -380,11 +380,17 @@ void Map::captureSnapshot(unsigned int* _data) {
                    GL_UNSIGNED_BYTE, (GLvoid*)_data);
 }
 
-CameraPosition Map::getCameraPosition() {
+CameraPosition Map::getCameraPosition(bool force2D) {
     CameraPosition camera;
 
-    getPosition(camera.longitude, camera.latitude);
-    camera.zoom = getZoom();
+    if (force2D && impl->view.m_elevationManager) {
+        camera.setLngLat(MapProjection::projectedMetersToLngLat(glm::dvec2(impl->view.getPosition())));
+        camera.zoom = impl->view.getBaseZoom();
+    } else {
+        getPosition(camera.longitude, camera.latitude);
+        camera.zoom = getZoom();
+    }
+
     camera.rotation = getRotation();
     camera.tilt = getTilt();
 

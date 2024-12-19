@@ -319,7 +319,7 @@ public:
     // Get the camera type (0 = perspective, 1 = isometric, 2 = flat)
     int getCameraType();
 
-    CameraPosition getCameraPosition();
+    CameraPosition getCameraPosition(bool force2D = false);
 
     void setCameraPosition(const CameraPosition& _camera);
 
