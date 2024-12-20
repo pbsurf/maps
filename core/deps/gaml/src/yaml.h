@@ -180,6 +180,15 @@ template<> std::string Node::as(std::string _default, bool* ok) const;
 Node Array(std::initializer_list<Node> items = {});
 inline Node Map(std::initializer_list<InitPair> items = {}) { return Node(items); }
 
+//template<typename T>
+//Node Array(const T& items) {
+//    ListNode* tail = nullptr;
+//    for (const auto& item : items) {
+//        tail = insertAfter(tail, new ListNode{Node(item), nullptr, {}});
+//    }
+//    return listToValue(Tag::ARRAY, tail);
+//}
+
 struct InitPair {
     std::string key;
     Node val;

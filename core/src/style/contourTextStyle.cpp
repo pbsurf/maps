@@ -27,7 +27,7 @@ public:
 
     std::unique_ptr<StyledMesh> build() override;
 
-    static constexpr int gridSize = 3;
+    static constexpr int gridSize = 4;
 
 private:
     TileID m_tileId = {-1, -1, -1};
@@ -129,15 +129,16 @@ bool ContourTextStyleBuilder::addFeature(const Feature& _feat, const DrawRule& _
     // Keep start position of new quads
     size_t quadsStart = m_quads.size(), numLabels = m_labels.size();
 
-    // at lower zooms, we want to exponentially increase grid points if overzoomed, but at higher zooms
-    //  where there are fewer features, we can relax grid density
-    int gridmult = std::max(0, std::min(int(m_tileId.s), 14) - m_tileId.z);
-    int ngrid = (gridSize << gridmult) + (m_tileId.s - m_tileId.z - gridmult);
+    // idea here is to align grid points between zoom levels to keep labels in same position
+    //  when zooming ... mostly defeated unfortunately by curved label placement, repeat distance
+    int gridmult = std::max(0, std::min(int(m_tileId.s), 15) - m_tileId.z);
+    int ngrid = gridSize << gridmult;
+    float gridstart = 0.5f/(1 << std::max(0, 15 - m_tileId.z));
     glm::vec2 pos;
     for (int col = 0; col < ngrid; col++) {
-        pos.y = (col + 0.5f)/ngrid;
+        pos.y = (col + gridstart)/ngrid;
         for (int row = 0; row < ngrid; row++) {
-            pos.x = (row + 0.5f)/ngrid;
+            pos.x = (row + gridstart)/ngrid;
 
             Line line;
             float level = getContourLine(*m_texture, m_tileId, pos, elevStep, line);
@@ -216,12 +217,15 @@ bool ContourDebugStyleBuilder::addFeature(const Feature& _feat, const DrawRule& 
     float elevStep = m_style.m_metricUnits ? (m_tileId.z >= 14 ? 100 : m_tileId.z >= 12 ? 200 : 500)
             : (m_tileId.z >= 14 ? 500 : m_tileId.z >= 12 ? 1000 : 2000)/3.28084f;
 
-    int ngrid = ContourTextStyleBuilder::gridSize + (m_tileId.s - m_tileId.z);
+    //int ngrid = ContourTextStyleBuilder::gridSize + (m_tileId.s - m_tileId.z);
+    int gridmult = std::max(0, std::min(int(m_tileId.s), 15) - m_tileId.z);
+    int ngrid = (ContourTextStyleBuilder::gridSize << gridmult);
+    float gridstart = 0.5f/(1 << std::max(0, 15 - m_tileId.z));
     glm::vec2 pos;
     for (int col = 0; col < ngrid; col++) {
-        pos.y = (col + 0.5f)/ngrid;
+        pos.y = (col + gridstart)/ngrid;
         for (int row = 0; row < ngrid; row++) {
-            pos.x = (row + 0.5f)/ngrid;
+            pos.x = (row + gridstart)/ngrid;
 
             Line line;
             float level = getContourLine(*m_texture, m_tileId, pos, elevStep, line);

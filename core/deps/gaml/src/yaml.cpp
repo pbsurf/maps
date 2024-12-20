@@ -126,8 +126,7 @@ static std::string double2string(double f, unsigned int prec = 16) {
 }
 
 static inline ListNode* insertAfter(ListNode* tail, ListNode* node) {
-    if (!tail)
-        return node->next = node;
+    if (!tail) { return node->next = node; }
     node->next = tail->next;
     tail->next = node;
     return node;
@@ -152,17 +151,17 @@ Node::Node(std::string&& s, Tag flags) : strVal(std::move(s)), flags_(flags) {
 }
 
 Node::Node(std::initializer_list<InitPair> items) {
-  ListNode* tail = nullptr;
-  for (auto& item : items) {
-      tail = insertAfter(tail, new ListNode{item.val.clone(), nullptr, item.key});
-  }
-  *this = listToValue(Tag::OBJECT, tail);
+    ListNode* tail = nullptr;
+    for (auto& item : items) {
+        tail = insertAfter(tail, new ListNode{item.val.clone(), nullptr, item.key});
+    }
+    *this = listToValue(Tag::OBJECT, tail);
 }
 
 Node Array(std::initializer_list<Node> items) {
     ListNode* tail = nullptr;
     for (auto& item : items) {
-      tail = insertAfter(tail, new ListNode{item.clone(), nullptr, {}});
+        tail = insertAfter(tail, new ListNode{item.clone(), nullptr, {}});
     }
     return listToValue(Tag::ARRAY, tail);
 }
@@ -307,7 +306,7 @@ int Node::size() const {
 
 template<> double Node::as(double _default, bool* ok) const {
     if (ok) { *ok = true; }
-    if (isNumber()) { return getNumber(); }
+    if (isNumber() || getTag() == Tag::JSON_BOOL) { return fval_; }
     if (getTag() == Tag::STRING && (getFlags() & Tag::YAML_STRINGMASK) == Tag::YAML_UNQUOTED) {
         char* endptr = nullptr;
         auto s = getString();
@@ -341,7 +340,7 @@ template<> bool Node::as(bool _default, bool* ok) const {
     //"y","n","Y","N","yes","no","Yes","No","YES","NO","on","off","On","Off","ON","OFF"};
 
     if (ok) { *ok = true; }
-    if (isNumber() || getTag() == Tag::JSON_BOOL) { return getNumber() != 0; }
+    if (isNumber() || getTag() == Tag::JSON_BOOL) { return fval_ != 0; }
     if (getTag() == Tag::STRING && ((getFlags() & Tag::YAML_STRINGMASK) == Tag::YAML_UNQUOTED)) {
         int idx = 0;
         for (const char* s : boolstrs) {
@@ -814,7 +813,9 @@ std::string Writer::convertArray(const Node& obj, int level) {
         while (isspace(*s)) { ++s; }
         res.push_back(spacing(level) + "-" + std::string(indent-1, ' ') + s);
     }
-    return res.empty() ? "[]" : "\n" + strJoin(res, "\n");
+    if(res.empty()) { return "[]"; }
+    std::string block = strJoin(res, "\n");
+    return level > 0 ? ("\n" + block) : (block + "\n");
 }
 
 std::string Writer::convertHash(const Node& obj, int level) {
@@ -834,7 +835,8 @@ std::string Writer::convertHash(const Node& obj, int level) {
         return "{}";
     if (!indent || level >= flowLevel)
         return "{ " + strJoin(res, ", ") + " }";
-    return "\n" + strJoin(res, std::string(std::max(1, 1+extraLines - level), '\n'));
+    std::string block = strJoin(res, std::string(std::max(1, 1+extraLines - level), '\n'));
+    return level > 0 ? ("\n" + block) : (block + "\n");
 }
 
 std::string Writer::convert(const Node& obj, int level) {
@@ -876,17 +878,17 @@ std::string Writer::convert(const Node& obj, int level) {
         default:
             return escapeDoubleQuoted(obj.getString());
         }
-    case Tag::JSON_NULL:
-        return "null";
     case Tag::NUMBER:
     {
         double val = obj.getNumber();
         return int64_t(val) == val ? std::to_string(int64_t(val)) : double2string(val);
     }
+    case Tag::JSON_NULL:
+        return "null";
     case Tag::JSON_BOOL:
-        return obj.getNumber() != 0 ? "true" : "false";
+        return obj.as<std::string>("false");  //obj.getNumber() != 0 ? "true" : "false";
     case Tag::YAML_COMMENT:
-        return indent ? "#" + obj.getString() + "\n" : "";
+        return indent ? " #" + obj.getString() + "\n" : "";
     default:
         return "";
     }
