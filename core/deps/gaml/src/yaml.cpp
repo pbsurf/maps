@@ -367,11 +367,11 @@ bool Node::IsNull() const {
 
 NodeType Node::Type() const {
     switch(getTag()) {
-    case Tag::STRING:
-    case Tag::NUMBER: return NodeType::Scalar;
-    case Tag::ARRAY: return NodeType::Sequence;
-    case Tag::OBJECT: return NodeType::Map;
-    default: return NodeType::Undefined;  // Null?
+        case Tag::STRING:
+        case Tag::NUMBER: return NodeType::Scalar;
+        case Tag::ARRAY: return NodeType::Sequence;
+        case Tag::OBJECT: return NodeType::Map;
+        default: return NodeType::Undefined;  // Null?
     }
 }
 
@@ -828,7 +828,9 @@ std::string Writer::convertHash(const Node& obj, int level) {
         } else {
             if (skipValue(item->value)) { continue; }
             std::string key = convert(item->key, YAML_KEY_STRING_LEVEL);
-            res.push_back(spacing(level) + key + ": " + convert(val, level+1));
+            std::string valstr = convert(val, level+1);
+            const char* sep = isspace(*valstr.c_str()) ? ":" : ": ";
+            res.push_back(spacing(level) + key + sep + valstr);
         }
     }
     if (res.empty())
