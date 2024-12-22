@@ -107,6 +107,11 @@ void Filter::print(int _indent) const {
         logMsg("%*s function\n", _indent, "");
         break;
     }
+    case Data::type<Boolean>::value: {
+        auto& f = data.get<Boolean>();
+        logMsg("%*s %s\n", _indent, "", f.value ? "true" : "false");
+        break;
+    }
     default:
         break;
     }
@@ -148,6 +153,9 @@ int Filter::filterCost() const {
     case Data::type<Function>::value:
         // Most expensive filter should be checked last
         return 1000;
+
+    case Data::type<Boolean>::value:
+        return 1;
     }
     return 0;
 }
@@ -399,6 +407,9 @@ struct matcher {
     }
     bool operator() (const Filter::Function& f) const {
         return ctx.evalFilter(f.id);
+    }
+    bool operator() (const Filter::Boolean& f) const {
+        return f.value;
     }
     bool operator() (const none_type& f) const {
         return true;

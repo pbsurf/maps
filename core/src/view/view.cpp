@@ -599,8 +599,7 @@ float View::horizonScreenPosition() {
     return screenPosition.y;
 }
 
-glm::vec4 View::tileCoordsToClipSpace(TileCoordinates tc, float elevation) const
-{
+glm::vec4 View::tileCoordsToClipSpace(TileCoordinates tc, float elevation) const {
     glm::dvec2 absoluteMeters = MapProjection::tileCoordinatesToProjectedMeters(tc);
     glm::dvec2 relativeMeters = absoluteMeters - glm::dvec2(m_pos);  //getRelativeMeters(absoluteMeters);
     return worldToClipSpace(m_viewProj, glm::vec4(relativeMeters, elevation, 1.0));
@@ -619,9 +618,17 @@ glm::vec4 View::tileCoordsToClipSpace(TileCoordinates tc, float elevation) const
 static bool allLess(glm::vec4 a, glm::vec4 b) { return a.x < b.x && a.y < b.y && a.z < b.z && a.w < b.w; }
 static bool allGreater(glm::vec4 a, glm::vec4 b) { return a.x > b.x && a.y > b.y && a.z > b.z && a.w > b.w; }
 
-float View::getTileScreenArea(TileID tile) const
-{
+float View::getTileScreenArea(TileID tile) const {
+
     TileCoordinates tc = {double(tile.x), double(tile.y), tile.z};
+
+    // handle wrapping at anti-meridian
+    auto tcenter = MapProjection::tileCoordinatesToProjectedMeters({tc.x + 0.5, tc.y + 0.5, tc.z});
+    double dx = tcenter.x - m_pos.x;
+    constexpr double hc = MapProjection::EARTH_HALF_CIRCUMFERENCE_METERS;
+    if (dx > hc) { tc.x -= 1 << tc.z; }
+    else if (dx < -hc) { tc.x += 1 << tc.z; }
+
     // use elevation at center of screen (used to calc m_zoom) for tile bottom
     // 1 - 2^(base_z - z) gives normalized distance along pos -> eye vector of terrain intersection, so
     //  multiplying by eye elev gives terrain elev (similar triangles)

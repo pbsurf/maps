@@ -1597,9 +1597,12 @@ Filter SceneLoader::generateFilter(SceneFunctions& _functions, const Node& _filt
     switch (_filter.Type()) {
     case NodeType::Scalar: {
 
+        bool boolval = true;
         const std::string& val = _filter.Scalar();
         if (val.compare(0, 8, "function") == 0) {
             return Filter::MatchFunction(addSceneFunction(_functions, val));
+        } else if (YamlUtil::getBool(_filter, boolval)) {
+            return Filter::BooleanValue(boolval);
         }
         return Filter();
     }

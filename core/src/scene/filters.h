@@ -58,6 +58,9 @@ struct Filter {
     struct Function {
         uint32_t id;
     };
+    struct Boolean {
+        bool value;
+    };
     using Data = variant<none_type,
                          OperatorAll,
                          OperatorNone,
@@ -66,7 +69,8 @@ struct Filter {
                          Equality,
                          Range,
                          Existence,
-                         Function>;
+                         Function,
+                         Boolean>;
     Data data;
 
     Filter() : data(none_type{}) {}
@@ -106,6 +110,10 @@ struct Filter {
     // Create an 'function' filter with reference to Scene function id
     inline static Filter MatchFunction(uint32_t id) {
         return { Function{ id }};
+    }
+    // Create a fixed value boolean filter (to support global variables in filter block)
+    inline static Filter BooleanValue(bool val) {
+        return { Boolean{ val }};
     }
 
     /* Public for testing */
