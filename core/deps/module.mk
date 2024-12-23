@@ -60,7 +60,7 @@ include $(ADD_MODULE)
 ## geojson-vt-cpp
 MODULE_BASE = $(MAKE_BASE)/geojson-vt-cpp
 
-MODULE_INC_PUBLIC = include geometry.hpp/include geojson.hpp/include
+MODULE_INC_PUBLIC = include
 
 include $(ADD_MODULE)
 
@@ -92,12 +92,13 @@ MODULE_INC_PUBLIC = .
 include $(ADD_MODULE)
 
 
-## yaml-cpp
-MODULE_BASE = $(MAKE_BASE)/yaml-cpp
+## gaml
+MODULE_BASE = $(MAKE_BASE)/gaml
 
-MODULE_FULL_SOURCES = $(wildcard $(MODULE_BASE)/src/*.cpp)
-MODULE_INC_PUBLIC = include
+#MODULE_FULL_SOURCES = $(wildcard $(MODULE_BASE)/src/*.cpp)
+MODULE_SOURCES = src/yaml.cpp
+#MODULE_INC_PUBLIC = include
 MODULE_INC_PRIVATE = src
+MODULE_DEFS_PRIVATE = GAML_LIB_ONLY
 
 include $(ADD_MODULE)
-

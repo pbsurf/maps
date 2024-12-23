@@ -68,6 +68,7 @@ MODULE_SOURCES = \
   src/style/style.cpp                 \
   src/style/textStyle.cpp             \
   src/style/textStyleBuilder.cpp      \
+  src/style/contourTextStyle.cpp      \
   src/text/fontContext.cpp            \
   src/text/textUtil.cpp               \
   src/tile/tile.cpp                   \
@@ -77,6 +78,7 @@ MODULE_SOURCES = \
   src/tile/tileWorker.cpp             \
   src/util/builders.cpp               \
   src/util/dashArray.cpp              \
+  src/util/elevationManager.cpp       \
   src/util/extrude.cpp                \
   src/util/floatFormatter.cpp         \
   src/util/geom.cpp                   \
@@ -84,9 +86,10 @@ MODULE_SOURCES = \
   src/util/jobQueue.cpp               \
   src/util/json.cpp                   \
   src/util/mapProjection.cpp          \
-  src/util/rasterize.cpp              \
+  src/util/skyManager.cpp             \
   src/util/stbImage.cpp               \
   src/util/url.cpp                    \
+  src/util/util.cpp                   \
   src/util/yamlPath.cpp               \
   src/util/yamlUtil.cpp               \
   src/util/zipArchive.cpp             \
