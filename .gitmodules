@@ -21,3 +21,6 @@
 	path = core/deps/glm
 	url = https://github.com/g-truc/glm
   shallow = true
+[submodule "core/deps/lerc"]
+	path = core/deps/lerc
+	url = https://github.com/Esri/lerc
