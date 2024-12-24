@@ -102,3 +102,15 @@ MODULE_INC_PRIVATE = src
 MODULE_DEFS_PRIVATE = GAML_LIB_ONLY
 
 include $(ADD_MODULE)
+
+
+## LERC
+MODULE_BASE = $(MAKE_BASE)/lerc/src/LercLib
+
+MODULE_FULL_SOURCES = $(wildcard $(MODULE_BASE)/*.cpp)
+MODULE_FULL_SOURCES += $(wildcard $(MODULE_BASE)/Lerc1Decode/*.cpp)
+
+MODULE_INC_PRIVATE = Lerc1Decode
+MODULE_INC_PUBLIC = .
+
+include $(ADD_MODULE)

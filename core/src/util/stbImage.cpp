@@ -14,6 +14,7 @@
 #include "stb_image.h"
 
 #define TANGRAM_TIFF_SUPPORT
+#define TANGRAM_LERC_SUPPORT
 
 #ifdef TANGRAM_TIFF_SUPPORT
 #define TINY_DNG_LOADER_IMPLEMENTATION
@@ -23,6 +24,10 @@
 #define TINY_DNG_PPRINTF LOG  // for profiling (if TINY_DNG_LOADER_PROFILING defined at compile time)
 //#ifdef TANGRAM_RELWITHDEBINFO #define TINY_DNG_LOADER_PROFILING #endif
 #include "tinydng/tiny_dng_loader.h"
+#endif
+
+#ifdef TANGRAM_LERC_SUPPORT
+#include "Lerc.h"
 #endif
 
 namespace Tangram {
@@ -63,8 +68,9 @@ uint8_t* loadImage(const uint8_t* data, size_t length, int* width, int* height, 
         auto& image = images[0];
         GLint fmt = 0;
         if (image.sample_format == tinydng::SAMPLEFORMAT_IEEEFP) {
-            if (image.samples_per_pixel == 1 && image.bits_per_sample == 32)
+            if (image.samples_per_pixel == 1 && image.bits_per_sample == 32) {
                 fmt = GL_R32F;
+            }
         } else if (image.sample_format != tinydng::SAMPLEFORMAT_INT &&
                    image.sample_format != tinydng::SAMPLEFORMAT_UINT) {
           // not supported
@@ -75,11 +81,10 @@ uint8_t* loadImage(const uint8_t* data, size_t length, int* width, int* height, 
         } else if (image.samples_per_pixel == 1) {
             // convert int16 and int32 images to float
             std::vector<float> fdata(image.width*image.height);
-            if(image.bits_per_sample == 16) {
+            if (image.bits_per_sample == 16) {
                 int16_t* src = (int16_t*)image.data.data();
                 for(size_t ii = 0; ii < fdata.size(); ++ii) { fdata[ii] = float(src[ii]); }
-            }
-            else if(image.bits_per_sample == 32) {
+            } else if (image.bits_per_sample == 32) {
                 int32_t* src = (int32_t*)image.data.data();
                 for(size_t ii = 0; ii < fdata.size(); ++ii) { fdata[ii] = float(src[ii]); }
             }
@@ -88,7 +93,7 @@ uint8_t* loadImage(const uint8_t* data, size_t length, int* width, int* height, 
             *pixelfmt = GL_R32F;
             return flipImage((uint8_t*)fdata.data(), image.width, image.height, 4);
         }
-        if(!fmt) {
+        if (!fmt) {
             LOGE("Unsupported TIFF: %d bits per sample, %d samples per pixel",
                  image.bits_per_sample, image.samples_per_pixel);
             return nullptr;
@@ -101,6 +106,65 @@ uint8_t* loadImage(const uint8_t* data, size_t length, int* width, int* height, 
         return flipImage(image.data.data(), image.width, image.height, bpp);
 #else
         LOGE("TIFF support disabled - recompile with TANGRAM_TIFF_SUPPORT defined.");
+        return nullptr;
+#endif
+    }
+
+    if (length > 10 && (memcmp(data, "Lerc2 ", 6) == 0 || memcmp(data, "CntZImage ", 10) == 0)) {
+#ifdef TANGRAM_LERC_SUPPORT
+        USING_NAMESPACE_LERC
+
+        Lerc::LercInfo info;
+        ErrCode err = Lerc::GetLercInfo(data, length, info);
+        if (err != ErrCode::Ok) {
+            LOGE("Error getting LERC image info: %d", err);
+            return nullptr;
+        }
+
+        GLint fmt = 0;
+        int bpp = info.nDepth;
+        if (info.nBands > 1) { // unsupported
+        } else if (info.dt == Lerc::DT_Byte || Lerc::DT_Char) {
+            if (info.nDepth == 1) { fmt = GL_R8; }
+            else if (info.nDepth == 3) { fmt = GL_RGB8; }
+            else if (info.nDepth == 4) { fmt = GL_RGBA8; }
+        } else if (info.dt == Lerc::DT_Float && info.nDepth == 1) {
+            fmt = GL_R32F;
+            bpp = sizeof(float);
+        }
+
+        if (!fmt) {
+            LOGE("Unsupported LERC image: data type %d, depth %d, bands %d", info.dt, info.nDepth, info.nBands);
+            return nullptr;
+        }
+
+        int w = info.nCols, h = info.nRows;
+        //std::unique_ptr<uint8_t, malloc_deleter> pixels((uint8_t*)std::malloc(w * h * bpp));
+        std::vector<uint8_t> pixels(w * h * bpp, 0);
+
+        // Lerc::Decode requires mask output if masks present, but we ignore for now
+        std::vector<Byte> masks(info.nMasks * w * h, 0);
+        Byte* pMasks = info.nMasks > 0 ? masks.data() : nullptr;
+
+        if (info.dt == Lerc::DT_Float) {
+            err = Lerc::DecodeTempl((float*)pixels.data(), data, length, info.nDepth, w, h,
+                              info.nBands, info.nMasks, pMasks, nullptr, nullptr);
+        } else {
+            err = Lerc::DecodeTempl(pixels.data(), data, length, info.nDepth, w, h,
+                              info.nBands, info.nMasks, pMasks, nullptr, nullptr);
+        }
+
+        if (err != ErrCode::Ok) {
+            LOGE("Lerc::Decode() failed with error %d", err);
+            return nullptr;
+        }
+
+        *width = w;
+        *height = h;
+        *pixelfmt = fmt;
+        return flipImage(pixels.data(), w, h, bpp);
+#else
+        LOGE("LERC support disabled - recompile with TANGRAM_LERC_SUPPORT defined.");
         return nullptr;
 #endif
     }

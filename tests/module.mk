@@ -36,9 +36,13 @@ MODULE_SOURCES = \
 
 # mock platform
 MODULE_SOURCES += \
+  src/catch.cpp \
   src/mockPlatform.cpp \
   src/gl_mock.cpp \
 
 MODULE_INC_PRIVATE = catch src
 
 include $(ADD_MODULE)
+
+# hack until we figure out where to put fontstash.h
+$(OBJDIR)/$(MODULE_BASE)/src/mockPlatform.o: INC_PRIVATE := $(MODULE_BASE)/../../$(STYLUSLABS_DEPS)/nanovgXC/src
