@@ -40,9 +40,6 @@ MODULE_SOURCES = \
 
 MODULE_INC_PUBLIC = include
 MODULE_INC_PRIVATE = src
-#MODULE_DEFS_PUBLIC = DBL_CONV_PUBLIC
-#MODULE_DEFS_PRIVATE = DBL_CONV_PRIVATE
-#MODULE_CFLAGS = -DTHIS_IS_DBL_CONV
 
 include $(ADD_MODULE)
 
@@ -88,14 +85,18 @@ MODULE_BASE = $(MAKE_BASE)/sqlite3
 
 MODULE_SOURCES = sqlite3.c
 MODULE_INC_PUBLIC = .
+MODULE_DEFS_PRIVATE = SQLITE_ENABLE_FTS5
+MODULE_DEFS_PUBLIC = SQLITE_USE_URI=1
 
 include $(ADD_MODULE)
+
+$(MODULE_BASE)/sqlite3.c:
+	cd $(MODULE_BASE) && curl "https://www.sqlite.org/2020/sqlite-amalgamation-3320300.zip" -o sqlite.zip && unzip sqlite.zip && mv sqlite-amalgamation-3320300/sqlite3.* .
 
 
 ## gaml
 MODULE_BASE = $(MAKE_BASE)/gaml
 
-#MODULE_FULL_SOURCES = $(wildcard $(MODULE_BASE)/src/*.cpp)
 MODULE_SOURCES = src/yaml.cpp
 #MODULE_INC_PUBLIC = include
 MODULE_INC_PRIVATE = src

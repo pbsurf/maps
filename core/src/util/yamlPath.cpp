@@ -60,12 +60,14 @@ YAML::Node* YamlPath::get(YAML::Node& root) {
         endToken = std::min(endToken, codedPath.find(SEQ_DELIM, beginToken));
         endToken = std::min(endToken, codedPath.find(MAP_DELIM, beginToken));
         if (delimiter == SEQ_DELIM) {
-            int index = std::stoi(&codedPath[beginToken]);
             if (!proot->IsSequence()) { return nullptr; }
+            int index = std::stoi(&codedPath[beginToken]);
+            // unsigned so -1 becomes UINT_MAX
+            index = int(std::min((unsigned int)index, (unsigned int)proot->size()));
             proot = &(*proot)[index];
         } else if (delimiter == MAP_DELIM) {
-            auto key = codedPath.substr(beginToken, endToken - beginToken);
             if (*proot ? !proot->IsMap() : !createPath) { return nullptr; }
+            auto key = codedPath.substr(beginToken, endToken - beginToken);
             proot = &(*proot)[key];
         } else {
             return nullptr; // Path is malformed, return null node.
