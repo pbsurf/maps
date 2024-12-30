@@ -90,8 +90,12 @@ MODULE_DEFS_PUBLIC = SQLITE_USE_URI=1
 
 include $(ADD_MODULE)
 
-$(MODULE_BASE)/sqlite3.c:
-	cd $(MODULE_BASE) && curl "https://www.sqlite.org/2020/sqlite-amalgamation-3320300.zip" -o sqlite.zip && unzip sqlite.zip && mv sqlite-amalgamation-3320300/sqlite3.* .
+SQLITE_BASE := $(MODULE_BASE)
+#all: $(SQLITE_BASE)/sqlite3.h
+GENERATED += $(SQLITE_BASE)/sqlite3.h
+
+$(SQLITE_BASE)/sqlite3.h:
+	cd $(SQLITE_BASE) && curl "https://www.sqlite.org/2020/sqlite-amalgamation-3320300.zip" -o sqlite.zip && unzip sqlite.zip && mv sqlite-amalgamation-3320300/sqlite3.* .
 
 
 ## gaml

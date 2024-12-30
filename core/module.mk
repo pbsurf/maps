@@ -134,13 +134,13 @@ SHADER_HDRS = \
 
 
 $(MODULE_BASE)/generated/%_vs.h: $(MODULE_BASE)/shaders/%.vs
-	echo 'static const char* $*_vs = R"RAW_GLSL(' && cat $< && echo ')RAW_GLSL";' > $@
+	(echo 'static const char* $*_vs = R"RAW_GLSL('; cat $<; echo ')RAW_GLSL";') > $@
 
 $(MODULE_BASE)/generated/%_fs.h: $(MODULE_BASE)/shaders/%.fs
-	echo 'static const char* $*_fs = R"RAW_GLSL(' && cat $< && echo ')RAW_GLSL";' > $@
+	(echo 'static const char* $*_fs = R"RAW_GLSL('; cat $<; echo ')RAW_GLSL";') > $@
 
 $(MODULE_BASE)/generated/%_glsl.h: $(MODULE_BASE)/shaders/%.glsl
-	echo 'static const char* $*_glsl = R"RAW_GLSL(' && cat $< && echo ')RAW_GLSL";' > $@
+	(echo 'static const char* $*_glsl = R"RAW_GLSL('; cat $<; echo ')RAW_GLSL";') > $@
 
 
 include $(ADD_MODULE)
