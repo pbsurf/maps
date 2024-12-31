@@ -17,13 +17,13 @@ public:
     std::unique_ptr<Texture> texture;
     std::unique_ptr<Raster> raster;
 
-    RasterTileTask(const TileID& _tileId, std::shared_ptr<TileSource> _source, bool _subTask)
+    RasterTileTask(const TileID& _tileId, TileSource* _source, bool _subTask)
         : BinaryTileTask(_tileId, _source),
           subTask(_subTask) {}
 
 
-    std::shared_ptr<RasterSource> rasterSource() {
-        return std::static_pointer_cast<RasterSource>(m_source.lock());
+    RasterSource* rasterSource() {
+        return static_cast<RasterSource*>(source());  //std::static_pointer_cast<RasterSource>(m_source.lock());
     }
 
     bool hasData() const override {
@@ -33,7 +33,6 @@ public:
 
     void process(TileBuilder& _tileBuilder) override {
         auto source = rasterSource();
-        if (!source) { return; }
         assert(!m_ready);  // shared task previously could be erroneously added to tile worker queue twice
 
         if (!texture && !raster) {
@@ -60,7 +59,6 @@ public:
 
     void addRaster(Tile& _tile) {
         auto source = rasterSource();
-        if (!source) { return; }
         if (!raster) {
           auto tex = source->cacheTexture(m_tileId, std::move(texture));
           raster = std::make_unique<Raster>(m_tileId, tex);
@@ -81,7 +79,6 @@ public:
     void complete(TileTask& _mainTask) override {
         if (!isReady()) {  //isCanceled()?
             auto source = rasterSource();
-            if (!source) { return; }
             // attempt to find a proxy for missing raster
             TileID id(m_tileId.x, m_tileId.y, m_tileId.z);
             do {
@@ -170,7 +167,7 @@ void RasterSource::addRasterTask(TileTask& _task) {
 }
 
 std::shared_ptr<RasterTileTask> RasterSource::createRasterTask(TileID _tileId, bool subTask) {
-    auto task = std::make_shared<RasterTileTask>(_tileId, shared_from_this(), subTask);
+    auto task = std::make_shared<RasterTileTask>(_tileId, this, subTask);
 
     // First try existing textures cache
     TileID id(_tileId.x, _tileId.y, _tileId.z);

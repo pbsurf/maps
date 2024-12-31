@@ -33,7 +33,7 @@ class TileManager {
 
 public:
 
-    TileManager(Platform& platform, TileTaskQueue& _tileWorker);
+    TileManager(Platform& platform, TileTaskQueue& _tileWorker, std::weak_ptr<ScenePrana> _prana);
 
     virtual ~TileManager();
 
@@ -133,6 +133,8 @@ protected:
     size_t m_maxCacheLimit = DEFAULT_CACHE_SIZE;
 
     TileTaskQueue& m_workers;
+
+    std::weak_ptr<ScenePrana> m_scenePrana;
 
     bool m_tileSetChanged = false;
 

@@ -149,14 +149,13 @@ bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb
               LOGV("%s - canceled tile: %s", m_name.c_str(), _task->tileId().toString().c_str());
               return;
             }
-            // lock the TileSource to ensure that any DataSource accessed by _cb is and remains alive
-            auto source = _task->source();
-            if (!source) {
-                LOGW("MBTilesDataSource callback for deleted TileSource!");
+            auto prana = _task->prana();  // lock Scene when running callback on thread
+            if (!prana) {
+                LOGW("MBTilesDataSource callback for deleted Scene!");
                 return;
             }
             TileID tileId = _task->tileId();
-            LOGTO(">>> DB query for %s %s", source->name().c_str(), tileId.toString().c_str());
+            LOGTO(">>> DB query for %s %s", source()->name().c_str(), tileId.toString().c_str());
 
             auto& task = static_cast<BinaryTileTask&>(*_task);
             auto tileData = std::make_unique<std::vector<char>>();
@@ -164,7 +163,7 @@ bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb
             //  let's not set rawTileData to empty vector, to match NetworkDataSource behavior
             int64_t tileAge = 0;
             getTileData(tileId, *tileData, tileAge, task.offlineId);
-            LOGTO("<<< DB query for %s %s%s", source->name().c_str(), tileId.toString().c_str(),
+            LOGTO("<<< DB query for %s %s%s", source()->name().c_str(), tileId.toString().c_str(),
                   tileData->empty() ? " (not found)" : "");
 
             // if tile is expired, request from network, falling back to stale tile on failure

@@ -18,7 +18,7 @@ class TileManager;
 struct RawCache;
 class Texture;
 
-class TileSource : public std::enable_shared_from_this<TileSource> {
+class TileSource {
 
 public:
 

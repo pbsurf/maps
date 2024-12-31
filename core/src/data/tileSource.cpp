@@ -57,7 +57,7 @@ const char* TileSource::mimeType() const {
 }
 
 std::shared_ptr<TileTask> TileSource::createTask(TileID _tileId) {
-    auto task = std::make_shared<BinaryTileTask>(_tileId, shared_from_this());
+    auto task = std::make_shared<BinaryTileTask>(_tileId, this);
 
     addRasterTasks(*task);
 

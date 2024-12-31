@@ -119,6 +119,13 @@ public:
     Platform& getPlatform() const { return m_platform; }
 };
 
+class ScenePrana {
+public:
+    ScenePrana(std::mutex& mtx) : m_lock(mtx) {}
+
+    std::unique_lock<std::mutex> m_lock;
+};
+
 // TODO: define in cmake file, not here!
 #define TANGRAM_SVG_LOADER 1
 #ifdef TANGRAM_SVG_LOADER
@@ -252,6 +259,9 @@ protected:
     /// Loaded Scene Data
     /// The root node of the YAML scene configuration
     YAML::Node m_config;
+
+    std::mutex m_pranaMutex;
+    std::shared_ptr<ScenePrana> m_prana;
 
     // object to manage JS context used for (optional) tile URL fns - must be destroyed after TileSources
     DataSourceContext m_sourceContext;

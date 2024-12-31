@@ -15,6 +15,7 @@ class TileBuilder;
 class TileSource;
 class Tile;
 class MapProjection;
+class ScenePrana;
 struct TileData;
 
 
@@ -22,7 +23,7 @@ class TileTask {
 
 public:
 
-    TileTask(const TileID& _tileId, std::shared_ptr<TileSource> _source);
+    TileTask(const TileID& _tileId, TileSource* _source);
 
     // No copies
     TileTask(const TileTask& _other) = delete;
@@ -40,9 +41,12 @@ public:
     std::unique_ptr<Tile> getTile();
     void setTile(std::unique_ptr<Tile>&& _tile);
 
-    std::shared_ptr<TileSource> source() { return m_source.lock(); }
+    TileSource* source() { return m_source; }
+    std::shared_ptr<ScenePrana> prana() { return m_scenePrana.lock(); }
     int64_t sourceId() { return m_sourceId; }
     int64_t sourceGeneration() const { return m_sourceGeneration; }
+
+    void setScenePrana(std::weak_ptr<ScenePrana> _prana) { m_scenePrana = _prana; }
 
     TileID tileId() const { return m_tileId; }
 
@@ -89,7 +93,9 @@ protected:
     const TileID m_tileId;
 
     // Save shared reference to Datasource while building tile
-    std::weak_ptr<TileSource> m_source;
+    TileSource* m_source;
+
+    std::weak_ptr<ScenePrana> m_scenePrana;
 
     // Vector of tasks to download raster samplers
     std::vector<std::shared_ptr<TileTask>> m_subTasks;
@@ -110,7 +116,7 @@ protected:
 
 class BinaryTileTask : public TileTask {
 public:
-    BinaryTileTask(const TileID& _tileId, std::shared_ptr<TileSource> _source)
+    BinaryTileTask(const TileID& _tileId, TileSource* _source)
         : TileTask(_tileId, _source) {}
 
     virtual bool hasData() const override {

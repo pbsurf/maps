@@ -121,18 +121,19 @@ bool NetworkDataSource::loadTileData(std::shared_ptr<TileTask> task, TileTaskCb 
 
     LOGTO(">>> Url request for %s %s", task->source()->name().c_str(), task->tileId().toString().c_str());
     UrlCallback onRequestFinish = [=](UrlResponse&& response) mutable {
-        auto source = task->source();
-        if (!source) {
-            LOGW("URL callback for deleted TileSource '%s'", url.string().c_str());
+        if (task->isCanceled()) { return; }
+
+        auto prana = task->prana();  // lock Scene when running callback on thread
+        if (!prana) {
+            LOGW("URL callback for deleted Scene '%s'", url.string().c_str());
             return;
         }
+
         LOGTO("<<< Url request for %s %s%s", task->source()->name().c_str(),
               task->tileId().toString().c_str(), task->isCanceled() ? " (canceled)" : "");
 
         auto& dlTask = static_cast<BinaryTileTask&>(*task);
         dlTask.urlRequestHandle = 0;
-
-        if (task->isCanceled()) { return; }
 
         if (response.error) {
             LOGD("URL request '%s': %s", url.string().c_str(), response.error);

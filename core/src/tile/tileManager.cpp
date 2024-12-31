@@ -143,8 +143,8 @@ TileManager::TileSet::TileSet(std::shared_ptr<TileSource> _source) : source(_sou
 
 TileManager::TileSet::~TileSet() {}  //cancelTasks();
 
-TileManager::TileManager(Platform& platform, TileTaskQueue& _tileWorker) :
-    m_workers(_tileWorker) {
+TileManager::TileManager(Platform& platform, TileTaskQueue& _tileWorker, std::weak_ptr<ScenePrana> _prana) :
+    m_workers(_tileWorker), m_scenePrana(_prana) {
 
     m_tileCache = std::unique_ptr<TileCache>(new TileCache(DEFAULT_CACHE_SIZE));
 
@@ -597,6 +597,7 @@ void TileManager::loadTiles() {
         }
         ++tileTask->shareCount;
 
+        tileTask->setScenePrana(m_scenePrana);
         tileSet->source->loadTileData(tileTask, m_dataCallback);
 
         LOGTO("Load Tile: %s %s", tileSet->source->name().c_str(), loadTask.tileID.toString().c_str());

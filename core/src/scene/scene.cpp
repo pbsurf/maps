@@ -38,20 +38,31 @@ namespace Tangram {
 static std::atomic<int32_t> s_serial;
 
 
-Scene::Scene(Platform& _platform, SceneOptions&& _options, std::function<void(Scene*)> _prefetchCallback, Scene* _oldScene) :
+Scene::Scene(Platform& _platform,
+             SceneOptions&& _options,
+             std::function<void(Scene*)> _prefetchCallback,
+             Scene* _oldScene) :
     id(s_serial++),
     m_platform(_platform),
     m_options(std::move(_options)),
     m_tilePrefetchCallback(_prefetchCallback),
     m_sourceContext(_platform, this) {
 
+    m_prana = std::make_shared<ScenePrana>(m_pranaMutex);
     m_tileWorker = std::make_unique<TileWorker>(_platform, m_options.numTileWorkers);
-    m_tileManager = std::make_unique<TileManager>(_platform, *m_tileWorker);
+    m_tileManager = std::make_unique<TileManager>(_platform, *m_tileWorker, m_prana);
     m_markerManager = std::make_unique<MarkerManager>(*this,
         _oldScene && _options.preserveMarkers ? _oldScene->m_markerManager.get() : NULL);
 }
 
 Scene::~Scene() {
+    // Release m_prana and wait for destruction via m_pranaMutex to ensure no TileTask callbacks can run
+    //  from DataSource threads, esp. network response threads which have lifetime of Platform, not Scene!
+    // Destruction of TileWorker will wait for any callbacks running on TileWorker threads - before any
+    //  TileSources are destroyed.
+    m_prana.reset();
+    { std::unique_lock<std::mutex> lock(m_pranaMutex); }
+
     cancelTasks();
     /// Cancels all TileTasks
     LOGD("Finish TileManager");
@@ -748,7 +759,7 @@ DataSourceContext::JSLockedContext DataSourceContext::getJSContext() {
 }
 
 DataSourceContext::DataSourceContext(Platform& _platform, Scene* _scene)
-    : m_platform(_platform), m_scene(_scene), m_globals(_scene->config()["globals"]) {}
+    : m_globals(_scene->config()["globals"]), m_platform(_platform), m_scene(_scene) {}
 
 DataSourceContext::DataSourceContext(Platform& _platform, const YAML::Node& _globals)
     : m_globals(_globals), m_platform(_platform), m_scene(nullptr) {}

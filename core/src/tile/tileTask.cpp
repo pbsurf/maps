@@ -8,7 +8,7 @@
 
 namespace Tangram {
 
-TileTask::TileTask(const TileID& _tileId, std::shared_ptr<TileSource> _source) :
+TileTask::TileTask(const TileID& _tileId, TileSource* _source) :
     m_tileId(_tileId),
     m_source(_source),
     m_sourceId(_source ? _source->id() : 0),
@@ -32,14 +32,11 @@ void TileTask::setTile(std::unique_ptr<Tile>&& _tile) {
 
 void TileTask::process(TileBuilder& _tileBuilder) {
 
-    auto source = m_source.lock();
-    if (!source) { return; }
-
-    auto tileData = source->parse(*this);
+    auto tileData = m_source->parse(*this);
 
     if (tileData) {
-        m_tile = std::make_unique<Tile>(m_tileId, source->id(), source->generation());
-        _tileBuilder.build(*m_tile, *tileData, *source);
+        m_tile = std::make_unique<Tile>(m_tileId, m_source->id(), m_source->generation());
+        _tileBuilder.build(*m_tile, *tileData, *m_source);
         m_ready = true;
     } else {
         cancel();
