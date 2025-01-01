@@ -83,7 +83,7 @@ void ClientDataSource::PolygonBuilder::addPoint(LngLat point) {
 }
 
 std::shared_ptr<TileTask> ClientDataSource::createTask(TileID _tileId) {
-    auto task = std::make_shared<TileTask>(_tileId, shared_from_this());
+    auto task = std::make_shared<TileTask>(_tileId, this);
     addRasterTasks(*task);
     return task;
 }

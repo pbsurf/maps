@@ -78,7 +78,7 @@ public:
         return nullptr;
     }
 
-    int cacheSizeLimit() const { return m_cacheMaxUsage; }
+    size_t cacheSizeLimit() const { return m_cacheMaxUsage; }
 
     void limitCacheSize(size_t _cacheSizeBytes) {
         m_cacheMaxUsage = _cacheSizeBytes;
@@ -116,8 +116,8 @@ private:
     CacheMap m_cacheMap;
     CacheList m_cacheList;
 
-    int m_cacheUsage;
-    int m_cacheMaxUsage;
+    size_t m_cacheUsage;
+    size_t m_cacheMaxUsage;
 };
 
 }

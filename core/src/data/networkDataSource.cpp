@@ -119,8 +119,12 @@ bool NetworkDataSource::loadTileData(std::shared_ptr<TileTask> task, TileTaskCb 
         m_urlSubdomainIndex = (m_urlSubdomainIndex + 1) % m_options.subdomains.size();
     }
 
-    LOGTO(">>> Url request for %s %s", task->source()->name().c_str(), task->tileId().toString().c_str());
-    UrlCallback onRequestFinish = [=](UrlResponse&& response) mutable {
+    LOGTO(">>> Url request for %s %s",
+          task->source() ? task->source()->name().c_str() : "?", task->tileId().toString().c_str());
+    UrlCallback onRequestFinish = [task, callback, url](UrlResponse&& response) mutable {
+        LOGTO("<<< Url request for %s %s%s", task->source() ? task->source()->name().c_str() : "?",
+              task->tileId().toString().c_str(), task->isCanceled() ? " (canceled)" : "");
+
         if (task->isCanceled()) { return; }
 
         auto prana = task->prana();  // lock Scene when running callback on thread
@@ -128,9 +132,6 @@ bool NetworkDataSource::loadTileData(std::shared_ptr<TileTask> task, TileTaskCb 
             LOGW("URL callback for deleted Scene '%s'", url.string().c_str());
             return;
         }
-
-        LOGTO("<<< Url request for %s %s%s", task->source()->name().c_str(),
-              task->tileId().toString().c_str(), task->isCanceled() ? " (canceled)" : "");
 
         auto& dlTask = static_cast<BinaryTileTask&>(*task);
         dlTask.urlRequestHandle = 0;

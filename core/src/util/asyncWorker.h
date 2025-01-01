@@ -6,13 +6,24 @@
 #include <thread>
 #include <functional>
 #include <atomic>
+#ifdef DEBUG
+#include <string>
+#include <cassert>
+#endif
 
 namespace Tangram {
 
 class AsyncWorker {
 public:
+#ifdef DEBUG
+        std::string m_tag;
+#endif
 
-    AsyncWorker() {
+    AsyncWorker(const char* _tag) {
+#ifdef DEBUG
+        assert(_tag && _tag[0] && "AsyncWorker requires identifying tag!");
+        m_tag = _tag;
+#endif
         thread = std::thread(&AsyncWorker::run, this);
     }
 

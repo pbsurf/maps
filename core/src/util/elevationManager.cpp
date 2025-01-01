@@ -167,7 +167,7 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
     d.w = w;
     d.h = h;
     d.zoom = _view.getBaseZoom();
-    if (d.depth.size() != w * h)
+    if (int(d.depth.size()) != w * h)
       d.depth.resize(w * h, 0.0f);
 
     _rs.cacheDefaultFramebuffer();
@@ -205,7 +205,7 @@ void ElevationManager::renderTerrainDepth(RenderState& _rs, const View& _view,
     d.w = w;
     d.h = h;
     d.zoom = _view.getBaseZoom();
-    if (d.depth.size() != w * h)
+    if (int(d.depth.size()) != w * h)
       d.depth.resize(w * h, 0.0f);
 
     // originally, we were reusing mesh from another style, but this will use the uniform location for the

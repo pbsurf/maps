@@ -84,7 +84,7 @@ private:
     bool m_curlNotified = false;
 
     std::unique_ptr<std::thread> m_curlWorker;
-    AsyncWorker m_dispatcher;
+    AsyncWorker m_dispatcher = {"UrlClient dispatcher"};
 
     std::list<Task> m_tasks;
     uint32_t m_activeTasks = 0;

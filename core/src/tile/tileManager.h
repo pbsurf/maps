@@ -51,6 +51,7 @@ public:
     const auto& getVisibleTiles() const { return m_tiles; }
 
     int numLoadingTiles() const { return m_tilesInProgress; }
+    int numTotalTiles() const;
 
     std::shared_ptr<TileSource> getTileSource(int32_t _sourceId);
 

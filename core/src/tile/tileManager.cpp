@@ -791,4 +791,10 @@ void TileManager::setCacheSize(size_t _cacheSize) {
     }
 }
 
+int TileManager::numTotalTiles() const {
+    int tot = 0;
+    for (const auto& tileSet : m_tileSets) { tot += tileSet.visibleTiles.size(); }
+    return tot;
+}
+
 }

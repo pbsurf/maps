@@ -815,10 +815,7 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
     std::shared_ptr<TileSource> sourcePtr;
 
     if (type == "GeoJSON" && !isTiled) {
-        bool generateCentroids = false;
-        if (const auto& genLabelCentroidsNode = _source["generate_label_centroids"]) {
-            generateCentroids = true;
-        }
+        bool generateCentroids = YamlUtil::getBoolOrDefault(_source["generate_label_centroids"], false);
         sourcePtr = std::make_shared<ClientDataSource>(_context.getPlatform(),
                                                        _name, url, generateCentroids, zoomOptions);
     } else if (type == "Raster") {

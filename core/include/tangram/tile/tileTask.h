@@ -43,10 +43,9 @@ public:
 
     TileSource* source() { return m_source; }
     std::shared_ptr<ScenePrana> prana() { return m_scenePrana.lock(); }
+    void setScenePrana(std::weak_ptr<ScenePrana> _prana);
     int64_t sourceId() { return m_sourceId; }
     int64_t sourceGeneration() const { return m_sourceGeneration; }
-
-    void setScenePrana(std::weak_ptr<ScenePrana> _prana) { m_scenePrana = _prana; }
 
     TileID tileId() const { return m_tileId; }
 
@@ -92,9 +91,9 @@ protected:
 
     const TileID m_tileId;
 
-    // Save shared reference to Datasource while building tile
     TileSource* m_source;
 
+    // locking this prevents Scene destruction (so m_source is valid)
     std::weak_ptr<ScenePrana> m_scenePrana;
 
     // Vector of tasks to download raster samplers

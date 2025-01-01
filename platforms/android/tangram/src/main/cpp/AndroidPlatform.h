@@ -49,7 +49,7 @@ private:
     AAssetManager* m_assetManager;
 
     mutable JniWorker m_jniWorker;
-    AsyncWorker m_fileWorker;
+    AsyncWorker m_fileWorker = {"Android platform file worker"};
 };
 
 } // namespace Tangram

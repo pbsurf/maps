@@ -120,7 +120,7 @@ MBTilesDataSource::MBTilesDataSource(Platform& _platform, std::string _name, std
       m_offlineMode(_offlineFallback),
       m_platform(_platform) {
 
-    m_worker = std::make_unique<AsyncWorker>();
+    m_worker = std::make_unique<AsyncWorker>(("MBTilesDataSource worker: " + _name).c_str());
 
     openMBTiles();
 }
@@ -155,7 +155,8 @@ bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb
                 return;
             }
             TileID tileId = _task->tileId();
-            LOGTO(">>> DB query for %s %s", source()->name().c_str(), tileId.toString().c_str());
+            LOGTO(">>> DB query for %s %s",
+                  _task->source() ? _task->source()->name().c_str() : "?", tileId.toString().c_str());
 
             auto& task = static_cast<BinaryTileTask&>(*_task);
             auto tileData = std::make_unique<std::vector<char>>();
@@ -163,8 +164,8 @@ bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb
             //  let's not set rawTileData to empty vector, to match NetworkDataSource behavior
             int64_t tileAge = 0;
             getTileData(tileId, *tileData, tileAge, task.offlineId);
-            LOGTO("<<< DB query for %s %s%s", source()->name().c_str(), tileId.toString().c_str(),
-                  tileData->empty() ? " (not found)" : "");
+            LOGTO("<<< DB query for %s %s%s", _task->source() ? _task->source()->name().c_str() : "?",
+                  tileId.toString().c_str(), tileData->empty() ? " (not found)" : "");
 
             // if tile is expired, request from network, falling back to stale tile on failure
             TileTaskCb stalecb;
@@ -175,6 +176,9 @@ bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb
                 //  back to DB (erroneously updating creation time) should network request fail
                 std::shared_ptr<std::vector<char>> staleData(std::move(tileData));
                 stalecb.func = [_cb, staleData](std::shared_ptr<TileTask> _task2) {
+                    auto prana2 = _task2->prana();  // lock Scene when running callback on thread
+                    if (!prana2) { return; }
+
                     if (!_task2->hasData()) {
                         static_cast<BinaryTileTask&>(*_task2).rawTileData = staleData;
                     }
@@ -220,8 +224,8 @@ bool MBTilesDataSource::loadNextSource(std::shared_ptr<TileTask> _task, TileTask
 
     // Intercept TileTaskCb to store result from next source.
     TileTaskCb cb{[this, _cb](std::shared_ptr<TileTask> _task) {
-        // it is expected that the DataSource `next` has called _task->source() to lock the TileSource
-        //  if this callback is run on a different thread
+        // it is expected that the DataSource `next` has called _task->prana() to lock the Scene
+        //  if this callback is not run on the main thread
         if (_task->hasData()) {
 
             if (m_cacheMode) {
@@ -250,11 +254,8 @@ bool MBTilesDataSource::loadNextSource(std::shared_ptr<TileTask> _task, TileTask
 
                 if (_task->isCanceled()) { return; }
 
-                auto source = _task->source();
-                if (!source) {
-                    LOGW("MBTilesDataSource callback (offline mode) for deleted TileSource!");
-                    return;
-                }
+                auto prana = _task->prana();  // lock Scene when running callback on thread
+                if (!prana) { return; }
 
                 auto& task = static_cast<BinaryTileTask&>(*_task);
                 task.rawTileData = std::make_shared<std::vector<char>>();

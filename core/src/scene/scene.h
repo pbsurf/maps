@@ -121,9 +121,10 @@ public:
 
 class ScenePrana {
 public:
-    ScenePrana(std::mutex& mtx) : m_lock(mtx) {}
+    ScenePrana(Scene* _scene) : m_scene(_scene) {}
+    ~ScenePrana();
 
-    std::unique_lock<std::mutex> m_lock;
+    Scene* m_scene;
 };
 
 // TODO: define in cmake file, not here!
@@ -164,6 +165,8 @@ public:
 
     std::shared_ptr<TileSource> getTileSource(int32_t id) const;
     std::shared_ptr<Texture> getTexture(const std::string& name) const;
+
+    std::shared_ptr<ScenePrana> prana() { return m_prana; }
 
     animate animated() const { return m_animated; }
 
@@ -260,10 +263,14 @@ protected:
     /// The root node of the YAML scene configuration
     YAML::Node m_config;
 
+    /// syncronization for TileTasks
+    friend class ScenePrana;
     std::mutex m_pranaMutex;
+    std::condition_variable m_pranaCond;
+    bool m_pranaDestroyed = false;
     std::shared_ptr<ScenePrana> m_prana;
 
-    // object to manage JS context used for (optional) tile URL fns - must be destroyed after TileSources
+    /// object to manage JS context used for (optional) tile URL fns - must be destroyed after TileSources
     DataSourceContext m_sourceContext;
 
     SceneCamera m_camera;

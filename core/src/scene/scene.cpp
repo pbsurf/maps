@@ -48,30 +48,39 @@ Scene::Scene(Platform& _platform,
     m_tilePrefetchCallback(_prefetchCallback),
     m_sourceContext(_platform, this) {
 
-    m_prana = std::make_shared<ScenePrana>(m_pranaMutex);
+    m_prana = std::make_shared<ScenePrana>(this);
     m_tileWorker = std::make_unique<TileWorker>(_platform, m_options.numTileWorkers);
     m_tileManager = std::make_unique<TileManager>(_platform, *m_tileWorker, m_prana);
     m_markerManager = std::make_unique<MarkerManager>(*this,
         _oldScene && _options.preserveMarkers ? _oldScene->m_markerManager.get() : NULL);
 }
 
+ScenePrana::~ScenePrana() {
+    if (!m_scene) { return; }  // allow null Scene for use w/ alternative lifecycle management
+    std::unique_lock<std::mutex> lock(m_scene->m_pranaMutex);
+    m_scene->m_pranaDestroyed = true;
+    m_scene->m_pranaCond.notify_all();
+}
+
 Scene::~Scene() {
+    LOGD("Enter ~Scene() %d", id);
     // Release m_prana and wait for destruction via m_pranaMutex to ensure no TileTask callbacks can run
     //  from DataSource threads, esp. network response threads which have lifetime of Platform, not Scene!
-    // Destruction of TileWorker will wait for any callbacks running on TileWorker threads - before any
-    //  TileSources are destroyed.
+    // Previous approach of locking weak_ptr<TileSource> in TileTask callbacks did not protect from calling
+    //  into destroyed TileManager or TileWorker and could result in DataSource being destroyed on worker
+    //  thread, causing deadlock attempting to join() worker thread.
+    // We use weak_ptr<ScenePrana> instead of weak_ptr<Scene> to ensure Scene destroyed on Map worker thread
+    // See https://stackoverflow.com/questions/45507041/ to support TileTask w/o ScenePrana set
     m_prana.reset();
-    { std::unique_lock<std::mutex> lock(m_pranaMutex); }
 
-    cancelTasks();
-    /// Cancels all TileTasks
-    LOGD("Finish TileManager");
-    m_tileManager.reset();
+    cancelTasks();  // normally no-op since this is called on main thread in Map before ~Scene()
+    m_tileWorker->stop();  // this waits for worker threads
 
-    /// Waits for processing TileTasks to finish
-    LOGD("Finish TileWorker");
-    m_tileWorker.reset();
-    LOGD("TileWorker stopped");
+    {
+        std::unique_lock<std::mutex> lock(m_pranaMutex);
+        m_pranaCond.wait(lock, [&]{ return m_pranaDestroyed; });
+    }
+    LOGD("Finish ~Scene() %d", id);
 }
 
 void Scene::cancelTasks() {
@@ -107,7 +116,7 @@ void Scene::cancelTasks() {
 
     if (m_platform.activeUrlRequests() > 0) {
         LOGW("%d pending downloads remaining after Scene cancellation", m_platform.activeUrlRequests());
-        //int req = 0; m_platform.cancelUrlRequest(req);  -- add this to help figure out offending task
+        //int req = 0; m_platform.cancelUrlRequest(req);  -- breakpoint on this to help find offending task
     }
 }
 

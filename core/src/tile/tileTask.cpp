@@ -52,4 +52,12 @@ void TileTask::complete() {
 
 }
 
+// Getting ScenePrana into each TileSource so that it can be set when TileTask is created would be messier
+void TileTask::setScenePrana(std::weak_ptr<ScenePrana> _prana) {
+    m_scenePrana = _prana;
+    for (auto& subTask : m_subTasks) {
+        subTask->setScenePrana(_prana);
+    }
+}
+
 }

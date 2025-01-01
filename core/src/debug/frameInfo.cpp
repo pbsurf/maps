@@ -11,6 +11,7 @@
 
 #include <deque>
 #include <ctime>
+#include <malloc.h>
 
 #define TIME_TO_MS(start, end) (float(end - start) / CLOCKS_PER_SEC * 1000.0f)
 
@@ -164,6 +165,11 @@ void FrameInfo::draw(RenderState& rs, const View& _view, Map& _map) {
         debuginfos.push_back(fstring("tile cache:%d (%dKB) (max:%dKB)", tileCache.getNumEntries(),
             tileCache.getMemoryUsage()/1024, tileCache.cacheSizeLimit()/1024));
         debuginfos.push_back(fstring("tile size:%dKB", memused / 1024));
+#if defined(DEBUG) && defined(TANGRAM_LINUX) // || defined(TANGRAM_ANDROID) -- also supported on Android
+        struct mallinfo2 mi;
+        mi = mallinfo2();
+        debuginfos.push_back(fstring("total memory (mallinfo2): %lluKB/%lluKB", mi.uordblks/1024, mi.arena/1024));
+#endif
         debuginfos.push_back(fstring("pending downloads:%d (%dKB downloaded)",
             _map.getPlatform().activeUrlRequests(), _map.getPlatform().bytesDownloaded/1024));
 

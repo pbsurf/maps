@@ -74,7 +74,7 @@ public:
     JobQueue jobQueue;
     View view;
 
-    std::unique_ptr<AsyncWorker> asyncWorker = std::make_unique<AsyncWorker>();
+    std::unique_ptr<AsyncWorker> asyncWorker = std::make_unique<AsyncWorker>("Map worker");
     InputHandler inputHandler;
 
     std::unique_ptr<Ease> ease;
@@ -157,9 +157,7 @@ SceneID Map::Impl::loadScene(SceneOptions&& _sceneOptions) {
 
 SceneID Map::Impl::loadSceneAsync(SceneOptions&& _sceneOptions) {
 
-    // Move the previous scene into a shared_ptr so that it can be captured in a std::function
-    // (unique_ptr can't be captured because std::function is copyable).
-    std::shared_ptr<Scene> oldScene = std::move(scene);
+    Scene* oldScene = scene.release();
     oldScene->cancelTasks();
     view.m_elevationManager = nullptr;
 
@@ -173,7 +171,7 @@ SceneID Map::Impl::loadSceneAsync(SceneOptions&& _sceneOptions) {
         platform.requestRender();
     };
 
-    scene = std::make_unique<Scene>(platform, std::move(_sceneOptions), prefetchCallback, oldScene.get());
+    scene = std::make_unique<Scene>(platform, std::move(_sceneOptions), prefetchCallback, oldScene);
 
     // This async task gets a raw pointer to the new scene and the following task takes ownership of the shared_ptr to
     // the old scene. Tasks in the async queue are executed one at a time in FIFO order, so even if another scene starts
@@ -188,12 +186,7 @@ SceneID Map::Impl::loadSceneAsync(SceneOptions&& _sceneOptions) {
         platform.requestRender();
     });
 
-    asyncWorker->enqueue([disposingScene = std::move(oldScene)]() mutable {
-        if (disposingScene.use_count() != 1) {
-            LOGE("Incorrect use count for old scene pointer: %d. Scene may be leaked!", disposingScene.use_count());
-        }
-        disposingScene.reset();
-    });
+    asyncWorker->enqueue([oldScene](){ delete oldScene; });
 
     return scene->id;
 }

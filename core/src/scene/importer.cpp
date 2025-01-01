@@ -147,7 +147,7 @@ void Importer::addSceneData(const Url& sceneUrl, std::vector<char>&& sceneData) 
 UrlRequestHandle Importer::readFromZip(const Url& url, UrlCallback callback) {
 
     if (!m_zipWorker) {
-        m_zipWorker = std::make_unique<AsyncWorker>();
+        m_zipWorker = std::make_unique<AsyncWorker>("Importer zip worker");
         //m_zipWorker->waitForCompletion();
     }
 
