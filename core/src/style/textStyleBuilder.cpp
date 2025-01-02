@@ -309,6 +309,8 @@ bool TextStyleBuilder::addFeature(const Feature& _feat, const DrawRule& _rule) {
     return true;
 }
 
+#define TANGRAM_NEW_STRAIGHT_LABELS
+
 bool TextStyleBuilder::addStraightTextLabels(const Line& _line, float _labelWidth,
                                              const std::function<void(glm::vec2,glm::vec2)>& _onAddLabel) {
 
@@ -368,6 +370,13 @@ bool TextStyleBuilder::addStraightTextLabels(const Line& _line, float _labelWidt
             glm::vec2 b = glm::vec2(p1 - p0) / float(run);
 
             for (int r = 0; r < run; r++) {
+#ifdef TANGRAM_NEW_STRAIGHT_LABELS
+                // no labels outside tile
+                const float tol = 2*minLength;
+                glm::vec2 z = a+b;
+                if((a.x < -tol || a.x > 1+tol || a.y < -tol || a.y > 1+tol) &&
+                   (z.x < -tol || z.x > 1+tol || z.y < -tol || z.y > 1+tol)) { continue; }
+#endif
                 _onAddLabel(a, a+b);
 
                 a += b;

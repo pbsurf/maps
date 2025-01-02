@@ -26,7 +26,9 @@ public:
 
 private:
 
-    size_t filterRepeatGroups(size_t startPos, size_t curPos);
+    size_t filterRepeatGroups(size_t startPos, size_t curPos, float _tileSize = 0);
+
+    void killOccludedLabels();
 
     using AABB = isect2d::AABB<glm::vec2>;
     using OBB = isect2d::OBB<glm::vec2>;

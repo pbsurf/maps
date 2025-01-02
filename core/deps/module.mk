@@ -103,8 +103,9 @@ MODULE_BASE = $(MAKE_BASE)/gaml
 
 MODULE_SOURCES = src/yaml.cpp
 #MODULE_INC_PUBLIC = include
-MODULE_INC_PRIVATE = src
-MODULE_DEFS_PRIVATE = GAML_LIB_ONLY
+MODULE_INC_PRIVATE = src ../double-conversion/include ../../include/tangram
+MODULE_DEFS_PRIVATE = GAML_LIB_ONLY GAML_DOUBLE_CONV=1 GAML_LOG=LOGE
+MODULE_CFLAGS = -include log.h
 
 include $(ADD_MODULE)
 

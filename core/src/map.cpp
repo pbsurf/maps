@@ -125,6 +125,7 @@ Map::~Map() {
     // All jobs will be executed immediately on add() afterwards.
     impl->jobQueue.stop();
 
+    g_flags = 0;
     TextDisplay::Instance().deinit();
     Primitives::deinit();
 }

@@ -21,14 +21,16 @@ void LabelCollider::addLabels(std::vector<std::unique_ptr<Label>>& _labels) {
     }
 }
 
-size_t LabelCollider::filterRepeatGroups(size_t startPos, size_t curPos) {
+size_t LabelCollider::filterRepeatGroups(size_t startPos, size_t curPos, float _tileSize) {
 
     size_t endGroup = m_labels[curPos].label->options().repeatGroup;
     size_t endPos = curPos;
 
     for (size_t pos = startPos; pos <= curPos; pos = endPos + 1) {
         size_t repeatGroup = m_labels[pos].label->options().repeatGroup;
-        float  threshold2 = pow(m_labels[pos].label->options().repeatDistance, 2);
+        float repDist = m_labels[pos].label->options().repeatDistance;
+        float threshold = _tileSize != 0 ? std::max(10.0f, repDist/10)/_tileSize : repDist;
+        float threshold2 = threshold*threshold;
 
         // Find end of the current repeatGroup
         endPos = pos;
@@ -47,15 +49,40 @@ size_t LabelCollider::filterRepeatGroups(size_t startPos, size_t curPos) {
                 Label* l2 = m_labels[j].label;
                 if (l2->isOccluded()) { continue; }
 
-                float d2 = distance2(l1->screenCenter(), l2->screenCenter());
+                float d2 = _tileSize != 0 ? distance2(l1->modelCenter(), l2->modelCenter())
+                                          : distance2(l1->screenCenter(), l2->screenCenter());
                 if (d2 < threshold2) {
                     l2->occlude();
                 }
             }
         }
-        if (repeatGroup == endGroup) { break; }
+        if (_tileSize == 0 && repeatGroup == endGroup) { break; }
     }
     return endPos;
+}
+
+void LabelCollider::killOccludedLabels()
+{
+    for (auto& entry : m_labels) {
+        auto* label = entry.label;
+
+        // Manage link occlusion (unified icon labels)
+        if (label->relative()) {
+            // First check if the child is required is occluded
+            if (label->relative()->isOccluded()) {
+                label->occlude();
+            } else if (!label->options().optional && label->isOccluded()) {
+                label->relative()->occlude();
+                label->relative()->enterState(Label::State::dead, 0.0f);
+            }
+        }
+
+        if (label->isOccluded()) {
+            label->enterState(Label::State::dead, 0.0f);
+        } else {
+            label->enterState(Label::State::none, 0.0f);
+        }
+    }
 }
 
 void LabelCollider::process(TileID _tileID, float _tileInverseScale, float _tileSize) {
@@ -88,6 +115,18 @@ void LabelCollider::process(TileID _tileID, float _tileInverseScale, float _tile
     int overzoom = 2;
     float tileScale = pow(2, _tileID.s - _tileID.z + overzoom);
     glm::vec2 screenSize{ _tileSize * tileScale };
+
+
+    // try to avoid too many collisions error from isect2d - large number of labels typically means many in
+    //  each repeat group, as the number of unique features per tile is limited
+    if (m_labels.size() > 4096) {
+        LOGD("Prefiltering %llu labels for tile %s", m_labels.size(), _tileID.toString().c_str());
+        filterRepeatGroups(0, m_labels.size()-1, _tileSize * tileScale);
+        killOccludedLabels();
+        auto isDead = [](const LabelEntry& l){ return l.label->isOccluded(); };
+        m_labels.erase(std::remove_if(m_labels.begin(), m_labels.end(), isDead), m_labels.end());
+    }
+
 
     // Project tile to NDC (-1 to 1, y-up)
     glm::mat4 mvp{1};
@@ -282,26 +321,7 @@ void LabelCollider::process(TileID _tileID, float _tileInverseScale, float _tile
 
     filterRepeatGroups(lastFilteredLabelIndex, m_labels.size()-1);
 
-    for (auto& entry : m_labels) {
-        auto* label = entry.label;
-
-        // Manage link occlusion (unified icon labels)
-        if (label->relative()) {
-            // First check if the child is required is occluded
-            if (label->relative()->isOccluded()) {
-                label->occlude();
-            } else if (!label->options().optional && label->isOccluded()) {
-                label->relative()->occlude();
-                label->relative()->enterState(Label::State::dead, 0.0f);
-            }
-        }
-
-        if (label->isOccluded()) {
-            label->enterState(Label::State::dead, 0.0f);
-        } else {
-            label->enterState(Label::State::none, 0.0f);
-        }
-    }
+    killOccludedLabels();
 
     m_labels.clear();
     m_aabbs.clear();

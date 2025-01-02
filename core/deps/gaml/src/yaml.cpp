@@ -199,6 +199,7 @@ Node Node::clone() const {
 }
 
 Node& Node::add(const char* key, bool replace) {
+    assert(key && key[0]);
     Node& n = const_cast<Node&>(const_cast<const Node&>(*this)[key]);
     if (&n == &UNDEFINED_VALUE) {
         if (getTag() == Tag::UNDEFINED) { flags_ = Tag::OBJECT; }

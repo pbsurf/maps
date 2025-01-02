@@ -123,7 +123,7 @@ public:
 
   template<class... Args>
   bool onerow(Args&... args) {
-    if(!stmt) { LOGE("Attemping to exec null statement!"); return false; }
+    if(!stmt) { LOGE("Attempting to exec null statement!"); return false; }
     int res = sqlite3_step(stmt);
     // no rows - not an error, but return false to inform caller no data was written
     if(res == SQLITE_DONE || res == SQLITE_OK) {
