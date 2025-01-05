@@ -114,11 +114,29 @@ uint8_t* loadImage(const uint8_t* data, size_t length, int* width, int* height, 
 #ifdef TANGRAM_LERC_SUPPORT
         USING_NAMESPACE_LERC
 
+        ErrCode err = ErrCode::Ok;
         Lerc::LercInfo info;
-        ErrCode err = Lerc::GetLercInfo(data, length, info);
-        if (err != ErrCode::Ok) {
-            LOGE("Error getting LERC image info: %d", err);
-            return nullptr;
+        constexpr size_t lerc1hdr = 10 + 4 * sizeof(int) + 1 * sizeof(double);
+        if(data[0] == 'C' && length > lerc1hdr) {
+          info.RawInit();  // zero out
+          // cut and paste from Lerc::GetLercInfo() since that fn reads and discards the entire image to
+          //  get min,max values and check for additional bands (which we don't support anyway)
+          auto* ptr = data + 10 + 2 * sizeof(int);
+          memcpy(&info.nRows, ptr, sizeof(int));  ptr += sizeof(int);
+          memcpy(&info.nCols, ptr, sizeof(int));  ptr += sizeof(int);
+          memcpy(&info.maxZError, ptr, sizeof(double));  //ptr += sizeof(double);
+          info.dt = Lerc::DT_Float;
+          info.nDepth = 1;
+          info.nBands = 1;
+          // assume mask is present so Decode() doesn't fail
+          info.nMasks = 1;
+        }
+        else {
+          err = Lerc::GetLercInfo(data, length, info);
+          if (err != ErrCode::Ok) {
+              LOGE("Error getting LERC image info: %d", err);
+              return nullptr;
+          }
         }
 
         GLint fmt = 0;
