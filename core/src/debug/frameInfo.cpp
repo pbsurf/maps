@@ -11,7 +11,9 @@
 
 #include <deque>
 #include <ctime>
+#if defined(DEBUG) && defined(TANGRAM_LINUX)
 #include <malloc.h>
+#endif
 
 #define TIME_TO_MS(start, end) (float(end - start) / CLOCKS_PER_SEC * 1000.0f)
 
