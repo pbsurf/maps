@@ -297,7 +297,7 @@ static void runMigrations(SQLiteDB& db) {
 void MBTilesDataSource::openMBTiles() {
 
     auto mode = SQLITE_OPEN_FULLMUTEX;
-    mode |= m_cacheMode ? (SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE) : SQLITE_OPEN_READONLY;
+    mode |= m_cacheMode ? SQLITE_OPEN_READWRITE : SQLITE_OPEN_READONLY;
 
     auto url = Url(m_path);
     auto path = url.path();
@@ -309,36 +309,32 @@ void MBTilesDataSource::openMBTiles() {
 
     SQLiteDB db;
     if (sqlite3_open_v2(path.c_str(), &db.db, mode, vfs) != SQLITE_OK) {
-        LOGE("Unable to open SQLite database: %s - %s", m_path.c_str(), db.errMsg());
-        return;
+        // ensure that we only run initSchema() on newly created file, not just if testSchema() fails (which
+        //  can happen on valid existing database if locked)
+        mode |= SQLITE_OPEN_CREATE;
+        if (m_cacheMode && sqlite3_open_v2(path.c_str(), &db.db, mode, vfs) == SQLITE_OK) {
+            LOG("Creating SQLite database %s", m_path.c_str());
+            initSchema(db, m_name, m_mime);
+        } else {
+            LOGE("Unable to open SQLite database: %s - %s", m_path.c_str(), db.errMsg());
+            return;
+        }
     }
     LOG("SQLite database opened: %s", path.c_str());
 
-    bool ok = testSchema(db);
-    if (ok) {
-        if (m_cacheMode && !m_schemaOptions.isCache) {
-            // TODO better description
-            LOGE("Cannot cache to 'externally created' MBTiles database");
-            // Run in non-caching mode
-            m_cacheMode = false;
-            return;
-        }
-    } else if (m_cacheMode) {
-
-        // Setup the database by running the schema.sql.
-        initSchema(db, m_name, m_mime);
-
-        ok = testSchema(db);
-        if (!ok) {
-            LOGE("Unable to initialize MBTiles schema");
-            return;
-        }
-    } else {
+    if (!testSchema(db)) {
         LOGE("Invalid MBTiles schema");
         return;
     }
 
+    if (m_cacheMode && !m_schemaOptions.isCache) {
+        LOGE("Cannot cache to externally created MBTiles database %s", m_path.c_str());
+        m_cacheMode = false;  // should we allow reading from DB?
+        return;
+    }
+
     if (m_schemaOptions.compression == Compression::unsupported) {
+        LOGE("MBTiles database has unsupported compression type: %s", m_path.c_str());
         return;
     }
 
@@ -404,7 +400,7 @@ void MBTilesDataSource::initSchema(SQLiteDB& db, std::string _name, std::string 
     // Fill in metadata table.
     // https://github.com/pnorman/mbtiles-spec/blob/2.0/2.0/spec.md#content
     // https://github.com/mapbox/mbtiles-spec/pull/46
-    SQLiteStmt stmt = db.stmt("REPLACE INTO metadata (name, value) VALUES (?, ?);");
+    SQLiteStmt stmt = db.stmt("INSERT INTO metadata (name, value) VALUES (?, ?);");
     // name, type, version, description, format, compression
     stmt.bind("name", _name).exec();
     stmt.bind("type", "baselayer").exec();
