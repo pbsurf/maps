@@ -76,7 +76,7 @@ struct TestTileSource : TileSource {
     public:
         bool gotData = false;
 
-        Task(TileID& _tileId, std::shared_ptr<TileSource> _source)
+        Task(TileID& _tileId, TileSource* _source)
             : TileTask(_tileId, _source) {}
 
         bool hasData() const override { return gotData; }
@@ -99,19 +99,20 @@ struct TestTileSource : TileSource {
 
     std::shared_ptr<TileData> parse(const TileTask& _task) const override {
         return nullptr;
-    };
+    }
 
     void clearData() override {}
 
     std::shared_ptr<TileTask> createTask(TileID _tileId) override {
-        return std::make_shared<Task>(_tileId, shared_from_this());
+        return std::make_shared<Task>(_tileId, this);
     }
 };
 
 class TestTileManager : public TileManager {
 public:
-    using Base = TileManager;
-    using Base::Base;
+    //using Base = TileManager;
+    //using Base::Base;
+    TestTileManager(Platform& platform, TileTaskQueue& _tileWorker) : TileManager(platform, _tileWorker, {}) {}
 
     void updateTiles(const ViewState& _view, std::set<TileID> _visibleTiles) {
         // Mimic TileManager::updateTileSets(View& _view)
@@ -188,13 +189,13 @@ TEST_CASE( "Mock TileWorker Initialization", "[TileManager][Constructor]" ) {
 
     TestTileWorker worker;
     MockPlatform platform;
-    TileManager tileManager(platform, worker);
+    TileManager tileManager(platform, worker, {});
 }
 
 TEST_CASE( "Real TileWorker Initialization", "[TileManager][Constructor]" ) {
     MockPlatform platform;
     TileWorker worker(platform, 1);
-    TileManager tileManager(platform, worker);
+    TileManager tileManager(platform, worker, {});
 }
 
 TEST_CASE( "Load visible Tile", "[TileManager][updateTileSets]" ) {
