@@ -103,7 +103,14 @@ void main() {
         #pragma tangram: setup
     #endif
 
-    #ifndef TANGRAM_RASTER_STYLE
+    // assign here to allow blocks to modify
+    float proxy = u_proxy_depth;
+    float depth_shift = 0.0;
+
+    #ifdef TANGRAM_RASTER_STYLE
+        float layer = u_order;
+    #else
+        float layer = a_position.w;
         v_color = a_color;
     #endif
 
@@ -143,15 +150,6 @@ void main() {
 
     gl_Position = u_proj * v_position;
 
-    #ifdef TANGRAM_RASTER_STYLE
-        // need sufficient offset for proxy levels to prevent terrain poking through level above
-        float proxy = 48.0*u_proxy_depth;
-        float layer = u_order;
-    #else
-        float proxy = u_proxy_depth;
-        float layer = a_position.w;
-    #endif
     // Proxy tiles are placed deeper in the depth buffer than non-proxy tiles
-    // + 0.02 to use larger depth delta near camera to prevent terrain from covering geometry
-    gl_Position.z += (proxy - layer) * (TANGRAM_DEPTH_DELTA * gl_Position.w - 0.02*u_proj[2][3]);
+    gl_Position.z += (proxy - layer) * (TANGRAM_DEPTH_DELTA * gl_Position.w + depth_shift);
 }
