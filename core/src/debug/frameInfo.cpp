@@ -7,6 +7,7 @@
 #include "map.h"
 #include "scene/scene.h"
 #include "marker/markerManager.h"
+#include "labels/labelManager.h"
 #include "tile/tileCache.h"
 
 #include <deque>
@@ -27,6 +28,8 @@ static clock_t s_startFrameTime = 0,
     s_endFrameTime = 0,
     s_startUpdateTime = 0,
     s_endUpdateTime = 0;
+
+static uint64_t s_frameCount = 0;
 
 void FrameInfo::beginUpdate() {
 
@@ -70,8 +73,6 @@ void FrameInfo::begin(const std::string& tag) {
 }
 
 void FrameInfo::end(const std::string& tag) {
-    static constexpr float alpha = 0.1f;
-
     if (!getDebugFlag(DebugFlags::tangram_infos)) { return; }
     auto& entry = profInfos[tag];
     auto endReal = std::chrono::steady_clock::now();
@@ -81,12 +82,13 @@ void FrameInfo::end(const std::string& tag) {
     float dtCpu = TIME_TO_MS(entry.startCpu, endCpu);
     entry.startCpu = endCpu;
 
-    if(dtReal > 2000) { return; }
+    float alpha = dtReal > 500 ? 1 : 0.1f;
     entry.avgReal = entry.avgReal*(1 - alpha) + dtReal*alpha;
     entry.avgCpu = entry.avgCpu*(1 - alpha) + dtCpu*alpha;
 }
 
 void FrameInfo::draw(RenderState& rs, const View& _view, Map& _map) {
+    ++s_frameCount;
 
     if (!getDebugFlag(DebugFlags::tangram_infos) && !getDebugFlag(DebugFlags::tangram_stats)) { return; }
 
@@ -175,9 +177,12 @@ void FrameInfo::draw(RenderState& rs, const View& _view, Map& _map) {
         debuginfos.push_back(fstring("pending downloads:%d (%dKB downloaded)",
             _map.getPlatform().activeUrlRequests(), _map.getPlatform().bytesDownloaded/1024));
 
-        if(!profInfos.empty()) {
+        if (!profInfos.empty()) {
             end("_Frame");
-            for(auto& entry : profInfos) {
+            std::string reasons;
+            if (_map.getScene()->labelManager()->needUpdate()) { reasons.append("l,"); }
+            debuginfos.push_back(fstring("=== Frame %llu (%s) ===", s_frameCount, reasons.c_str()));
+            for (auto& entry : profInfos) {
                 debuginfos.push_back(fstring("%s: %.3fms (CPU: %.3fms)",
                     entry.first.c_str(), entry.second.avgReal, entry.second.avgCpu));
             }

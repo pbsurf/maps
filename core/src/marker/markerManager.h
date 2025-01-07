@@ -71,7 +71,8 @@ public:
     // Update the zoom level for all markers; markers are built for one zoom
     // level at a time so when the current zoom changes, all marker meshes are
     // rebuilt. Returns true when any Markers changed since last call to update.
-    bool update(const View& _view, float _dt);
+    struct UpdateState { bool dirty, easing; };
+    UpdateState update(const View& _view, float _dt);
 
     // Remove and destroy all markers.
     void removeAll();

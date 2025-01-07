@@ -270,10 +270,8 @@ bool MarkerManager::setPolygon(MarkerID markerID, LngLat* coordinates, int* coun
     return true;
 }
 
-bool MarkerManager::update(const View& _view, float _dt) {
-    if (!m_dirty && m_markers.empty()) { return false; }
-
-    if (!m_scene.isReady()) { return false; }
+MarkerManager::UpdateState MarkerManager::update(const View& _view, float _dt) {
+    if (!m_scene.isReady() || (!m_dirty && m_markers.empty())) { return {false, false}; }
 
     // do this here instead of Scene::update so we don't print every time map is moved
     LOGTInit(">>> update");
@@ -320,7 +318,7 @@ bool MarkerManager::update(const View& _view, float _dt) {
     }
     LOGT("<<< update");
 
-    return rebuilt || easing || dirty;
+    return {rebuilt || easing || dirty, easing};
 }
 
 void MarkerManager::removeAll() {

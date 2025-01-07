@@ -6,6 +6,8 @@
 #include "platform.h"
 #include "util/url.h"
 
+#define SQLITEPP_LOGW LOGW
+#define SQLITEPP_LOGE LOGE
 #include "sqlitepp.h"
 #include "hash-library/md5.cpp"
 

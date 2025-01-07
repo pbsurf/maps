@@ -1,9 +1,17 @@
 #pragma once
 #include "sqlite3/sqlite3.h"
-#include "log.h"
+#include <string>
 #include <tuple>
 #include <functional>
 #include <utility>
+
+#ifndef SQLITEPP_LOGE
+#include <stdio.h>
+#define SQLITEPP_LOG(msg, ...) do { fprintf(stderr, msg, ## __VA_ARGS__); } while (0)
+#define SQLITEPP_LOGW SQLITEPP_LOG
+#define SQLITEPP_LOGE SQLITEPP_LOG
+#warning "SQLITEPP_LOGE not defined, using default."
+#endif
 
 template<class F, class Tuple, size_t... Is>
 constexpr auto apply_impl(Tuple t, F f, std::index_sequence<Is...>)
@@ -54,9 +62,9 @@ public:
     // sqlite3_prepare_v2 only compiles a single statement!
     const char* leftover = NULL;
     if(sqlite3_prepare_v2(db, sql, -1, &stmt, &leftover) != SQLITE_OK)
-      LOGE("sqlite3_prepare_v2 error: %s in %s", sqlite3_errmsg(db), sql);
+      SQLITEPP_LOGE("sqlite3_prepare_v2 error: %s in %s", sqlite3_errmsg(db), sql);
     if(leftover && leftover[0])
-      LOGW("Remainder of SQL will be ignored: %s", leftover);
+      SQLITEPP_LOGW("Remainder of SQL will be ignored: %s", leftover);
   }
 
   SQLiteStmt(sqlite3* db, const std::string& sql) : SQLiteStmt(db, sql.c_str()) {}
@@ -95,7 +103,7 @@ public:
 
   template<class F>
   bool exec(F&& cb, bool single_step = false, bool* abort = nullptr) {
-    if(!stmt) { LOGE("Attemping to exec null statement!"); return false; }
+    if(!stmt) { SQLITEPP_LOGE("Attemping to exec null statement!"); return false; }
 #ifdef SQLITEPP_LOGTIME
     auto t0 = std::chrono::high_resolution_clock::now();
 #endif
@@ -110,7 +118,7 @@ public:
     }
     bool ok = res == SQLITE_DONE || res == SQLITE_OK;
     if(!ok)
-      LOGE("sqlite3_step error for %s: %s", sqlite3_sql(stmt), sqlite3_errmsg(sqlite3_db_handle(stmt)));
+      SQLITEPP_LOGE("sqlite3_step error for %s: %s", sqlite3_sql(stmt), sqlite3_errmsg(sqlite3_db_handle(stmt)));
 #ifdef SQLITEPP_LOGTIME
     auto t1 = std::chrono::high_resolution_clock::now();
     LOG("Query time: %.6f s for %s\n", std::chrono::duration<float>(t1 - t0).count(), sqlite3_sql(stmt));
@@ -123,7 +131,7 @@ public:
 
   template<class... Args>
   bool onerow(Args&... args) {
-    if(!stmt) { LOGE("Attempting to exec null statement!"); return false; }
+    if(!stmt) { SQLITEPP_LOGE("Attempting to exec null statement!"); return false; }
     int res = sqlite3_step(stmt);
     // no rows - not an error, but return false to inform caller no data was written
     if(res == SQLITE_DONE || res == SQLITE_OK) {
@@ -134,11 +142,11 @@ public:
       std::tie(args...) = columns<Args...>(0);
       res = sqlite3_step(stmt);
       if(res == SQLITE_ROW)
-        LOGW("sqlite3_step returned multiple rows for %s", sqlite3_sql(stmt));
+        SQLITEPP_LOGW("sqlite3_step returned multiple rows for %s", sqlite3_sql(stmt));
     }
     bool ok = res == SQLITE_ROW || res == SQLITE_DONE || res == SQLITE_OK;
     if(!ok)
-      LOGE("sqlite3_step error for %s: %s", sqlite3_sql(stmt), sqlite3_errmsg(sqlite3_db_handle(stmt)));
+      SQLITEPP_LOGE("sqlite3_step error for %s: %s", sqlite3_sql(stmt), sqlite3_errmsg(sqlite3_db_handle(stmt)));
     sqlite3_reset(stmt);
     return ok;
   }
@@ -149,18 +157,23 @@ public:
   do { \
     int ctype = sqlite3_column_type(stmt, idx); \
     if(ctype != type && ctype != SQLITE_NULL) \
-      LOGW("Requested data type does not match type of column %d in %s", idx, sqlite3_sql(stmt)); \
+      SQLITEPP_LOGW("Requested data type does not match type of column %d in %s", idx, sqlite3_sql(stmt)); \
   } while(0)
 #else
 #define CHK_COL(idx, type) do { } while(0)
 #endif
 
 // can't be inside class due to GCC bug
-template<> inline int SQLiteStmt::get_col(int idx) { CHK_COL(idx, SQLITE_INTEGER); return sqlite3_column_int(stmt, idx); }
-template<> inline int64_t SQLiteStmt::get_col(int idx) { CHK_COL(idx, SQLITE_INTEGER); return sqlite3_column_int64(stmt, idx); }
-template<> inline float SQLiteStmt::get_col(int idx) { CHK_COL(idx, SQLITE_FLOAT); return float(sqlite3_column_double(stmt, idx)); }
-template<> inline double SQLiteStmt::get_col(int idx) { CHK_COL(idx, SQLITE_FLOAT); return sqlite3_column_double(stmt, idx); }
-template<> inline const char* SQLiteStmt::get_col(int idx) { CHK_COL(idx, SQLITE_TEXT); return (const char*)sqlite3_column_text(stmt, idx); }
+template<> inline int SQLiteStmt::get_col(int idx)
+  { CHK_COL(idx, SQLITE_INTEGER); return sqlite3_column_int(stmt, idx); }
+template<> inline int64_t SQLiteStmt::get_col(int idx)
+  { CHK_COL(idx, SQLITE_INTEGER); return sqlite3_column_int64(stmt, idx); }
+template<> inline float SQLiteStmt::get_col(int idx)
+  { CHK_COL(idx, SQLITE_FLOAT); return float(sqlite3_column_double(stmt, idx)); }
+template<> inline double SQLiteStmt::get_col(int idx)
+  { CHK_COL(idx, SQLITE_FLOAT); return sqlite3_column_double(stmt, idx); }
+template<> inline const char* SQLiteStmt::get_col(int idx)
+  { CHK_COL(idx, SQLITE_TEXT); return (const char*)sqlite3_column_text(stmt, idx); }
 template<> inline std::string SQLiteStmt::get_col(int idx)
   { CHK_COL(idx, SQLITE_TEXT); const char* res = (const char*)sqlite3_column_text(stmt, idx);  return res ? res : ""; }
 template<> inline sqlite3_stmt* SQLiteStmt::get_col(int idx) { return stmt; }
@@ -180,7 +193,7 @@ public:
 #ifndef NDEBUG  // sqlite FTS, e.g., leaves around some unfinalized statements that we can't do anything about
     sqlite3_stmt* stmt = NULL;
     while((stmt = sqlite3_next_stmt(db, stmt)))
-      LOGW("SQLite statement was not finalized: %s", sqlite3_sql(stmt));
+      SQLITEPP_LOGW("SQLite statement was not finalized: %s", sqlite3_sql(stmt));
 #endif
     sqlite3_close(db);
   }

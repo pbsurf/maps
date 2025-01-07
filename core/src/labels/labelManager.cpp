@@ -129,7 +129,7 @@ void LabelManager::processLabelUpdate(const ViewState& _viewState, const LabelSe
         }
     }
 
-    if(_elevManager) { _elevManager->setMinZoom(0); }
+    if (_elevManager) { _elevManager->setMinZoom(0); }
 }
 
 std::pair<Label*, const Tile*> LabelManager::getLabel(uint32_t _selectionColor) const {
@@ -409,7 +409,7 @@ void LabelManager::handleOcclusions(const ViewState& _viewState, bool _hideExtra
         if (l->isChild()) {
             if (l->relative()->isOccluded()) {
                 l->occlude();
-                if(l->relative()->state() == Label::State::skip_transition) {
+                if (l->relative()->state() == Label::State::skip_transition) {
                     l->skipTransitions();
                 }
                 continue;
@@ -464,7 +464,7 @@ void LabelManager::handleOcclusions(const ViewState& _viewState, bool _hideExtra
                         // for now, we're using selection transition time > 0 (previously unused style
                         //  param) to indicate a marker which should immediately hide all colliding labels
                         // in the future, we could use it to specify a (faster) hide transition in this case
-                        if(other_label->options().selectTransition.time > 0) {
+                        if (l->state() != Label::State::sleep && other_label->options().selectTransition.time > 0) {
                             l->skipTransitions();
                         }
                         return false;
@@ -480,7 +480,7 @@ void LabelManager::handleOcclusions(const ViewState& _viewState, bool _hideExtra
         if (l->isOccluded()) {
             if (l->relative() && !l->options().optional) {
                 l->relative()->occlude();
-                if(l->state() == Label::State::skip_transition) {
+                if (l->state() == Label::State::skip_transition) {
                     l->relative()->skipTransitions();
                 }
             }

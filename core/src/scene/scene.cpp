@@ -120,6 +120,7 @@ void Scene::cancelTasks() {
     }
 }
 
+// draw rule name in sublayer with parent that sets explicit style is incorrectly counted as used
 static void getActiveStyles(const SceneLayer& layer, std::set<std::string>& activeStyles)
 {
     if (!layer.enabled()) { return; }
@@ -128,7 +129,7 @@ static void getActiveStyles(const SceneLayer& layer, std::set<std::string>& acti
         for (const StyleParam& param : rule.parameters) {
             if (param.key == StyleParamKey::style) {
                 style = param.value.get<std::string>();
-            } else if(param.key == StyleParamKey::outline_style) {
+            } else if (param.key == StyleParamKey::outline_style) {
                 activeStyles.emplace(param.value.get<std::string>());
             }
         }
@@ -236,7 +237,7 @@ bool Scene::load() {
         getActiveStyles(layer, activeStyles);
     }
     for (auto it = m_styles.begin(); it != m_styles.end();) {
-        if(activeStyles.count((*it)->getName())) {
+        if (activeStyles.count((*it)->getName())) {
             ++it;
         } else {
             LOG("Discarding unused style '%s'", (*it)->getName().c_str());
@@ -635,7 +636,7 @@ Scene::UpdateState Scene::update(RenderState& _rs, View& _view, float _dt) {
 
     bool viewChanged = _view.update();
 
-    bool markersChanged = m_markerManager->update(_view, _dt);
+    auto markersState = m_markerManager->update(_view, _dt);
 
     bool tilesChanged = m_tileManager->updateTileSets(_view);
 
@@ -646,7 +647,7 @@ Scene::UpdateState Scene::update(RenderState& _rs, View& _view, float _dt) {
     auto& tiles = m_tileManager->getVisibleTiles();
     auto& markers = m_markerManager->markers();
 
-    bool changed = viewChanged || tilesChanged || markersChanged;
+    bool changed = viewChanged || tilesChanged || markersState.dirty;
     if (changed) {
         for (const auto& tile : tiles) {
             tile->update(_view, _dt);
@@ -661,7 +662,7 @@ Scene::UpdateState Scene::update(RenderState& _rs, View& _view, float _dt) {
 
     m_labelManager->updateLabelSet(_view.state(), _dt, *this, tiles, markers, !changed);
 
-    return { m_tileManager->numLoadingTiles() > 0, m_labelManager->needUpdate(), markersChanged };
+    return { m_tileManager->numLoadingTiles() > 0, m_labelManager->needUpdate(), markersState.easing };
 }
 
 void Scene::renderBeginFrame(RenderState& _rs) {
