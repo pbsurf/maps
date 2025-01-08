@@ -172,7 +172,8 @@ Node::~Node() {
     }
 }
 
-ConstPairItems Node::pairs() const { return ConstPairItems{getNode()}; }
+ConstPairItems Node::const_pairs() const { return ConstPairItems{getNode()}; }
+ConstPairItems Node::pairs() const { return const_pairs(); }
 PairItems Node::pairs() { return PairItems{getNode()}; }
 ListItems Node::items() const { return ListItems{getNode()}; }
 

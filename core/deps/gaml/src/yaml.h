@@ -110,6 +110,7 @@ public:
     NodeIterator end();
 
     // to iterate over keys and values
+    ConstPairItems const_pairs() const;
     ConstPairItems pairs() const;
     PairItems pairs();
 

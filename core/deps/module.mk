@@ -90,11 +90,12 @@ MODULE_DEFS_PUBLIC = SQLITE_USE_URI=1
 
 include $(ADD_MODULE)
 
+# if only sqlite3.h is included here, first run of make will fail to build sqlite3.o
 SQLITE_BASE := $(MODULE_BASE)
-#all: $(SQLITE_BASE)/sqlite3.h
-GENERATED += $(SQLITE_BASE)/sqlite3.h
+SQLITE_GEN := $(SQLITE_BASE)/sqlite3.h $(SQLITE_BASE)/sqlite3.c
+GENERATED += $(SQLITE_GEN)
 
-$(SQLITE_BASE)/sqlite3.h:
+$(SQLITE_GEN):
 	cd $(SQLITE_BASE) && curl "https://www.sqlite.org/2020/sqlite-amalgamation-3320300.zip" -o sqlite.zip && unzip sqlite.zip && mv sqlite-amalgamation-3320300/sqlite3.* .
 
 
