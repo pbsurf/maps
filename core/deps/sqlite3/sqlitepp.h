@@ -1,5 +1,5 @@
 #pragma once
-#include "sqlite3/sqlite3.h"
+#include "sqlite3.h"
 #include <string>
 #include <tuple>
 #include <functional>
@@ -56,6 +56,7 @@ public:
   SQLiteStmt(sqlite3_stmt* _stmt) : stmt(_stmt) {}
   SQLiteStmt(const SQLiteStmt&) = delete;
   SQLiteStmt(SQLiteStmt&& other) : stmt(std::exchange(other.stmt, nullptr)) {}
+  SQLiteStmt& operator=(SQLiteStmt&& other) { std::swap(stmt, other.stmt); return *this; }
   ~SQLiteStmt() { if(stmt) sqlite3_finalize(stmt); }
 
   SQLiteStmt(sqlite3* db, const char* sql) {
@@ -183,8 +184,12 @@ template<> inline sqlite3_stmt* SQLiteStmt::get_col(int idx) { return stmt; }
 class SQLiteDB
 {
 public:
-  sqlite3* db;
+  sqlite3* db = NULL;
 
+  SQLiteDB(const std::string& file, int mode, const char* vfs = NULL) {
+    if(open(file, mode, vfs) != SQLITE_OK)
+      SQLITEPP_LOGW("sqlite3_open_v2 failed for %s", file.c_str());
+  }
   SQLiteDB(sqlite3* _db = NULL) : db(_db) {}
   SQLiteDB(const SQLiteDB&) = delete;
   SQLiteDB(SQLiteDB&& other) : db(std::exchange(other.db, nullptr)) {}
@@ -197,6 +202,9 @@ public:
 #endif
     sqlite3_close(db);
   }
+
+  int open(const std::string& file, int mode, const char* vfs = NULL)
+    { return sqlite3_open_v2(file.c_str(), &db, mode, vfs); }
   sqlite3* release() { return std::exchange(db, nullptr); }
 
   const char* errMsg() { return sqlite3_errmsg(db); }
