@@ -415,20 +415,24 @@ void TileManager::updateTileSet(TileSet& _tileSet, const ViewState& _view) {
 #ifdef TANGRAM_PROXY_FOR_FAILED
                 // This change is too dangerous to make just before a release
                 } else if (!_tileSet.source->isClient()) {
-                    TileID parentId = visTileId.getParent();  //zoomBias);
+                    TileID parentId = visTileId.getParent(100);  // zoomBias = 100 to ensure we get z-1
+                    parentId.s = visTileId.s;
+                    minZoom = std::min(minZoom, parentId.z - 1);  // make sure proxy doesn't get canceled
                     if (entry.setProxy(ProxyID::parent)) {
                         LOGD("Requesting parent %s as proxy for failed tile %s for %s",
                              parentId.toString().c_str(), visTileId.toString().c_str(), _tileSet.source->name().c_str());
-                        addProxyForFailed(parentId);
-                        assert(minZoom < parentId.z);  //minZoom = std::min(minZoom, parentId.z - 1);
+                        addProxyForFailed(_tileSet, parentId, _view);
                     } else {
                         auto parentIt = tiles.find(parentId);
-                        if (parentIt != tiles.end() && parentIt->second.isCanceled() && entry.setProxy(ProxyID::parent2)) {
-                            TileID parent2Id = parentId.getParent();  //zoomBias);
-                            LOGD("Requesting grandparent %s as proxy for failed tile %s for %s",
-                                 parent2Id.toString().c_str(), visTileId.toString().c_str(), _tileSet.source->name().c_str());
-                            addProxyForFailed(parent2Id);
-                            assert(minZoom < parent2Id.z);  //minZoom = std::min(minZoom, parent2Id.z - 1);
+                        if (parentIt != tiles.end() && parentIt->second.isCanceled()) {
+                            TileID parent2Id = parentId.getParent(100);
+                            parent2Id.s = visTileId.s;
+                            minZoom = std::min(minZoom, parent2Id.z - 1);
+                            if (entry.setProxy(ProxyID::parent2)) {
+                                LOGD("Requesting grandparent %s as proxy for failed tile %s for %s",
+                                    parent2Id.toString().c_str(), visTileId.toString().c_str(), _tileSet.source->name().c_str());
+                                addProxyForFailed(_tileSet, parent2Id, _view);
+                            }
                         }
                     }
 #endif
@@ -650,8 +654,22 @@ void TileManager::removeTile(TileSet& _tileSet, std::map<TileID, TileEntry>::ite
     _tileIt = _tileSet.tiles.erase(_tileIt);
 }
 
+void TileManager::detectCircularProxies(TileSet& _tileSet)
+{
+    for(auto& pair : _tileSet.tiles) {
+        auto& entry = pair.second;
+        if(entry.m_proxies & uint8_t(ProxyID::parent)) {
+            auto tileIt = _tileSet.tiles.find(pair.first.getParent());
+            if (tileIt != _tileSet.tiles.end() && (tileIt->second.m_proxies & 0x0F))
+              LOGD("Proxy cycle: %s , %s", pair.first.toString().c_str(), tileIt->first);
+        }
+  }
+}
+
 #ifdef TANGRAM_PROXY_FOR_FAILED
 void TileManager::addProxyForFailed(TileSet& _tileSet, const TileID& _proxyTileId, const ViewState& _view) {
+
+    detectCircularProxies(_tileSet);
 
     auto tileIt = _tileSet.tiles.find(_proxyTileId);
     if (tileIt != _tileSet.tiles.end()) {
@@ -694,6 +712,8 @@ bool TileManager::updateProxyTile(TileSet& _tileSet, TileEntry& _tile, const Til
             auto& entry = it->second;
             entry.incProxyCounter();
 
+            detectCircularProxies(_tileSet);
+
             if (entry.tile) {
                 m_tiles.push_back(entry.tile);
             }
@@ -711,6 +731,8 @@ bool TileManager::updateProxyTile(TileSet& _tileSet, TileEntry& _tile, const Til
         auto result = tiles.emplace(_proxyTileId, proxyTile);
         auto& entry = result.first->second;
         entry.incProxyCounter();
+
+        detectCircularProxies(_tileSet);
 
         m_tiles.push_back(proxyTile);
         return true;

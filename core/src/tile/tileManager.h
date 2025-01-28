@@ -14,6 +14,8 @@
 #include <set>
 #include <vector>
 
+#define TANGRAM_PROXY_FOR_FAILED
+
 namespace Tangram {
 
 class Platform;
@@ -119,6 +121,12 @@ protected:
      * its proxy(ies) Tiles are removed
      */
     void clearProxyTiles(TileSet& _tileSet, const TileID& _tileID, TileEntry& _tile, std::vector<TileID>& _removes);
+
+#ifdef TANGRAM_PROXY_FOR_FAILED
+    // proxy tile for failed tile (reduces need to zoom out and back in to show tiles when offline)
+    void addProxyForFailed(TileSet& _tileSet, const TileID& _proxyTileId, const ViewState& _view);
+#endif
+    void detectCircularProxies(TileSet& _tileSet);
 
     TileSet* findTileSet(int64_t sourceId);
 
