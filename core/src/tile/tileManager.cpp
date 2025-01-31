@@ -412,7 +412,7 @@ void TileManager::updateTileSet(TileSet& _tileSet, const ViewState& _view) {
                     // Tile needs update - enqueue for loading
                     entry.task = _tileSet.source->createTask(visTileId);
                     enqueueTask(_tileSet, visTileId, _view);
-#ifdef TANGRAM_PROXY_FOR_FAILED
+#if 0  //def TANGRAM_PROXY_FOR_FAILED
                 // This change is too dangerous to make just before a release
                 } else if (!_tileSet.source->isClient()) {
                     TileID parentId = visTileId.getParent(100);  // zoomBias = 100 to ensure we get z-1
@@ -658,11 +658,19 @@ void TileManager::detectCircularProxies(TileSet& _tileSet)
 {
     for(auto& pair : _tileSet.tiles) {
         auto& entry = pair.second;
-        if(entry.m_proxies & uint8_t(ProxyID::parent)) {
-            auto tileIt = _tileSet.tiles.find(pair.first.getParent());
-            if (tileIt != _tileSet.tiles.end() && (tileIt->second.m_proxies & 0x0F))
-              LOGD("Proxy cycle: %s , %s", pair.first.toString().c_str(), tileIt->first);
+        for(int ii = 0; ii < 4; ++ii) {
+            if(entry.m_proxies & (1 << ii)) {
+                auto tileIt = _tileSet.tiles.find(pair.first.getChild(ii, _tileSet.source->maxZoom()));
+                if (tileIt != _tileSet.tiles.end() && (tileIt->second.m_proxies & uint8_t(ProxyID::parent))) {
+                    LOGD("Proxy cycle: %s , %s", pair.first.toString().c_str(), tileIt->first.toString().c_str());
+                }
+            }
         }
+        //if(entry.m_proxies & uint8_t(ProxyID::parent)) {
+        //    auto tileIt = _tileSet.tiles.find(pair.first.getParent());
+        //    if (tileIt != _tileSet.tiles.end() && (tileIt->second.m_proxies & 0x0F))
+        //      LOGD("Proxy cycle: %s , %s", pair.first.toString().c_str(), tileIt->first.toString().c_str());
+        //}
   }
 }
 
@@ -713,6 +721,8 @@ bool TileManager::updateProxyTile(TileSet& _tileSet, TileEntry& _tile, const Til
             entry.incProxyCounter();
 
             detectCircularProxies(_tileSet);
+            if(entry.isCanceled())
+              LOGD("Setting canceled entry as proxy (%s)!", entry.tile ? "w/ tile" : "w/o tile");
 
             if (entry.tile) {
                 m_tiles.push_back(entry.tile);
