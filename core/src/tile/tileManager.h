@@ -97,36 +97,16 @@ protected:
 
     void loadTiles();
 
-    /*
-     * Constructs a future (async) to load data of a new visible tile this is
-     *      also responsible for loading proxy tiles for the newly visible tiles
-     * @_tileID: TileID for which new Tile needs to be constructed
-     */
+    // add new visible tile to TileSet
     bool addTile(TileSet& _tileSet, const TileID& _tileID);
 
-    /*
-     * Removes a tile from m_tileSet
-     */
-    void removeTile(TileSet& _tileSet, std::map<TileID, TileEntry>::iterator& _tileIter);
-
-    /*
-     * Checks and updates m_tileSet with proxy tiles for every new visible tile
-     *  @_tile: Tile, the new visible tile for which proxies needs to be added
-     */
-    bool updateProxyTile(TileSet& _tileSet, TileEntry& _tile, const TileID& _proxy, ProxyID _proxyID);
+    // check cache for proxy for new tile
     void updateProxyTiles(TileSet& _tileSet, const TileID& _tileID, TileEntry& _tile);
-
-    /*
-     * Once a visible tile finishes loading and is added to m_tileSet, all
-     * its proxy(ies) Tiles are removed
-     */
-    void clearProxyTiles(TileSet& _tileSet, const TileID& _tileID, TileEntry& _tile, std::vector<TileID>& _removes);
 
 #ifdef TANGRAM_PROXY_FOR_FAILED
     // proxy tile for failed tile (reduces need to zoom out and back in to show tiles when offline)
     void addProxyForFailed(TileSet& _tileSet, const TileID& _proxyTileId, const ViewState& _view);
 #endif
-    void detectCircularProxies(TileSet& _tileSet);
 
     TileSet* findTileSet(int64_t sourceId);
 
@@ -154,7 +134,7 @@ protected:
 
     /* Temporary list of tiles that need to be loaded */
     struct TileLoadTask { double dist; TileSet* tileSet; TileID tileID; };
-    std::vector<TileLoadTask> m_loadTasks;  //std::tuple<double, TileSet*, TileID>
+    std::vector<TileLoadTask> m_loadTasks;
 
 };
 

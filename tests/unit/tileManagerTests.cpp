@@ -299,8 +299,8 @@ TEST_CASE( "Use proxy Tile - circular proxies", "[TileManager][updateTileSets]" 
     REQUIRE(worker.tasks.size() == 2);
     // tile 0/0/0 still loading
     REQUIRE(worker.tasks[0]->isCanceled() == false);
-    // tile 0/0/1 canceled
-    REQUIRE(worker.tasks[1]->isCanceled() == true);
+    // tile 0/0/1 canceled ... no longer true w/ new proxy tile logic (and proxy cycle no longer possible)
+    //REQUIRE(worker.tasks[1]->isCanceled() == true);
 
     worker.processTask();
     tileManager.updateTiles(viewState, visibleTiles_1);
