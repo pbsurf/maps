@@ -69,12 +69,13 @@ void TextLabel::applyAnchor(Anchor _anchor) {
     m_anchor = LabelProperty::anchorDirection(_anchor) * offset * 0.5f;
 }
 
-bool TextLabel::setElevation(ElevationManager& elevMgr, glm::dvec2 origin, double scale)
-{
-  bool ok1 = true, ok2 = true;
-  m_coordinates[0].z = elevMgr.getElevation(origin + glm::dvec2(m_coordinates[0])*scale, ok1)/scale;
-  m_coordinates[1].z = elevMgr.getElevation(origin + glm::dvec2(m_coordinates[1])*scale, ok2)/scale;
-  return ok1 && ok2;
+bool TextLabel::setElevation(ElevationManager& elevMgr, glm::dvec2 origin, double scale) {
+    bool ok0 = true, ok1 = true;
+    auto r0 = origin + glm::dvec2(m_coordinates[0])*scale;
+    auto r1 = origin + glm::dvec2(m_coordinates[1])*scale;
+    m_coordinates[0].z = elevMgr.m_terrainScale * elevMgr.getElevation(r0, ok0)/scale;
+    m_coordinates[1].z = elevMgr.m_terrainScale * elevMgr.getElevation(r1, ok1)/scale;
+    return ok0 && ok1;
 }
 
 bool TextLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& _viewState,

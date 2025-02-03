@@ -42,6 +42,7 @@ public:
   struct DepthData { std::vector<float> depth; int w = 0, h = 0; float zoom = 0; };
   DepthData m_depthData[2];
   int m_minZoom = 0;
+  float m_terrainScale = 1.0f;
 
   static std::unique_ptr<RenderState> m_renderState;
   static std::unique_ptr<AsyncWorker> offscreenWorker;

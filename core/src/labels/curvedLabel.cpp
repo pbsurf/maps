@@ -37,14 +37,13 @@ void CurvedLabel::applyAnchor(LabelProperty::Anchor _anchor) {
     m_anchor = LabelProperty::anchorDirection(_anchor) * offset * 0.5f;
 }
 
-bool CurvedLabel::setElevation(ElevationManager& elevMgr, glm::dvec2 origin, double scale)
-{
-  bool ok = true;
-  for(glm::vec3& p : m_modelTransform) {
-    p.z = elevMgr.getElevation(origin + glm::dvec2(p)*scale, ok)/scale;
-    if(!ok) break;
-  }
-  return ok;
+bool CurvedLabel::setElevation(ElevationManager& elevMgr, glm::dvec2 origin, double scale) {
+    bool ok = true;
+    for (glm::vec3& p : m_modelTransform) {
+        p.z = elevMgr.m_terrainScale * elevMgr.getElevation(origin + glm::dvec2(p)*scale, ok)/scale;
+        if(!ok) break;
+    }
+    return ok;
 }
 
 bool CurvedLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& _viewState,

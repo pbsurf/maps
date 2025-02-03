@@ -75,11 +75,11 @@ void SpriteLabel::applyAnchor(LabelProperty::Anchor _anchor) {
     m_anchor = LabelProperty::anchorDirection(_anchor) * m_dim * 0.5f;
 }
 
-bool SpriteLabel::setElevation(ElevationManager& elevMgr, glm::dvec2 origin, double scale)
-{
-  bool ok = true;
-  m_coordinates.z = elevMgr.getElevation(origin + glm::dvec2(m_coordinates)*scale, ok)/scale;
-  return ok;
+bool SpriteLabel::setElevation(ElevationManager& elevMgr, glm::dvec2 origin, double scale) {
+    bool ok = true;
+    auto r = origin + glm::dvec2(m_coordinates)*scale;
+    m_coordinates.z = elevMgr.m_terrainScale * elevMgr.getElevation(r, ok)/scale;
+    return ok;
 }
 
 bool SpriteLabel::updateScreenTransform(const glm::mat4& _mvp, const ViewState& _viewState,

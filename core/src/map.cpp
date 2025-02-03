@@ -196,6 +196,10 @@ Scene* Map::getScene() {
     return impl->scene.get();
 }
 
+View& Map::getView() {
+    return impl->view;
+}
+
 void Map::updateGlobals(const std::vector<SceneUpdate>& _sceneUpdates)
 {
   auto& config = const_cast<YAML::Node&>(impl->scene->config());

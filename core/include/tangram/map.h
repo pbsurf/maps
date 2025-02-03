@@ -14,6 +14,7 @@ namespace Tangram {
 
 class Platform;
 class TileSource;
+class View;
 class Scene;
 class SceneOptions;
 
@@ -204,6 +205,9 @@ public:
 
     // get the scene object
     Scene* getScene();
+
+    // get the View object
+    View& getView();
 
     // update global variables (only affects JS functions currently)
     void updateGlobals(const std::vector<SceneUpdate>& _sceneUpdates);

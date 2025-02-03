@@ -48,7 +48,7 @@ include $(ADD_MODULE)
 MODULE_BASE = $(MAKE_BASE)/duktape
 
 MODULE_SOURCES = duktape.c
-MODULE_INC_PUBLIC = .
+#MODULE_INC_PUBLIC = .
 MODULE_CCFLAGS = -fstrict-aliasing -fomit-frame-pointer -std=c99 -Wall
 
 include $(ADD_MODULE)
