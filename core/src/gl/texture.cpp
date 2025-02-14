@@ -37,11 +37,12 @@ bool Texture::loadImageFromMemory(const uint8_t* data, size_t length) {
     m_buffer.reset(loadImage(data, length, &width, &height, &internalfmt, int(bpp())));
 
     if (!m_buffer) {
+        // We now let raster tile task handle setting empty texture (or a proxy)
         // Default inconsistent texture data is set to a 1*1 pixel texture
         // This reduces inconsistent behavior when texture failed loading
         // texture data but a Tangram style shader requires a shader sampler
-        GLubyte pixel[4] = { 0, 0, 0, 255 };
-        setPixelData(1, 1, bpp(), pixel, bpp());
+        //GLubyte pixel[4] = { 0, 0, 0, 255 };
+        //setPixelData(1, 1, bpp(), pixel, bpp());
         return false;
     }
 

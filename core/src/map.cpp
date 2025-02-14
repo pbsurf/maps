@@ -230,8 +230,8 @@ void Map::setViewport(int _newX, int _newY, int _newWidth, int _newHeight) {
     LOGV("resize: %d x %d", _newWidth, _newHeight);
 
     impl->view.setViewport(_newX, _newY, _newWidth, _newHeight);
-
-    impl->selectionBuffer = std::make_unique<FrameBuffer>(_newWidth/2, _newHeight/2);
+    // force texture (instead of render buffer) so drawDebug() works
+    impl->selectionBuffer = std::make_unique<FrameBuffer>(_newWidth/2, _newHeight/2, false);
 }
 
 MapState Map::update(float _dt) {
@@ -336,7 +336,7 @@ void Map::render() {
     if (drawSelectionDebug) {
         impl->selectionBuffer->drawDebug(renderState, {viewport.z, viewport.w});
     } else if (drawDepthDebug) {
-        scene.elevationManager()->drawDepthDebug(renderState, {viewport.z, viewport.w});
+        scene.elevationManager()->drawDepthDebug(renderState, view);
     } else {
         // Render scene
         bool drawnAnimatedStyle = scene.render(renderState, view);
@@ -961,7 +961,7 @@ void Map::setupGL() {
 
     if (impl->selectionBuffer->valid()) {
         impl->selectionBuffer = std::make_unique<FrameBuffer>(impl->selectionBuffer->getWidth(),
-                                                              impl->selectionBuffer->getHeight());
+                                                              impl->selectionBuffer->getHeight(), false);
     }
 
     // Load GL extensions and capabilities

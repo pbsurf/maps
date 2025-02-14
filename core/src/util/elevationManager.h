@@ -33,7 +33,7 @@ public:
   static double elevationLerp(const Texture& tex, glm::vec2 pos, glm::vec2* gradOut = nullptr);
   static double elevationLerp(const Texture& tex, TileID tileId, ProjectedMeters meters);
 
-  void drawDepthDebug(RenderState& _rs, glm::vec2 _dim);
+  void drawDepthDebug(RenderState& _rs, const View& _view);
 
   std::shared_ptr<RasterSource> m_elevationSource;
 

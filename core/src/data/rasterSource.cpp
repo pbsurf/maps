@@ -39,7 +39,11 @@ public:
             // Decode texture data
             texture = source->createTexture(m_tileId, *rawTileData);
             if (!texture) {
-                raster = std::make_unique<Raster>(m_tileId, source->emptyTexture());
+                // cancel on decode failure to match behavior of TileTask (and behavior for download failure)
+                //  empty texture will be set in addRaster() if no proxy available
+                //raster = std::make_unique<Raster>(m_tileId, source->emptyTexture());
+                cancel();
+                return;
             }
         }
 
@@ -91,7 +95,7 @@ public:
                     return;
                 }
             } while(id.z > 0 && id.z + 2 >= m_tileId.z);
-            _mainTask.tile()->rasters().emplace_back(tileId(), source->m_emptyTexture);
+            _mainTask.tile()->rasters().emplace_back(tileId(), source->emptyTexture());
         } else {
             addRaster(*_mainTask.tile());
         }
@@ -138,8 +142,9 @@ std::unique_ptr<Texture> RasterSource::createTexture(TileID _tile, const std::ve
 
     auto data = reinterpret_cast<const uint8_t*>(_rawTileData.data());
     auto length = _rawTileData.size();
-
-    return std::make_unique<Texture>(data, length, m_texOptions, !m_keepTextureData);
+    auto tex = std::make_unique<Texture>(m_texOptions, !m_keepTextureData);
+    if (!tex->loadImageFromMemory(data, length)) { tex.reset(); }
+    return tex;
 }
 
 std::shared_ptr<TileData> RasterSource::parse(const TileTask& _task) const {
@@ -197,6 +202,7 @@ std::shared_ptr<TileTask> RasterSource::createTask(TileID _tileId) {
 }
 
 std::shared_ptr<Texture> RasterSource::cacheTexture(const TileID& _tileId, std::unique_ptr<Texture> _texture) {
+    assert(_texture && _texture->bufferSize() > 0 && _texture.get() != m_emptyTexture.get());
     TileID id(_tileId.x, _tileId.y, _tileId.z);
 
     auto& textureEntry = (*m_textures)[id];

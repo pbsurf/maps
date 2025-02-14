@@ -32,14 +32,13 @@
 
 namespace Tangram {
 
-static uint8_t* flipImage(const uint8_t* data, int width, int height, int bpp)
-{
+static uint8_t* flipImage(const uint8_t* data, int width, int height, int bpp) {
     // need to flip image vertically for OpenGL coordinate system
     // stbi_set_flip_vertically_on_load flips image in place, requiring 3x memcpy per row; we'd also need to
     //  switch to stbi_set_flip_vertically_on_load_thread to avoid conflict w/ other users of stb_image
     uint8_t* flipped = reinterpret_cast<uint8_t*>(std::malloc(width*height*bpp));
     int rowSize = width*bpp;
-    for(int y = 0; y < height; ++y) {
+    for (int y = 0; y < height; ++y) {
         const uint8_t* src = &data[y*rowSize];
         uint8_t* dst = &flipped[(height - y - 1)*rowSize];
         std::memcpy(dst, src, rowSize);
@@ -49,8 +48,7 @@ static uint8_t* flipImage(const uint8_t* data, int width, int height, int bpp)
 
 struct malloc_deleter { void operator()(void* x) { std::free(x); } };
 
-uint8_t* loadImage(const uint8_t* data, size_t length, int* width, int* height, GLint* pixelfmt, int channels)
-{
+uint8_t* loadImage(const uint8_t* data, size_t length, int* width, int* height, GLint* pixelfmt, int channels) {
     if (length < 2) return nullptr;
     // check for TIFF
     if ((data[0] == 'I' && data[1] == 'I') || (data[0] == 'M' && data[1] == 'M')) {
@@ -83,10 +81,10 @@ uint8_t* loadImage(const uint8_t* data, size_t length, int* width, int* height, 
             std::vector<float> fdata(image.width*image.height);
             if (image.bits_per_sample == 16) {
                 int16_t* src = (int16_t*)image.data.data();
-                for(size_t ii = 0; ii < fdata.size(); ++ii) { fdata[ii] = float(src[ii]); }
+                for (size_t ii = 0; ii < fdata.size(); ++ii) { fdata[ii] = float(src[ii]); }
             } else if (image.bits_per_sample == 32) {
                 int32_t* src = (int32_t*)image.data.data();
-                for(size_t ii = 0; ii < fdata.size(); ++ii) { fdata[ii] = float(src[ii]); }
+                for (size_t ii = 0; ii < fdata.size(); ++ii) { fdata[ii] = float(src[ii]); }
             }
             *width = image.width;
             *height = image.height;
@@ -117,26 +115,25 @@ uint8_t* loadImage(const uint8_t* data, size_t length, int* width, int* height, 
         ErrCode err = ErrCode::Ok;
         Lerc::LercInfo info;
         constexpr size_t lerc1hdr = 10 + 4 * sizeof(int) + 1 * sizeof(double);
-        if(data[0] == 'C' && length > lerc1hdr) {
-          info.RawInit();  // zero out
-          // cut and paste from Lerc::GetLercInfo() since that fn reads and discards the entire image to
-          //  get min,max values and check for additional bands (which we don't support anyway)
-          auto* ptr = data + 10 + 2 * sizeof(int);
-          memcpy(&info.nRows, ptr, sizeof(int));  ptr += sizeof(int);
-          memcpy(&info.nCols, ptr, sizeof(int));  ptr += sizeof(int);
-          memcpy(&info.maxZError, ptr, sizeof(double));  //ptr += sizeof(double);
-          info.dt = Lerc::DT_Float;
-          info.nDepth = 1;
-          info.nBands = 1;
-          // assume mask is present so Decode() doesn't fail
-          info.nMasks = 1;
-        }
-        else {
-          err = Lerc::GetLercInfo(data, length, info);
-          if (err != ErrCode::Ok) {
-              LOGE("Error getting LERC image info: %d", err);
-              return nullptr;
-          }
+        if (data[0] == 'C' && length > lerc1hdr) {
+            info.RawInit();  // zero out
+            // cut and paste from Lerc::GetLercInfo() since that fn reads and discards the entire image to
+            //  get min,max values and check for additional bands (which we don't support anyway)
+            auto* ptr = data + 10 + 2 * sizeof(int);
+            memcpy(&info.nRows, ptr, sizeof(int));  ptr += sizeof(int);
+            memcpy(&info.nCols, ptr, sizeof(int));  ptr += sizeof(int);
+            memcpy(&info.maxZError, ptr, sizeof(double));  //ptr += sizeof(double);
+            info.dt = Lerc::DT_Float;
+            info.nDepth = 1;
+            info.nBands = 1;
+            // assume mask is present so Decode() doesn't fail
+            info.nMasks = 1;
+        } else {
+            err = Lerc::GetLercInfo(data, length, info);
+            if (err != ErrCode::Ok) {
+                LOGE("Error getting LERC image info: %d", err);
+                return nullptr;
+            }
         }
 
         GLint fmt = 0;
@@ -165,8 +162,15 @@ uint8_t* loadImage(const uint8_t* data, size_t length, int* width, int* height, 
         Byte* pMasks = info.nMasks > 0 ? masks.data() : nullptr;
 
         if (info.dt == Lerc::DT_Float) {
-            err = Lerc::DecodeTempl((float*)pixels.data(), data, length, info.nDepth, w, h,
-                              info.nBands, info.nMasks, pMasks, nullptr, nullptr);
+            float* fp = (float*)pixels.data();
+            err = Lerc::DecodeTempl(fp, data, length, info.nDepth, w, h,
+                                    info.nBands, info.nMasks, pMasks, nullptr, nullptr);
+            // Tile of all zeros (very small compressed) may be returned instead of 404 - which is actually
+            //  helpful since it is deduped in cache and saves us from repeating request for missing tile
+            if (err == ErrCode::Ok && std::all_of(fp, fp + w*h, [](float x){ return x == 0.f; })) {
+                //LOGD("Discarding all zero LERC tile.");
+                return nullptr;
+            }
         } else {
             err = Lerc::DecodeTempl(pixels.data(), data, length, info.nDepth, w, h,
                               info.nBands, info.nMasks, pMasks, nullptr, nullptr);

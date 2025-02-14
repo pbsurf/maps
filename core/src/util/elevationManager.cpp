@@ -234,7 +234,7 @@ float ElevationManager::getDepth(glm::vec2 screenpos)
   return m_depthData[0].depth[int(pos.x) + int(d.h - pos.y - 1)*d.w];
 }
 
-void ElevationManager::drawDepthDebug(RenderState& _rs, glm::vec2 _dim)
+void ElevationManager::drawDepthDebug(RenderState& _rs, const View& _view)
 {
   TextureOptions texoptions;
   texoptions.pixelFormat = PixelFormat::FLOAT;
@@ -242,11 +242,15 @@ void ElevationManager::drawDepthDebug(RenderState& _rs, glm::vec2 _dim)
   texoptions.minFilter = TextureMinFilter::NEAREST;
   Texture tex(texoptions);
   auto& d = m_depthData[0];
-  tex.setPixelData(d.w, d.h, 4, (GLubyte*)m_depthData[0].depth.data(), d.depth.size()*4);
+  tex.setPixelData(d.w, d.h, 4, (GLubyte*)d.depth.data(), d.depth.size()*4);
 
   float worldTileSize = MapProjection::EARTH_CIRCUMFERENCE_METERS * std::exp2(-d.zoom);
   float maxTileDistance = worldTileSize * (std::exp2(7.0f) - 1.0f);
-  Primitives::drawTexture(_rs, tex, {0, 0}, _dim, 1/maxTileDistance);
+  float scale = std::min(maxTileDistance, 2*float(_view.getPosition().z));
+
+  auto vp = _view.getViewport();
+  _rs.blending(GL_FALSE);
+  Primitives::drawTexture(_rs, tex, {0, 0}, {vp.z, vp.w}, 1/scale);
 }
 
 ElevationManager::ElevationManager(std::shared_ptr<RasterSource> src, Style& style) : m_elevationSource(src)
