@@ -230,20 +230,32 @@ bool MBTilesDataSource::loadNextSource(std::shared_ptr<TileTask> _task, TileTask
         //  if this callback is not run on the main thread
         if (_task->hasData()) {
 
+            auto& task = static_cast<BinaryTileTask&>(*_task);
+            std::shared_ptr<std::vector<char>> tileData = task.rawTileData;
+            auto& zin = *task.rawTileData;
+            if (zin.size() > 10 && zin[0] == 0x1F && (unsigned char)zin[1] == 0x8B) {
+                auto pzout = std::make_shared<std::vector<char>>();
+                if (zlib_inflate(zin.data(), zin.size(), *pzout) == 0) {
+                    task.rawTileData = pzout;
+                    // rawTileData now points to uncompressed data for building tile, while tileData points
+                    //  to compressed data received from server to be stored in DB
+                    if (m_cacheMode && m_schemaOptions.compression != Compression::undefined) {
+                        m_db->exec("REPLACE INTO metadata (name, value) VALUES ('compression', 'undefined');");
+                        m_schemaOptions.compression = Compression::undefined;
+                    }
+                }
+            }
+
             if (m_cacheMode) {
-                if(_task->offlineId) {
+                if (_task->offlineId) {
                     // for offline map download, we must force retry if storing tile fails (due to locked DB)
-                    auto& task = static_cast<BinaryTileTask&>(*_task);
-                    if (!storeTileData(task.tileId(), *task.rawTileData, task.offlineId)) {
+                    if (!storeTileData(task.tileId(), *tileData, task.offlineId)) {
                         task.rawTileData->clear();
                     }
                 } else {
-                    m_worker->enqueue([this, _task](){
-                            auto& task = static_cast<BinaryTileTask&>(*_task);
-                            LOGD("%s - store tile: %s, %d",
-                                 m_name.c_str(), _task->tileId().toString().c_str(), task.hasData());
-                            storeTileData(_task->tileId(), *task.rawTileData);
-                        });
+                    m_worker->enqueue([this, _task, tileData](){
+                        storeTileData(_task->tileId(), *tileData);
+                    });
                 }
             }
 
@@ -498,6 +510,7 @@ bool MBTilesDataSource::storeTileData(const TileID& _tileId, const std::vector<c
 
         if (!m_db->exec("COMMIT;")) { break; }
         m_platform.notifyStorage(size, 0);
+        LOGD("%s - store tile: %s", m_name.c_str(), _tileId.toString().c_str());
         return true;
     } while (0);
 

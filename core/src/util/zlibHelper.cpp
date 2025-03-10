@@ -20,7 +20,7 @@ int zlib_inflate(const char* _data, size_t _size, std::vector<char>& dst) {
 #ifdef MZ_DEFAULT_WINDOW_BITS
     // miniz does not handle gzip - we will check for header and assume no extra header data; we can use
     //  miniz_gzip.h for more robust handling in the future
-    if (_data[0] == 0x1F && (unsigned char)_data[1] == 0x8B && _size > 10) {
+    if (_size > 10 && _data[0] == 0x1F && (unsigned char)_data[1] == 0x8B) {
       // last 4 bytes of gzip file contain uncompressed size
       union { uint8_t bytes[4]; uint32_t dword; } inflsize;
       memcpy(inflsize.bytes, &_data[_size-4], 4);
