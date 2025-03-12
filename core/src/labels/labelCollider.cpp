@@ -116,7 +116,6 @@ void LabelCollider::process(TileID _tileID, float _tileInverseScale, float _tile
     float tileScale = pow(2, _tileID.s - _tileID.z + overzoom);
     glm::vec2 screenSize{ _tileSize * tileScale };
 
-
     // try to avoid too many collisions error from isect2d - large number of labels typically means many in
     //  each repeat group, as the number of unique features per tile is limited
     if (m_labels.size() > 4096) {
@@ -126,7 +125,6 @@ void LabelCollider::process(TileID _tileID, float _tileInverseScale, float _tile
         auto isDead = [](const LabelEntry& l){ return l.label->isOccluded(); };
         m_labels.erase(std::remove_if(m_labels.begin(), m_labels.end(), isDead), m_labels.end());
     }
-
 
     // Project tile to NDC (-1 to 1, y-up)
     glm::mat4 mvp{1};

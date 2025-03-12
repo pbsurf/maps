@@ -298,6 +298,13 @@ bool Scene::load() {
 
     if (isCanceled(State::loading)) { return false; }
 
+#ifdef TANGRAM_NATIVE_STYLE_FNS
+    m_nativeFns.reserve(m_jsFunctions.size());
+    for (const std::string& js : m_jsFunctions) {
+        m_nativeFns.push_back(userGetStyleFunction(*this, js));
+    }
+#endif
+
     /// Now we are only waiting for pending fonts and textures:
     /// Let's initialize the TileBuilders on TileWorker threads
     /// in the meantime.

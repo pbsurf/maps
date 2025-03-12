@@ -16,11 +16,17 @@ namespace Tangram {
 
 class Scene;
 struct Feature;
-struct StyleParam;
 
 enum class StyleParamKey : uint8_t;
 enum class FilterKeyword : uint8_t;
 
+#define TANGRAM_NATIVE_STYLE_FNS 1
+#ifdef TANGRAM_NATIVE_STYLE_FNS
+// native function for improving tile build performance
+using NativeStyleFn = std::function<bool(const Feature&, StyleParam::Value&)>;
+using NativeStyleFns = std::vector<NativeStyleFn>;
+NativeStyleFn userGetStyleFunction(Scene& scene, const std::string& jsSource);
+#endif
 
 class StyleContext {
 
@@ -84,6 +90,9 @@ private:
     const Feature* m_feature = nullptr;
 
     std::unique_ptr<JSContext> m_jsContext;
+#ifdef TANGRAM_NATIVE_STYLE_FNS
+    const NativeStyleFns* m_nativeFns = nullptr;
+#endif
 };
 
 }

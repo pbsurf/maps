@@ -4,7 +4,7 @@
 #include "platform.h"
 #include "stops.h"
 #include "sceneOptions.h"
-#include "js/JavaScriptFwd.h"
+#include "styleContext.h"
 #include "util/fontDescription.h"
 #include "tile/tileManager.h"
 #include "util/color.h"
@@ -127,7 +127,7 @@ public:
     Scene* m_scene;
 };
 
-// TODO: define in cmake file, not here!
+// TODO: define in makefile, not here!
 #define TANGRAM_SVG_LOADER 1
 #ifdef TANGRAM_SVG_LOADER
   bool userLoadSvg(const char* svg, size_t len, Texture* texture);
@@ -156,6 +156,7 @@ public:
 
     const auto& config() const { return m_config; }
     const auto& functions() const { return m_jsFunctions; }
+    const auto& nativeFns() const { return m_nativeFns; }
     const auto& layers() const { return m_layers; }
     const auto& lightBlocks() const { return m_lightShaderBlocks; }
     const auto& lights() const { return m_lights; }
@@ -294,6 +295,9 @@ protected:
     DrawRuleNames m_names;
 
     SceneFunctions m_jsFunctions;
+#ifdef TANGRAM_NATIVE_STYLE_FNS
+    NativeStyleFns m_nativeFns;
+#endif
     SceneStops m_stops;
 
     Color m_background;

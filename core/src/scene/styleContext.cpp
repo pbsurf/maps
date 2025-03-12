@@ -14,7 +14,16 @@
 namespace Tangram {
 
 #ifdef TANGRAM_JS_TRACING
-void reportJSTrace(StyleContext::FunctionID _id, double secs);
+void reportJSTrace(uint32_t _id, double secs);
+struct JSTracer {
+    auto m_t0 = std::chrono::steady_clock::now();
+    uint32_t m_id;
+    JSTracer(uint32_t _id) : m_id(_id) {}
+    ~JSTracer() {
+        auto t1 = std::chrono::steady_clock::now();
+        reportJSTrace(m_id, std::chrono::duration<double>(t1 - m_t0).count());
+    }
+}
 #endif
 
 static const std::vector<std::string> s_geometryStrings = {
@@ -50,6 +59,9 @@ void StyleContext::initFunctions(const Scene& _scene) {
 
     setSceneGlobals(_scene.config()["global"]);
     setFunctions(_scene.functions());
+#ifdef TANGRAM_NATIVE_STYLE_FNS
+    m_nativeFns = &_scene.nativeFns();
+#endif
 }
 
 bool StyleContext::setFunctions(const std::vector<std::string>& _functions) {
@@ -128,13 +140,9 @@ void StyleContext::clear() {
 
 bool StyleContext::evalFilter(FunctionID _id) {
 #ifdef TANGRAM_JS_TRACING
-    auto t0 = std::chrono::high_resolution_clock::now();
+    JSTracer _jsTracer(_id);
 #endif
     bool result = m_jsContext->evaluateBooleanFunction(_id);
-#ifdef TANGRAM_JS_TRACING
-    auto t1 = std::chrono::high_resolution_clock::now();
-    reportJSTrace(_id, std::chrono::duration<double>(t1 - t0).count());
-#endif
     return result;
 }
 
@@ -142,8 +150,15 @@ bool StyleContext::evalStyle(FunctionID _id, StyleParamKey _key, StyleParam::Val
     _val = none_type{};
 
 #ifdef TANGRAM_JS_TRACING
-    auto t0 = std::chrono::high_resolution_clock::now();
+    JSTracer _jsTracer(_id);
 #endif
+
+#ifdef TANGRAM_NATIVE_STYLE_FNS
+    if (m_nativeFns && _id < m_nativeFns->size() && m_nativeFns->at(_id)) {
+        return m_nativeFns->at(_id)(*m_feature, _val);
+    }
+#endif
+
     JSScope jsScope(*m_jsContext);
     auto jsValue = jsScope.getFunctionResult(_id);
     if (!jsValue) {
@@ -319,10 +334,6 @@ bool StyleContext::evalStyle(FunctionID _id, StyleParamKey _key, StyleParam::Val
     } else {
         LOGW("Unhandled return type from Javascript style function for %d.", _key);
     }
-#ifdef TANGRAM_JS_TRACING
-    auto t1 = std::chrono::high_resolution_clock::now();
-    reportJSTrace(_id, std::chrono::duration<double>(t1 - t0).count());
-#endif
     return !_val.is<none_type>();
 }
 
