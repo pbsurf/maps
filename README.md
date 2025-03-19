@@ -1,6 +1,36 @@
-* Fork of Tangram ES for use with [Stylus Labs Maps](https://www.github.com/styluslabs/maps) *
+*Fork of Tangram ES for use with [Ascend Maps](https://www.github.com/styluslabs/maps)*
 
 Compatibility with upstream will be restored in the future.
+
+Major changes include:
+* 3D terrain support (incl. label occlusion, sky, etc.)
+* eliminating duplicate tile loads (when a source is used multiple times)
+* tile level-of-detail based on screen area (in pixels**2)
+* try proxy tile if tile loading fails (for better offline support)
+* TIFF and LERC raster support
+* GLES 3 support
+* support for native scene style functions (performance improvement over JS)
+* support for MBTiles as cache for online source, incl. last access tracking and max-age
+* optional fallback marker shown when a marker is hidden by collision
+* support for zoom_offset < 0 (for better satellite imagery resolution when pixel scale > 1)
+* contour line label support
+* support JS function for generating tile URL (per tile)
+* $latitude, $longitude in scene style for location dependent styling adjustments
+* support SVG images embedded in scene style (with external SVG renderer, e.g., nanosvg)
+* support for fixed boolean values in filters to allow use of scene globals
+* canceling all URL requests when destroying Scene
+* misc optimizations based on profiling
+* support plain makefile build
+* fix some proxy tile issues (e.g. cycles)
+* fix some issues when very large number of labels present
+* fix some crashes related to async Scene destruction
+
+Dependency changes:
+* make glm and stb submodules
+* absorb tangrams/* submodules
+* replace SQLiteCpp with simple single header (200LOC) sqlite C++ wrapper
+* replace old yaml-cpp with custom yaml/json library (crashes due to non-atomic ref counting in tangrams/yaml-cpp)
+
 
 Tangram ES
 ==========
