@@ -35,7 +35,7 @@ namespace Tangram {
 struct PolylineVertexNoUVs {
     PolylineVertexNoUVs(glm::vec2 position, glm::vec2 extrude, glm::vec2 uv,
                         glm::i16vec2 width, glm::i16vec2 height, GLuint abgr, GLuint selection)
-        : pos(glm::i16vec2{ glm::round(position * position_scale)}, height),
+        : pos(glm::i16vec2{ nearbyint(position * position_scale)}, height),
           extrude(glm::i16vec2{extrude * extrusion_scale}, width),
           abgr(abgr),
           selection(selection) {}
@@ -166,8 +166,8 @@ public:
             JoinTypes join = JoinTypes::miter;
 
             void set(float _width, float _dWdZ, float _height, float _order) {
-                height = { glm::round(_height * position_scale), _order * order_scale};
-                width = { glm::round(_width * extrusion_scale), glm::round(_dWdZ * extrusion_scale) };
+                height = { std::nearbyint(_height * position_scale), _order * order_scale};
+                width = { std::nearbyint(_width * extrusion_scale), std::nearbyint(_dWdZ * extrusion_scale) };
             }
         } fill, stroke;
 

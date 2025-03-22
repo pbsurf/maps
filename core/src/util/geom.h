@@ -47,6 +47,20 @@ constexpr T abs(T value) {
     return value < 0 ? -value : value;
 }
 
+// glm::round() (uses std::round()) is slow!
+// nearbyint uses current FPU rounding mode (should be nearest) and optimizes to `roundps` on x64
+inline glm::vec2 nearbyint(glm::vec2 in) {
+    return {std::nearbyint(in.x), std::nearbyint(in.y)};
+}
+
+inline glm::vec3 nearbyint(glm::vec3 in) {
+    return {std::nearbyint(in.x), std::nearbyint(in.y), std::nearbyint(in.z)};
+}
+
+inline glm::vec4 nearbyint(glm::vec4 in) {
+    return {std::nearbyint(in.x), std::nearbyint(in.y), std::nearbyint(in.z), std::nearbyint(in.w)};
+}
+
 struct BoundingBox {
 
     glm::dvec2 min;

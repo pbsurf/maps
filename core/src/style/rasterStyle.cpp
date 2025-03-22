@@ -31,7 +31,7 @@ struct SharedMesh : public StyledMesh
 
 struct RasterVertex {
     RasterVertex(glm::vec2 position)
-        : pos(glm::i16vec2{ glm::round(position * position_scale) }) {}
+        : pos(glm::i16vec2{ nearbyint(position * position_scale) }) {}
 
     glm::i16vec2 pos;
 };

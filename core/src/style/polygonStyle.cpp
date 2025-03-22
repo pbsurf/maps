@@ -30,7 +30,7 @@ namespace Tangram {
 struct PolygonVertexNoUVs {
 
     PolygonVertexNoUVs(glm::vec3 position, uint32_t order, glm::vec3 normal, glm::vec2 uv, GLuint abgr, GLuint selection)
-        : pos(glm::i16vec4{ glm::round(position * position_scale), order }),
+        : pos(glm::i16vec4{ nearbyint(position * position_scale), order }),
           norm(normal * normal_scale),
           abgr(abgr),
           selection(selection) {}
