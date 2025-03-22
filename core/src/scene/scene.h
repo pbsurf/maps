@@ -156,13 +156,15 @@ public:
 
     const auto& config() const { return m_config; }
     const auto& functions() const { return m_jsFunctions; }
-    const auto& nativeFns() const { return m_nativeFns; }
     const auto& layers() const { return m_layers; }
     const auto& lightBlocks() const { return m_lightShaderBlocks; }
     const auto& lights() const { return m_lights; }
     const auto& options() const { return m_options; }
     const auto& styles() const { return m_styles; }
     const auto& textures() const { return m_textures.textures; }
+
+    const auto& nativeFns() const { return m_nativeFns; }
+    auto& nativeContext() { return m_nativeContext; }
 
     std::shared_ptr<TileSource> getTileSource(int32_t id) const;
     std::shared_ptr<Texture> getTexture(const std::string& name) const;
@@ -295,14 +297,16 @@ protected:
     DrawRuleNames m_names;
 
     SceneFunctions m_jsFunctions;
-#ifdef TANGRAM_NATIVE_STYLE_FNS
-    NativeStyleFns m_nativeFns;
-#endif
     SceneStops m_stops;
 
     Color m_background;
     Stops m_backgroundStops;
     animate m_animated = none;
+
+#ifdef TANGRAM_NATIVE_STYLE_FNS
+    std::shared_ptr<void> m_nativeContext;
+    NativeStyleFns m_nativeFns;
+#endif
 
     /// ---------------------------------------------------------------///
     /// Runtime Data

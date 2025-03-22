@@ -16,14 +16,14 @@ namespace Tangram {
 #ifdef TANGRAM_JS_TRACING
 void reportJSTrace(uint32_t _id, double secs);
 struct JSTracer {
-    auto m_t0 = std::chrono::steady_clock::now();
+    std::chrono::steady_clock::time_point m_t0 = std::chrono::steady_clock::now();
     uint32_t m_id;
     JSTracer(uint32_t _id) : m_id(_id) {}
     ~JSTracer() {
         auto t1 = std::chrono::steady_clock::now();
         reportJSTrace(m_id, std::chrono::duration<double>(t1 - m_t0).count());
     }
-}
+};
 #endif
 
 static const std::vector<std::string> s_geometryStrings = {
