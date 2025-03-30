@@ -5,6 +5,7 @@
 #include "log.h"
 #include "platform.h"
 #include "util/url.h"
+#include "util/util.h"
 
 #define SQLITEPP_LOGW LOGW
 #define SQLITEPP_LOGE LOGE
@@ -100,8 +101,7 @@ MBTilesQueries::MBTilesQueries(sqlite3* db) :
     getTileData(db, "SELECT tile_data FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;") {}
 
 MBTilesQueries::MBTilesQueries(sqlite3* db, tag_cache) :
-    getTileData(db, "SELECT tile_data, images.tile_id,"
-        " (CAST(strftime('%s') AS INTEGER) - images.created_at) AS age FROM images JOIN map ON"
+    getTileData(db, "SELECT tile_data, images.tile_id, images.created_at FROM images JOIN map ON"
         " images.tile_id = map.tile_id WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;"),
     putMap(db, "REPLACE INTO map (zoom_level, tile_column, tile_row, tile_id) VALUES (?, ?, ?, ?);"),
     putImage(db, "REPLACE INTO images (tile_id, tile_data, created_at) VALUES (?, ?, CAST(strftime('%s') AS INTEGER));"),
@@ -123,6 +123,8 @@ MBTilesDataSource::MBTilesDataSource(Platform& _platform, std::string _name, std
       m_platform(_platform) {
 
     m_worker = std::make_unique<AsyncWorker>(("MBTilesDataSource worker: " + _name).c_str());
+    // max_age > 2**30 is interpreted as minimum creation time (clamped to current time)
+    if (m_maxCacheAge > (1<<30)) { m_maxCacheAge = std::min(m_maxCacheAge, int64_t(secSinceEpoch())); }
 
     openMBTiles();
 }
@@ -164,14 +166,16 @@ bool MBTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb
             auto tileData = std::make_unique<std::vector<char>>();
             // RasterTileTask::hasData() doesn't check if rawTileData is empty - it probably should, but
             //  let's not set rawTileData to empty vector, to match NetworkDataSource behavior
-            int64_t tileAge = 0;
-            getTileData(tileId, *tileData, tileAge, task.offlineId);
+            int64_t createdAt = 0;
+            getTileData(tileId, *tileData, createdAt, task.offlineId);
             LOGTO("<<< DB query for %s %s%s", _task->source() ? _task->source()->name().c_str() : "?",
                   tileId.toString().c_str(), tileData->empty() ? " (not found)" : "");
 
             // if tile is expired, request from network, falling back to stale tile on failure
+            int64_t minCreatedAt = m_maxCacheAge > (1<<30) ? m_maxCacheAge
+                                                           : int64_t(secSinceEpoch()) - m_maxCacheAge;
             TileTaskCb stalecb;
-            if (next && m_cacheMode && tileAge > m_maxCacheAge) {
+            if (next && m_cacheMode && createdAt < minCreatedAt) {
                 LOGV("%s - stale tile: %s", m_name.c_str(), tileId.toString().c_str());
                 // can't capture unique_ptr, and callback not guaranteed to be called so can't use bare ptr
                 // ... and we don't want to put stale data in rawTileData or we'd need a flag to skip writing
