@@ -408,6 +408,9 @@ bool MBTilesDataSource::testSchema(SQLiteDB& db) {
         }
     });
 
+    // one issue w/ WAL is lack of clean application exit on mobile to flush it
+    //db.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;");
+
     return true;
 }
 
