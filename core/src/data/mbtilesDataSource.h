@@ -24,7 +24,7 @@ public:
 
     void clear() override {}
 
-    int64_t getOfflineSize();
+    SQLiteDB* getDB() { return m_db.get(); }
 
 private:
     bool getTileData(const TileID& _tileId, std::vector<char>& _data, int64_t& _tileAge, int offlineId);

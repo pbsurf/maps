@@ -89,7 +89,6 @@ struct MBTilesQueries {
     // caching and offline maps
     SQLiteStmt getOffline = nullptr;
     SQLiteStmt putOffline = nullptr;
-    SQLiteStmt getOfflineSize = nullptr;
     SQLiteStmt putLastAccess = nullptr;
 
     struct tag_cache {};
@@ -107,8 +106,6 @@ MBTilesQueries::MBTilesQueries(sqlite3* db, tag_cache) :
     putImage(db, "REPLACE INTO images (tile_id, tile_data, created_at) VALUES (?, ?, CAST(strftime('%s') AS INTEGER));"),
     getOffline(db, "SELECT 1,tile_id FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?;"),
     putOffline(db, "REPLACE INTO offline_tiles (tile_id, offline_id) VALUES (?, ?);"),
-    getOfflineSize(db, "SELECT sum(length(tile_data)) FROM images WHERE tile_id IN"
-        " (SELECT tile_id FROM offline_tiles);"),
     putLastAccess(db, "REPLACE INTO tile_last_access (tile_id, last_access) VALUES"
         " (?, CAST(strftime('%s') AS INTEGER));") {}
 
@@ -524,14 +521,6 @@ bool MBTilesDataSource::storeTileData(const TileID& _tileId, const std::vector<c
     LOGE("%s - SQL error storing tile %s: %s", m_name.c_str(), _tileId.toString().c_str(), m_db->errMsg());
     m_db->exec("ROLLBACK;");
     return false;
-}
-
-int64_t MBTilesDataSource::getOfflineSize() {
-    int64_t size = 0;
-    if(m_queries) {
-        m_queries->getOfflineSize.exec([&](int64_t s){ size = s; });
-    }
-    return size;
 }
 
 }
