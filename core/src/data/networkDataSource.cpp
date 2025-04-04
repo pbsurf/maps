@@ -137,7 +137,7 @@ bool NetworkDataSource::loadTileData(std::shared_ptr<TileTask> task, TileTaskCb 
         dlTask.urlRequestHandle = 0;
 
         if (response.error) {
-            LOGD("URL request '%s': %s", url.string().c_str(), response.error);
+            LOGW("Error '%s' for URL %s", response.error, url.string().c_str());
         } else if (!response.content.empty()) {
             dlTask.rawTileData = std::make_shared<std::vector<char>>(std::move(response.content));
         }

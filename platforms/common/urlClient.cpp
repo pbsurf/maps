@@ -511,7 +511,8 @@ void UrlClient::curlLoop() {
                     response.error = Platform::cancel_message;
 
                 } else {
-                    LOGW("Failed with error %s for url: %s", task.curlErrorString, url);
+                    // LOGD, with the assumption LOGW is used in NetworkDataSource
+                    LOGD("Failed with error %s for url: %s", task.curlErrorString, url);
                     response.error = task.curlErrorString;
                 }
 
