@@ -1706,7 +1706,7 @@ Filter SceneLoader::generatePredicate(const Node& _node, std::string _key) {
         std::vector<Value> values;
         for (const auto& valItr : _node) {
             double number;
-            if (YamlUtil::getDouble(valItr, number, false)) {
+            if (!valItr.IsQuoted() && YamlUtil::getDouble(valItr, number, false)) {
                 values.emplace_back(number);
             } else {
                 const std::string& value = valItr.Scalar();
