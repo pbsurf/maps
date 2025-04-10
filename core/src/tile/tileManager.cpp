@@ -222,7 +222,14 @@ bool TileManager::updateTileSets(const View& _view) {
                 if (!active[ii]) { continue; }
                 auto& tileSet = m_tileSets[ii];
                 int zoomBias = tileSet.source->zoomBias();
-                int maxZoom = std::min(tileSet.source->maxZoom(), _view.getIntegerZoom() - zoomBias);
+                int maxZoom = tileSet.source->maxZoom();
+                // for raster source, use highest max zoom of source and all attached rasters
+                if (tileSet.source->isRaster()) {
+                    for (const auto& rs : tileSet.source->rasterSources()) {
+                        maxZoom = std::max(maxZoom, rs->maxZoom());
+                    }
+                }
+                maxZoom = std::min(maxZoom, _view.getIntegerZoom() - zoomBias);
                 if (tileId.z >= maxZoom || area < maxArea*std::exp2(2*float(zoomBias))) {
                     TileID visId = tileId;
                     // Ensure that s = z + bias (larger s OK if overzoomed) so that proxy tiles can be found
