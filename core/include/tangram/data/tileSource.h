@@ -81,6 +81,7 @@ public:
       std::string cacheFile;
       std::string url;
       UrlOptions urlOptions;
+      Format format;
     };
 
     /* Tile data sources must have a name and a URL template that defines where to find

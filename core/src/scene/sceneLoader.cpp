@@ -813,6 +813,7 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
     }
 
     std::shared_ptr<TileSource> sourcePtr;
+    TileSource::Format vectorFmt = TileSource::Format::GeoJson;
 
     if (type == "GeoJSON" && !isTiled) {
         bool generateCentroids = YamlUtil::getBoolOrDefault(_source["generate_label_centroids"], false);
@@ -830,20 +831,21 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
         sourcePtr = std::make_shared<TileSource>(_name, std::move(rawSources), zoomOptions);
 
         if (type == "GeoJSON") {
-            sourcePtr->setFormat(TileSource::Format::GeoJson);
+            vectorFmt = TileSource::Format::GeoJson;
         } else if (type == "TopoJSON") {
-            sourcePtr->setFormat(TileSource::Format::TopoJson);
+            vectorFmt = TileSource::Format::TopoJson;
         } else if (type == "MVT") {
-            sourcePtr->setFormat(TileSource::Format::Mvt);
+            vectorFmt = TileSource::Format::Mvt;
         } else {
             LOGE("Source '%s' does not have a valid type. " \
                  "Valid types are 'GeoJSON', 'TopoJSON', and 'MVT'. " \
                  "This source will be ignored.", _name.c_str());
             return nullptr;
         }
+        sourcePtr->setFormat(vectorFmt);
     }
 
-    sourcePtr->setOfflineInfo({cachefile, url, urlOptions});
+    sourcePtr->setOfflineInfo({cachefile, url, urlOptions, vectorFmt});
 
     return sourcePtr;
 }
