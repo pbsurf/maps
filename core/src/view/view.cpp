@@ -647,8 +647,8 @@ float View::getTileScreenArea(TileID tile) const {
         float elev1 = (dist < m_pos.z) ? std::min(9000.f, m_eye.z) : 0;  // Mt. Everest
 
         auto b00 = tileCoordsToClipSpace(tc, elev1);
-        auto b01 = tileCoordsToClipSpace({tc.x, tc.y + 1, tc.z}, elev1);
-        auto b10 = tileCoordsToClipSpace({tc.x + 1, tc.y, tc.z}, elev1);
+        auto b01 = tileCoordsToClipSpace({tc.x, tc.y + 1, tc.z}, 0);  //elev1);
+        auto b10 = tileCoordsToClipSpace({tc.x + 1, tc.y, tc.z}, 0);  //elev1);
         auto b11 = tileCoordsToClipSpace({tc.x + 1, tc.y + 1, tc.z}, elev1);
         auto b = glm::transpose(glm::mat4(b00, b01, b10, b11));
         auto wb = glm::abs(b[3]);

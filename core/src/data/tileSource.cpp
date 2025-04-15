@@ -80,6 +80,7 @@ void TileSource::clearData() {
 
 void TileSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb _cb) {
 
+    assert(_task->tileId().z <= m_zoomOptions.maxZoom);
     if (m_sources) {
         if (_task->needsLoading()) {
             if (m_sources->loadTileData(_task, _cb)) {
