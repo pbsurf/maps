@@ -38,8 +38,6 @@ protected:
 
     std::shared_ptr<Texture> cacheTexture(const TileID& _tileId, std::unique_ptr<Texture> _texture);
 
-    std::shared_ptr<Texture> emptyTexture() { return m_emptyTexture; }
-
 public:
 
     bool m_keepTextureData = false;
@@ -59,6 +57,8 @@ public:
     bool isRaster() const override { return true; }
 
     void generateGeometry(bool _generateGeometry) override;
+
+    std::shared_ptr<Texture> emptyTexture() { return m_emptyTexture; }
 
 };
 

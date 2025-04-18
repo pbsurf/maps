@@ -20,8 +20,7 @@ namespace Tangram {
 
 struct TileManager::TileEntry {
 
-    TileEntry(std::shared_ptr<Tile>& _tile)
-        : tile(_tile), m_proxyCounter(0), m_visible(false) {}
+    TileEntry(std::shared_ptr<Tile>& _tile) : tile(_tile) {}
 
     ~TileEntry() { clearTask(); }
 
@@ -29,10 +28,13 @@ struct TileManager::TileEntry {
     std::shared_ptr<TileTask> task;
 
     /* A Counter for number of tiles this tile acts a proxy for */
-    int32_t m_proxyCounter;
+    int32_t m_proxyCounter = 0;
+
+    // set if tile has failed raster subtasks
+    int32_t numMissingRasters = 0;
 
     // is tile in TileSet.visibleTiles?
-    bool m_visible;
+    bool m_visible = false;
 
     bool isInProgress() {
         return bool(task) && !task->isCanceled();
@@ -61,9 +63,14 @@ struct TileManager::TileEntry {
     bool completeTileTask() {
         if (bool(task) && task->isReady()) {
 
+            int32_t nfailed = false;
             for (auto& subtask : task->subTasks()) {
-                if (!subtask->isReady() && !subtask->isCanceled()) { return false; }
+                if (!subtask->isReady()) {
+                    if (!subtask->isCanceled()) { return false; }
+                    ++nfailed;
+                }
             }
+            numMissingRasters = nfailed;
 
             task->complete();
             --task->shareCount;
@@ -222,14 +229,9 @@ bool TileManager::updateTileSets(const View& _view) {
                 if (!active[ii]) { continue; }
                 auto& tileSet = m_tileSets[ii];
                 int zoomBias = tileSet.source->zoomBias();
-                int maxZoom = tileSet.source->maxZoom();
-                // for raster source, use highest max zoom of source and all attached rasters
-                if (tileSet.source->isRaster()) {
-                    for (const auto& rs : tileSet.source->rasterSources()) {
-                        maxZoom = std::max(maxZoom, rs->maxZoom());
-                    }
-                }
-                maxZoom = std::min(maxZoom, _view.getIntegerZoom() - zoomBias);
+                // substantial redesign needed for something like this to work:
+                //for (auto& rs : tileSet.source->rasterSources()) { maxZoom = std::max(maxZoom, rs->maxZoom()); }
+                int maxZoom = std::min(tileSet.source->maxZoom(), _view.getIntegerZoom() - zoomBias);
                 if (tileId.z >= maxZoom || area < maxArea*std::exp2(2*float(zoomBias))) {
                     TileID visId = tileId;
                     // Ensure that s = z + bias (larger s OK if overzoomed) so that proxy tiles can be found
@@ -361,28 +363,6 @@ void TileManager::updateTileSet(TileSet& _tileSet, const ViewState& _view) {
                     // Tile needs update - enqueue for loading
                     entry.task = _tileSet.source->createTask(visTileId);
                     enqueueTask(_tileSet, visTileId, _view);
-#if 0  //def TANGRAM_PROXY_FOR_FAILED
-                // This change is too dangerous to make just before a release
-                } else if (!_tileSet.source->isClient()) {
-                    TileID parentId = visTileId.getParent(100);  // zoomBias = 100 to ensure we get z-1
-                    parentId.s = visTileId.s;
-                    minProxyZ = std::min(minProxyZ, parentId.z - 1);  // make sure proxy doesn't get canceled
-                    auto parentIt = tiles.find(parentId);
-                    if (parentIt == tiles.end()) {
-                        LOGD("Requesting parent %s as proxy for failed tile %s for %s",
-                            parentId.toString().c_str(), visTileId.toString().c_str(), _tileSet.source->name().c_str());
-                        addProxyForFailed(_tileSet, parentId, _view);
-                    } else if (parentIt->second.isCanceled()) {
-                        TileID parent2Id = parentId.getParent(100);
-                        parent2Id.s = visTileId.s;
-                        minProxyZ = std::min(minProxyZ, parent2Id.z - 1);
-                        if (tiles.find(parent2Id) == tiles.end()) {
-                            LOGD("Requesting grandparent %s as proxy for failed tile %s for %s",
-                                parent2Id.toString().c_str(), visTileId.toString().c_str(), _tileSet.source->name().c_str());
-                            addProxyForFailed(_tileSet, parent2Id, _view);
-                        }
-                    }
-#endif
                 }
             }
 
@@ -473,6 +453,29 @@ void TileManager::updateTileSet(TileSet& _tileSet, const ViewState& _view) {
             if (entry.tile) {
                 entry.tile->setProxyDepth(entry.m_proxyCounter > 0 ? std::max(maxVisS - tileId.s, 1) : 0);
                 m_tiles.push_back(entry.tile);
+                // check to see if a replacement is now available for missing raster
+                if (entry.numMissingRasters > 0) {
+                    auto& srcs = _tileSet.source->rasterSources();
+                    auto& rasters = entry.tile->rasters();
+                    size_t offset = rasters.size() - srcs.size();
+                    for (size_t ii = 0; ii < srcs.size(); ++ii) {
+                        if (rasters[ii+offset].texture != srcs[ii]->emptyTexture()) { continue; }
+                        TileID id(tileId.x, tileId.y, tileId.z);
+                        do {
+                            id = id.getParent();
+                            auto proxy = srcs[ii]->getTexture(id);
+                            if (proxy) {
+                                rasters[ii+offset].tileID = TileID(id.x, id.y, id.z, tileId.s);
+                                rasters[ii+offset].texture = proxy;
+                                LOGD("Found proxy %s for missing subtask raster %s %s",
+                                     id.toString().c_str(), srcs[ii]->name().c_str(), tileId.toString().c_str());
+                                --entry.numMissingRasters;
+                                break;
+                            }
+                        } while (id.z > 14 || (id.z > 0 && id.z + 2 >= tileId.z));
+                        if (entry.numMissingRasters <= 0) { break; }
+                    }
+                }
             } else if (entry.isInProgress()) {
                 auto& task = entry.task;
                 // Update tile distance to map center for load priority.
@@ -588,37 +591,6 @@ bool TileManager::addTile(TileSet& _tileSet, const TileID& _tileID) {
 
     return bool(tile);
 }
-
-#ifdef TANGRAM_PROXY_FOR_FAILED
-void TileManager::addProxyForFailed(TileSet& _tileSet, const TileID& _proxyTileId, const ViewState& _view) {
-
-    auto tileIt = _tileSet.tiles.find(_proxyTileId);
-    if (tileIt != _tileSet.tiles.end()) {
-        //tileIt->second.incProxyCounter();
-        return;
-    }
-
-    auto tile = m_tileCache->get(_tileSet.source->id(), _proxyTileId);
-    if (tile) {
-        if (tile->sourceGeneration() == _tileSet.source->generation()) {
-            m_tiles.push_back(tile);
-            tile->resetState();
-        } else {
-            tile.reset();
-        }
-    }
-
-    // Add TileEntry to TileSet
-    auto entryit = _tileSet.tiles.emplace(_proxyTileId, tile);
-    if (!tile) {
-        TileEntry& entry = entryit.first->second;
-        entry.task = _tileSet.source->createTask(_proxyTileId);
-        enqueueTask(_tileSet, _proxyTileId, _view);
-        m_tilesInProgress++;
-        //entry.incProxyCounter();
-    }
-};
-#endif
 
 void TileManager::updateProxyTiles(TileSet& _tileSet, const TileID& _tileID, TileEntry& _tile) {
     // should we prefer child over parent as proxy?

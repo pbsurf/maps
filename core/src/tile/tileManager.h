@@ -14,8 +14,6 @@
 #include <set>
 #include <vector>
 
-#define TANGRAM_PROXY_FOR_FAILED
-
 namespace Tangram {
 
 class Platform;
@@ -102,11 +100,6 @@ protected:
 
     // check cache for proxy for new tile
     void updateProxyTiles(TileSet& _tileSet, const TileID& _tileID, TileEntry& _tile);
-
-#ifdef TANGRAM_PROXY_FOR_FAILED
-    // proxy tile for failed tile (reduces need to zoom out and back in to show tiles when offline)
-    void addProxyForFailed(TileSet& _tileSet, const TileID& _proxyTileId, const ViewState& _view);
-#endif
 
     TileSet* findTileSet(int64_t sourceId);
 

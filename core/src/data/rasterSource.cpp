@@ -74,27 +74,16 @@ public:
 
         addRaster(*m_tile);
 
-        for (auto& subTask : m_subTasks) {
+        for (auto& subtask : m_subTasks) {
             //assert(subTask->isReady());
-            subTask->complete(*this);
+            subtask->complete(*this);
         }
     }
 
     void complete(TileTask& _mainTask) override {
         if (!isReady()) {  //isCanceled()?
+            // check for alternative raster is now in TileManager
             auto source = rasterSource();
-            // attempt to find a proxy for missing raster
-            TileID id(m_tileId.x, m_tileId.y, m_tileId.z);
-            do {
-                id = id.getParent();
-                auto proxy = source->getTexture(id);
-                if (proxy) {
-                    _mainTask.tile()->rasters().emplace_back(TileID(id.x, id.y, id.z, m_tileId.s), proxy);
-                    LOGD("Found proxy %s for missing subtask raster %s %s",
-                         id.toString().c_str(), source->name().c_str(), tileId().toString().c_str());
-                    return;
-                }
-            } while(id.z > 0 && id.z + 2 >= m_tileId.z);
             _mainTask.tile()->rasters().emplace_back(tileId(), source->emptyTexture());
         } else {
             addRaster(*_mainTask.tile());
