@@ -31,7 +31,7 @@ struct TileManager::TileEntry {
     int32_t m_proxyCounter = 0;
 
     // set if tile has failed raster subtasks
-    int32_t numMissingRasters = 0;
+    int32_t numMissingRasters = -1;
 
     // is tile in TileSet.visibleTiles?
     bool m_visible = false;
@@ -63,14 +63,9 @@ struct TileManager::TileEntry {
     bool completeTileTask() {
         if (bool(task) && task->isReady()) {
 
-            int32_t nfailed = false;
             for (auto& subtask : task->subTasks()) {
-                if (!subtask->isReady()) {
-                    if (!subtask->isCanceled()) { return false; }
-                    ++nfailed;
-                }
+                if (!subtask->isReady() && !subtask->isCanceled()) { return false; }
             }
-            numMissingRasters = nfailed;
 
             task->complete();
             --task->shareCount;
@@ -454,12 +449,17 @@ void TileManager::updateTileSet(TileSet& _tileSet, const ViewState& _view) {
                 entry.tile->setProxyDepth(entry.m_proxyCounter > 0 ? std::max(maxVisS - tileId.s, 1) : 0);
                 m_tiles.push_back(entry.tile);
                 // check to see if a replacement is now available for missing raster
-                if (entry.numMissingRasters > 0) {
+                if (entry.numMissingRasters != 0) {
+                    // to persist numMissingRasters for cached tiles, we'd need to store in Tile itself, so
+                    //  instead we use a initial value of -1 to force check for new TileEntry, whether Tile
+                    //  is new or from cache
                     auto& srcs = _tileSet.source->rasterSources();
                     auto& rasters = entry.tile->rasters();
                     size_t offset = rasters.size() - srcs.size();
+                    entry.numMissingRasters = 0;
                     for (size_t ii = 0; ii < srcs.size(); ++ii) {
                         if (rasters[ii+offset].texture != srcs[ii]->emptyTexture()) { continue; }
+                        ++entry.numMissingRasters;
                         TileID id(tileId.x, tileId.y, tileId.z);
                         do {
                             id = id.getParent();
@@ -473,7 +473,6 @@ void TileManager::updateTileSet(TileSet& _tileSet, const ViewState& _view) {
                                 break;
                             }
                         } while (id.z > 14 || (id.z > 0 && id.z + 2 >= tileId.z));
-                        if (entry.numMissingRasters <= 0) { break; }
                     }
                 }
             } else if (entry.isInProgress()) {

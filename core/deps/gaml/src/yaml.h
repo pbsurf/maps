@@ -155,10 +155,10 @@ public:
     operator bool() const { return getTag() != Tag::UNDEFINED && getTag() != Tag::INVALID; }
     bool operator!() const { return !operator bool(); }
 
-    bool operator==(const char* s) { return getTag() == Tag::STRING && strVal == s; }
-    bool operator==(const std::string& s) { return operator==(s.c_str()); }
-    bool operator!=(const char* s) { return !operator==(s); }
-    bool operator!=(const std::string& s) { return !operator==(s); }
+    bool operator==(const char* s) const { return getTag() == Tag::STRING && strVal == s; }
+    bool operator==(const std::string& s) const { return operator==(s.c_str()); }
+    bool operator!=(const char* s) const { return !operator==(s); }
+    bool operator!=(const std::string& s) const { return !operator==(s); }
 
     // match yaml-cpp Node for easy replacement
     const std::string& Scalar() const { return getString(); }

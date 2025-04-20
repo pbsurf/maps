@@ -206,6 +206,7 @@ void Map::updateGlobals(const std::vector<SceneUpdate>& _sceneUpdates)
   SceneLoader::applyUpdates(config, _sceneUpdates);
   impl->scene->globalsGeneration++;
   impl->scene->tileManager()->clearTileSets();
+  impl->platform.requestRender();
 }
 
 void Map::setSceneReadyListener(SceneReadyCallback _onSceneReady) {
