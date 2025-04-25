@@ -282,8 +282,10 @@ bool LabelManager::priorityComparator(const LabelEntry& _a, const LabelEntry& _b
     if (_a.proxy != _b.proxy) {
         return _b.proxy;  // non-proxy over proxy
     }
-    if (int(_a.priority) != int(_b.priority)) {
-        return int(_a.priority) < int(_b.priority);
+    float aprio = std::nearbyint(_a.priority);
+    float bprio = std::nearbyint(_b.priority);
+    if (aprio != bprio) {
+        return aprio < bprio;
     }
     if (_a.tile && _b.tile) {
         if (_a.tile->getID().z != _b.tile->getID().z) {

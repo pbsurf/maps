@@ -74,6 +74,7 @@ struct TileManager::TileEntry {
             }
             tile = task->getTile();
             task.reset();
+            numMissingRasters = -1;  // tile for ClientDataSource can be replaced w/o new TileEntry
 
             return true;
         }
@@ -467,8 +468,8 @@ void TileManager::updateTileSet(TileSet& _tileSet, const ViewState& _view) {
                             if (proxy) {
                                 rasters[ii+offset].tileID = TileID(id.x, id.y, id.z, tileId.s);
                                 rasters[ii+offset].texture = proxy;
-                                LOGD("Found proxy %s for missing subtask raster %s %s",
-                                     id.toString().c_str(), srcs[ii]->name().c_str(), tileId.toString().c_str());
+                                LOGD("Found proxy %s for missing '%s' subtask raster '%s' %s", id.toString().c_str(),
+                                     _tileSet.source->name().c_str(), srcs[ii]->name().c_str(), tileId.toString().c_str());
                                 --entry.numMissingRasters;
                                 break;
                             }
