@@ -472,7 +472,7 @@ void TileManager::updateTileSet(TileSet& _tileSet, const ViewState& _view) {
                                 --entry.numMissingRasters;
                                 break;
                             }
-                        } while (id.z > 14 || (id.z > 0 && id.z + 2 >= tileId.z));
+                        } while (id.z > 13 || (id.z > 0 && id.z + 2 >= tileId.z));
                     }
                 }
             } else if (entry.isInProgress()) {
