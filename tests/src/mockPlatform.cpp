@@ -17,6 +17,7 @@
 #define DEFAULT_FONT "res/fonts/NotoSans-Regular.ttf"
 
 #include "log.h"
+#include "scene/styleContext.h"
 
 #ifdef TANGRAM_WINDOWS
 #define PATH_MAX 512
@@ -33,6 +34,8 @@ namespace Tangram {
 class Texture;
 bool userLoadSvg(const char* svg, size_t len, Texture* texture) { return false; }
 FONScontext* userCreateFontstash(FONSparams* params, int atlasFontPx) { return fonsCreateInternal(params); }
+
+NativeStyleFn userGetStyleFunction(Scene& scene, const std::string& jsSource) { return {}; }
 
 void logMsg(const char* fmt, ...) {
     va_list args;
