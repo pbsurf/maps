@@ -95,9 +95,13 @@ SQLITE_BASE := $(MODULE_BASE)
 SQLITE_GEN := $(SQLITE_BASE)/sqlite3.h $(SQLITE_BASE)/sqlite3.c
 GENERATED += $(SQLITE_GEN)
 
+ifneq ($(windir),)
+$(SQLITE_GEN):
+	cd $(SQLITE_BASE) && curl "https://www.sqlite.org/2020/sqlite-amalgamation-3320300.zip" -o sqlite.zip && tar -xf sqlite.zip && move sqlite-amalgamation-3320300\sqlite3.* .
+else
 $(SQLITE_GEN):
 	cd $(SQLITE_BASE) && curl "https://www.sqlite.org/2020/sqlite-amalgamation-3320300.zip" -o sqlite.zip && unzip sqlite.zip && mv sqlite-amalgamation-3320300/sqlite3.* .
-
+endif
 
 ## gaml
 MODULE_BASE = $(MAKE_BASE)/gaml
@@ -106,7 +110,11 @@ MODULE_SOURCES = src/yaml.cpp
 #MODULE_INC_PUBLIC = include
 MODULE_INC_PRIVATE = src ../double-conversion/include ../../include/tangram
 MODULE_DEFS_PRIVATE = GAML_LIB_ONLY GAML_DOUBLE_CONV=1 GAML_LOG=LOGE
+ifneq ($(windir),)
+MODULE_CFLAGS = /FI log.h
+else
 MODULE_CFLAGS = -include log.h
+endif
 
 include $(ADD_MODULE)
 

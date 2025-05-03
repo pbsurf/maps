@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-#include <GLFW/glfw3.h>
+//#include <GLFW/glfw3.h>
 
 #define DEFAULT "res/fonts/NotoSans-Regular.ttf"
 #define FONT_AR "res/fonts/NotoNaskh-Regular.ttf"
@@ -37,33 +37,36 @@ void WindowsPlatform::shutdown() {
     Platform::shutdown();
 }
 
-void WindowsPlatform::requestRender() const {
-    if (m_shutdown) { return; }
-    glfwPostEmptyEvent();
-}
+//~ void WindowsPlatform::requestRender() const {
+//~     if (m_shutdown) { return; }
+//~     glfwPostEmptyEvent();
+//~ }
 
 std::vector<FontSourceHandle> WindowsPlatform::systemFontFallbacksHandle() const {
     std::vector<FontSourceHandle> handles;
 
-    handles.emplace_back(Url(DEFAULT));
-    handles.emplace_back(Url(FONT_AR));
-    handles.emplace_back(Url(FONT_HE));
-    handles.emplace_back(Url(FONT_JA));
-    handles.emplace_back(Url(FALLBACK));
+    //handles.emplace_back(Url(DEFAULT));
+    //handles.emplace_back(Url(FONT_AR));
+    //handles.emplace_back(Url(FONT_HE));
+    //handles.emplace_back(Url(FONT_JA));
+    //handles.emplace_back(Url(FALLBACK));
 
     return handles;
 }
 
-bool WindowsPlatform::startUrlRequestImpl(const Url& _url, const UrlRequestHandle _request, UrlRequestId& _id) {
-    auto onURLResponse = [this, _request](UrlResponse&& response) {
-        onUrlResponse(_request, std::move(response));
-    };
-    _id = m_urlClient->addRequest(_url.string(), onURLResponse);
-    return false;
+bool WindowsPlatform::startUrlRequestImpl(const Url& _url, const HttpOptions& _options, const UrlRequestHandle _request, UrlRequestId& _id) {
+    _id = m_urlClient->addRequest(_url.string(), _options,
+                                  [this, _request](UrlResponse&& response) {
+                                      onUrlResponse(_request, std::move(response));
+                                  });
+    return true;
 }
 
 void WindowsPlatform::cancelUrlRequestImpl(const UrlRequestId _id) {
-    if (m_urlClient) {
+    if (!m_urlClient) { return; }
+    if (_id == UrlRequestId(-1)) {
+        m_urlClient->cancelAllRequests();
+    } else {
         m_urlClient->cancelRequest(_id);
     }
 }

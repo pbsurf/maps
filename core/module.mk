@@ -132,7 +132,16 @@ SHADER_HDRS = \
   generated/text_fs.h               \
   generated/text_vs.h
 
+ifneq ($(windir),)
+$(MODULE_BASE)/generated/%_vs.h: $(MODULE_BASE)/shaders/%.vs
+	scripts\concat.bat $*_vs $< > $@
 
+$(MODULE_BASE)/generated/%_fs.h: $(MODULE_BASE)/shaders/%.fs
+	scripts\concat.bat $*_fs $< > $@
+
+$(MODULE_BASE)/generated/%_glsl.h: $(MODULE_BASE)/shaders/%.glsl
+	scripts\concat.bat $*_glsl $< > $@
+else
 $(MODULE_BASE)/generated/%_vs.h: $(MODULE_BASE)/shaders/%.vs
 	(echo 'static const char* $*_vs = R"RAW_GLSL('; cat $<; echo ')RAW_GLSL";') > $@
 
@@ -141,14 +150,14 @@ $(MODULE_BASE)/generated/%_fs.h: $(MODULE_BASE)/shaders/%.fs
 
 $(MODULE_BASE)/generated/%_glsl.h: $(MODULE_BASE)/shaders/%.glsl
 	(echo 'static const char* $*_glsl = R"RAW_GLSL('; cat $<; echo ')RAW_GLSL";') > $@
-
+endif
 
 include $(ADD_MODULE)
 
 # we could make this an existence only dependency since actual shader header dependencies are in .d files
 $(MODULE_OBJS): $(SHADER_HDRS:%=$(MODULE_BASE)/%)
 
-$(OBJDIR)/$(MODULE_BASE)/src/text/fontContext.o: INC_PRIVATE := $(MODULE_BASE)/../../$(STYLUSLABS_DEPS)/nanovgXC/src
+$(OBJDIR)/$(MODULE_BASE)/src/text/fontContext.$(OBJEXT): INC_PRIVATE := $(MODULE_BASE)/../../$(STYLUSLABS_DEPS)/nanovgXC/src
 
 # dependencies
 

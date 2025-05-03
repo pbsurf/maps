@@ -754,7 +754,7 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
             for (const auto& hdr : headersNode.pairs()) {
                 headers += hdr.first.Scalar() + ": " + hdr.second.Scalar() + "\r\n";
             }
-            headers.resize(std::max(2UL, headers.size()) - 2);  // remove trailing \r\n
+            headers.resize(std::max(size_t(2), headers.size()) - 2);  // remove trailing \r\n
         } else if (headersNode.IsScalar()) {
           headers = headersNode.Scalar();
         }
