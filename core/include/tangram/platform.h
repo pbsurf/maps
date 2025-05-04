@@ -62,9 +62,6 @@ struct FontSourceHandle {
 // Platform-specific function for logging to console
 void logStr(const std::string& msg);
 
-template <typename... Params>
-void logMsg(Params&&... params) { logStr(fstring(std::forward<Params>(params)...)); }
-
 // log an already formatted string to console and to screen log
 void logAll(const std::string& msg);
 

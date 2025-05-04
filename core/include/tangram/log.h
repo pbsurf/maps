@@ -17,6 +17,9 @@
 
 namespace Tangram {
     std::string fstring(const char* fmt, ...);
+
+    template <typename... Params>
+    void logMsg(Params&&... params) { logStr(fstring(std::forward<Params>(params)...)); }
 }
 
 #ifdef __clang__

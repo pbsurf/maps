@@ -60,12 +60,7 @@ void AndroidPlatform::jniOnLoad(JavaVM* javaVM, JNIEnv* jniEnv, const char* ctrl
     setRenderModeMethodID = jniEnv->GetMethodID(tangramClass, "setRenderMode", "(I)V");
 }
 
-void logMsg(const char* fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    __android_log_vprint(ANDROID_LOG_DEBUG, "Tangram", fmt, args);
-    va_end(args);
-}
+void logStr(const std::string& msg) { __android_log_write(ANDROID_LOG_DEBUG, "Tangram", msg.c_str()); }
 
 AndroidPlatform::AndroidPlatform(JNIEnv* jniEnv, jobject mapController, jobject assetManager)
     : m_jniWorker(JniHelpers::getJVM()) {
