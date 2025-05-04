@@ -44,7 +44,7 @@ static constexpr const char * past_last_slash(const char * const str) {
 #define TANGRAM_MAX_BUFFER_LOG_SIZE 99999
 
 #define LOG_LINE(level, fmt, ...) \
-do { Tangram::logStr(Tangram::fstring(level " %s:%d: " fmt "\n", __FILENAME__, __LINE__, ## __VA_ARGS__)); } while(0)
+do { Tangram::logAll(Tangram::fstring(level " %s:%d: " fmt "\n", __FILENAME__, __LINE__, ## __VA_ARGS__)); } while(0)
 
 #if LOG_LEVEL >= 4
 #define LOGV(fmt, ...) LOG_LINE("VERBOSE", fmt, ## __VA_ARGS__)

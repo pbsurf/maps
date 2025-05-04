@@ -18,6 +18,8 @@ public:
     bool startUrlRequestImpl(const Url& _url, const HttpOptions& _options, const UrlRequestHandle _request, UrlRequestId& _id) override;
     void cancelUrlRequestImpl(const UrlRequestId _id) override;
 
+    static bool logToConsole;
+
 protected:
     std::unique_ptr<UrlClient> m_urlClient;
 };

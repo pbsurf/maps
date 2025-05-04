@@ -59,12 +59,14 @@ struct FontSourceHandle {
     bool isValid() const { return tag != None; }
 };
 
-// Print a formatted message to the console
-// Uses printf syntax to write a string to stderr (or logcat, on Android)
-void logMsg(const char* fmt, ...);
-
-// log an already formated string to console and to screen log
+// Platform-specific function for logging to console
 void logStr(const std::string& msg);
+
+template <typename... Params>
+void logMsg(Params&&... params) { logStr(fstring(std::forward<Params>(params)...)); }
+
+// log an already formatted string to console and to screen log
+void logAll(const std::string& msg);
 
 void initGLExtensions();
 

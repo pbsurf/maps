@@ -2,7 +2,6 @@
 #include "gl/hardware.h"
 #include "log.h"
 #include <stdio.h>
-#include <stdarg.h>
 
 //#include <GLFW/glfw3.h>
 
@@ -14,11 +13,14 @@
 
 namespace Tangram {
 
-void logMsg(const char* fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    vfprintf(stderr, fmt, args);
-    va_end(args);
+bool WindowsPlatform::logToConsole = false;
+
+void logStr(const std::string& msg) {
+    if (WindowsPlatform::logToConsole) {
+        fprintf(stderr, msg.c_str());
+    } else {
+        OutputDebugStringA(msg.c_str());
+    }
 }
 
 WindowsPlatform::WindowsPlatform()
