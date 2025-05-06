@@ -265,9 +265,12 @@ typedef char            GLchar;
 #define GL_ELEMENT_ARRAY_BUFFER         0x8893
 #define GL_ARRAY_BUFFER_BINDING         0x8894
 #define GL_ELEMENT_ARRAY_BUFFER_BINDING 0x8895
+#define GL_STREAM_DRAW                  0x88E0
 #define GL_STREAM_READ                  0x88E1
 #define GL_STATIC_DRAW                  0x88E4
+#define GL_STATIC_READ                  0x88E5
 #define GL_DYNAMIC_DRAW                 0x88E8
+#define GL_DYNAMIC_READ                 0x88E9
 #define GL_PIXEL_PACK_BUFFER            0x88EB
 
 // Program

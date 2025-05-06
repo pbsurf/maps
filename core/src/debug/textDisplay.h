@@ -60,6 +60,9 @@ private:
     UniformLocation m_uOrthoProj{"u_orthoProj"};
     UniformLocation m_uColor{"u_color"};
 
+    GLuint m_VBO = 0;
+    Vao m_vaos;
+    RenderState* m_rs = nullptr;
 };
 
 #define LOGS(fmt, ...) \

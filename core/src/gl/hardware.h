@@ -10,10 +10,10 @@ extern bool supportsMapBuffer;
 extern bool supportsVAOs;
 extern bool supportsTextureNPOT;
 extern bool supportsGLRGBA8OES;
-extern uint32_t maxTextureSize;
-extern uint32_t maxCombinedTextureUnits;
-extern uint32_t depthBits;
-extern uint32_t glVersion;
+extern int32_t maxTextureSize;
+extern int32_t maxCombinedTextureUnits;
+extern int32_t depthBits;
+extern int32_t glVersion;
 
 void loadCapabilities();
 void loadExtensions();

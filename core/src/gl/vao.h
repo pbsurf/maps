@@ -17,7 +17,7 @@ class Vao {
 
 public:
 
-    void initialize(RenderState& rs, ShaderProgram& _program, const VertexOffsets& _vertexOffsets,
+    void initialize(RenderState& rs, const VertexOffsets& _vertexOffsets,
                     VertexLayout& _layout, GLuint _vertexBuffer, GLuint _indexBuffer);
     bool isInitialized();
     void bind(unsigned int _index);

@@ -17,10 +17,10 @@ bool supportsVAOs = false;
 bool supportsTextureNPOT = false;
 bool supportsGLRGBA8OES = false;
 
-uint32_t maxTextureSize = 0;
-uint32_t maxCombinedTextureUnits = 0;
-uint32_t depthBits = 0;
-uint32_t glVersion = 200;
+int32_t maxTextureSize = 2048;
+int32_t maxCombinedTextureUnits = 16;
+int32_t depthBits = 24;
+int32_t glVersion = 200;
 static char* s_glExtensions;
 
 bool isAvailable(std::string _extension) {
@@ -71,15 +71,9 @@ void loadExtensions() {
 }
 
 void loadCapabilities() {
-    int val;
-    GL::getIntegerv(GL_MAX_TEXTURE_SIZE, &val);
-    maxTextureSize = val;
-
-    GL::getIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &val);
-    maxCombinedTextureUnits = val;
-
-    GL::getIntegerv(GL_DEPTH_BITS, &val);
-    depthBits = val;
+    GL::getIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);
+    GL::getIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &maxCombinedTextureUnits);
+    GL::getIntegerv(GL_DEPTH_BITS, &depthBits);
 
     float ver = 3.0f; // assume GL 3
     const char* verstr = (const char*) GL::getString(GL_VERSION);

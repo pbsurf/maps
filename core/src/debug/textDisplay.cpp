@@ -6,6 +6,7 @@
 #include "gl/glError.h"
 #include "gl/vertexLayout.h"
 #include "gl/renderState.h"
+#include "gl/hardware.h"
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtx/transform.hpp"
@@ -23,6 +24,7 @@ TextDisplay::TextDisplay() : m_margins(0.f), m_initialized(false) {
 }
 
 TextDisplay::~TextDisplay() {
+    if (m_rs && m_VBO) { m_rs->queueBufferDeletion(1, &m_VBO); m_vaos.dispose(*m_rs); }
     delete[] m_vertexBuffer;
 }
 
@@ -85,23 +87,36 @@ void TextDisplay::draw(RenderState& rs, const std::string& _text, int _posx, int
         vertices.push_back({data[(3 * 4) + stride], data[(3 * 4) + 1 + stride]});
         vertices.push_back({data[(0 * 4) + stride], data[(0 * 4) + 1 + stride]});
     }
-    vertexLayout.enable(rs, *m_shader, 0, (void*)vertices.data());
-
+    if (Hardware::supportsVAOs) {
+        GL::bufferData(GL_ARRAY_BUFFER, vertices.size()*vertexLayout.getStride(), vertices.data(), GL_STREAM_DRAW);
+    } else {
+        vertexLayout.enable(rs, *m_shader, 0, (void*)vertices.data());
+    }
     GL::drawArrays(GL_TRIANGLES, 0, nquads * 6);
 }
 
 void TextDisplay::draw(RenderState& rs, const View& _view, const std::vector<std::string>& _infos) {
-    GLint boundbuffer = -1;
+    //GLint boundbuffer = -1;
 
     if (!m_shader->use(rs)) { return; }
+
+    if (Hardware::supportsVAOs) {
+        if (!m_vaos.isInitialized()) {
+            GL::genBuffers(1, &m_VBO);
+            m_vaos.initialize(rs, {{0,0}}, vertexLayout, m_VBO, 0);
+            m_rs = &rs;
+        }
+        m_vaos.bind(0);
+    }
+    rs.vertexBuffer(m_VBO);
 
     rs.culling(GL_FALSE);
     rs.blending(GL_FALSE);
     rs.depthTest(GL_FALSE);
     rs.depthMask(GL_FALSE);
 
-    GL::getIntegerv(GL_ARRAY_BUFFER_BINDING, &boundbuffer);
-    rs.vertexBuffer(0);
+    //GL::getIntegerv(GL_ARRAY_BUFFER_BINDING, &boundbuffer);
+    rs.vertexBuffer(m_VBO);
 
     float textScale = _view.getWidth() > _view.getHeight() ? 2 : 1; //2.0f;
     glm::vec4 margins = m_margins/textScale;
@@ -134,7 +149,8 @@ void TextDisplay::draw(RenderState& rs, const View& _view, const std::vector<std
     }
 
     rs.culling(GL_TRUE);
-    rs.vertexBuffer(boundbuffer);
+    rs.vertexBuffer(0);  //boundbuffer);
+    if (m_VBO) { m_vaos.unbind(); }
 }
 
 }

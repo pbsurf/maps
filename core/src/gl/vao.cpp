@@ -7,7 +7,7 @@
 
 namespace Tangram {
 
-void Vao::initialize(RenderState& rs, ShaderProgram& _program, const VertexOffsets& _vertexOffsets,
+void Vao::initialize(RenderState& rs, const VertexOffsets& _vertexOffsets,
                      VertexLayout& _layout, GLuint _vertexBuffer, GLuint _indexBuffer) {
 
     m_glVAOs.resize(_vertexOffsets.size());

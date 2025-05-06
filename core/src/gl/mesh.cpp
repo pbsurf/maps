@@ -165,7 +165,7 @@ bool MeshBase::draw(RenderState& rs, ShaderProgram& _shader, bool _useVao) {
     if (useVao) {
         if (!m_vaos.isInitialized()) {
             // Capture vao state
-            m_vaos.initialize(rs, _shader, m_vertexOffsets, *m_vertexLayout, m_glVertexBuffer, m_glIndexBuffer);
+            m_vaos.initialize(rs, m_vertexOffsets, *m_vertexLayout, m_glVertexBuffer, m_glIndexBuffer);
         }
     } else {
         // Bind buffers for drawing

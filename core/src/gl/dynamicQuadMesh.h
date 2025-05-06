@@ -90,7 +90,7 @@ bool DynamicQuadMesh<T>::draw(RenderState& rs, ShaderProgram& shader, bool useVa
     if (useVao) {
         // Capture vao state for a default vertex offset of 0/0
         if (!m_vaos.isInitialized()) {
-            m_vaos.initialize(rs, shader, {{0,0}}, *m_vertexLayout, m_glVertexBuffer, rs.getQuadIndexBuffer());
+            m_vaos.initialize(rs, {{0,0}}, *m_vertexLayout, m_glVertexBuffer, rs.getQuadIndexBuffer());
         }
         m_vaos.bind(0);
     } else {
@@ -140,7 +140,7 @@ bool DynamicQuadMesh<T>::drawRange(RenderState& rs, ShaderProgram& shader,
     if (useVao) {
         // Capture vao state for a default vertex offset of 0/0
         if (!m_vaos.isInitialized()) {
-            m_vaos.initialize(rs, shader, {{0,0}}, *m_vertexLayout, m_glVertexBuffer, rs.getQuadIndexBuffer());
+            m_vaos.initialize(rs, {{0,0}}, *m_vertexLayout, m_glVertexBuffer, rs.getQuadIndexBuffer());
         }
         m_vaos.bind(0);
     } else {
