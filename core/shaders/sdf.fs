@@ -1,10 +1,10 @@
 #pragma tangram: extensions
 
 #ifdef GL_ES
-    precision mediump float;
-    #define LOWP lowp
+precision highp float;
+#define LOWP lowp
 #else
-    #define LOWP
+#define LOWP
 #endif
 
 #pragma tangram: defines

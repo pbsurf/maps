@@ -155,7 +155,7 @@ endif
 include $(ADD_MODULE)
 
 # we could make this an existence only dependency since actual shader header dependencies are in .d files
-$(MODULE_OBJS): $(SHADER_HDRS:%=$(MODULE_BASE)/%)
+$(MODULE_OBJS): | $(SHADER_HDRS:%=$(MODULE_BASE)/%)
 
 $(OBJDIR)/$(MODULE_BASE)/src/text/fontContext.$(OBJEXT): INC_PRIVATE := $(MODULE_BASE)/../../$(STYLUSLABS_DEPS)/nanovgXC/src
 

@@ -1,7 +1,7 @@
 #pragma tangram: extensions
 
 #ifdef GL_ES
-precision mediump float;
+precision highp float;
 #define LOWP lowp
 #else
 #define LOWP

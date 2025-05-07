@@ -1,7 +1,8 @@
 #pragma tangram: extensions
 
 #ifdef GL_ES
-precision mediump float;
+// with mediump, error in u_ortho matrix can be several pixels at high DPI
+precision highp float;
 #define LOWP lowp
 #else
 #define LOWP
