@@ -3,6 +3,9 @@
 #include "log.h"
 #include "platform.h"
 #include <memory>
+#ifdef FONS_WPATH
+#include <codecvt>
+#endif
 
 #define SDF_WIDTH 6
 //#define MIN_LINE_WIDTH 4
@@ -357,7 +360,12 @@ void FontContext::addFont(const FontDescription& _ft, std::vector<char>&& _sourc
 int FontContext::loadFontSource(const std::string& _name, const FontSourceHandle& _source)
 {
     if(_source.tag == FontSourceHandle::FontPath) {
-        return fonsAddFont(m_fons, _name.c_str(), _source.fontPath.path().c_str());
+#ifdef FONS_WPATH
+        static std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> cv;
+        return fonsAddFont(m_fons, _name.c_str(), (char*)cv.from_bytes(_source.fontPath.string()).data());
+#else
+        return fonsAddFont(m_fons, _name.c_str(), _source.fontPath.string().c_str());
+#endif
     }
     if(_source.tag == FontSourceHandle::FontLoader) {
         auto fontData = _source.fontLoader();
