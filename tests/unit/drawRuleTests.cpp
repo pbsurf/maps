@@ -2,7 +2,7 @@
 
 #include "scene/drawRule.h"
 #include "scene/sceneLayer.h"
-#include "platform.h"
+#include "log.h"
 
 #include <cstdio>
 #include <algorithm>
