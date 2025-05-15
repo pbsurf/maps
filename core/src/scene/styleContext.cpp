@@ -207,6 +207,7 @@ bool StyleContext::evalStyle(FunctionID _id, StyleParamKey _key, StyleParam::Val
             case StyleParamKey::interactive:
             case StyleParamKey::text_interactive:
             case StyleParamKey::visible:
+            case StyleParamKey::outline_visible:
             case StyleParamKey::text_visible:
             case StyleParamKey::text_optional:
                 _val = value;
