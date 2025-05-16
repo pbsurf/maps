@@ -2,6 +2,7 @@
 #include "data/properties.h"
 #include "rapidjson/writer.h"
 #include <algorithm>
+#include <cmath>
 
 namespace Tangram {
 
@@ -156,7 +157,9 @@ std::string Properties::toJson() const {
         if (item.value.is<std::string>()) {
             writer.String(item.value.get<std::string>().c_str());
         } else if (item.value.is<double>()) {
-            writer.Double(item.value.get<double>());
+            double val = item.value.get<double>();
+            if (std::isfinite(val)) { writer.Double(val); }
+            else { writer.Null(); }
         } else {
             writer.String("");
         }

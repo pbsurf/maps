@@ -105,9 +105,9 @@ void Marker::update(float dt, const View& view) {
     // Update easing
     if (!m_ease.finished()) { m_ease.update(dt); }
     // Apply marker-view translation to the model matrix
-    const auto& viewOrigin = view.getPosition();
-    m_modelMatrix[3][0] = m_origin.x - viewOrigin.x;
-    m_modelMatrix[3][1] = m_origin.y - viewOrigin.y;
+    auto relativeMeters = view.getRelativeMeters(m_origin);
+    m_modelMatrix[3][0] = float(relativeMeters.x);
+    m_modelMatrix[3][1] = float(relativeMeters.y);
 
     m_modelViewProjectionMatrix = view.getViewProjectionMatrix() * m_modelMatrix;
 }
