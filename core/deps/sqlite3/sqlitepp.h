@@ -114,7 +114,7 @@ public:
     else {
       while((res = sqlite3_step(stmt)) == SQLITE_ROW) {
         apply_tuple(cb, _columns<typename func_traits<F>::argument_tuple>::get(*this));
-        if (abort && *abort) { break; }
+        if (abort && *abort) { res = SQLITE_OK; break; }
       }
     }
     bool ok = res == SQLITE_DONE || res == SQLITE_OK;
