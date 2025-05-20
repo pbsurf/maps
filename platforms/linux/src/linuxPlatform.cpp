@@ -17,7 +17,7 @@
 
 namespace Tangram {
 
-void logStr(const std::string& msg) { fprintf(stderr, msg.c_str()); }
+void logStr(const std::string& msg) { fputs(msg.c_str(), stderr); }
 
 LinuxPlatform::LinuxPlatform()
     : LinuxPlatform(UrlClient::Options{}) {}

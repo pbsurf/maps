@@ -12,12 +12,7 @@
 
 namespace Tangram {
 
-void logMsg(const char* fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    vfprintf(stderr, fmt, args);
-    va_end(args);
-}
+void logStr(const std::string& msg) { fputs(msg.c_str(), stderr); }
 
 void setCurrentThreadPriority(int priority) {
     // POSIX thread priority is between -20 (highest) and 19 (lowest),

@@ -37,7 +37,7 @@ FONScontext* userCreateFontstash(FONSparams* params, int atlasFontPx) { return f
 
 NativeStyleFn userGetStyleFunction(Scene& scene, const std::string& jsSource) { return {}; }
 
-void logStr(const std::string& msg) { fprintf(stderr, msg.c_str()); }
+void logStr(const std::string& msg) { fputs(msg.c_str(), stderr); }
 
 MockPlatform::MockPlatform() {
     m_baseUrl = Url("file:///");
